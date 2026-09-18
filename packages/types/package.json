@@ -1,0 +1,22 @@
+{
+  "name": "@itqan/types",
+  "version": "0.0.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ayah": "./src/ayah.ts",
+    "./mutashabihat": "./src/mutashabihat.ts",
+    "./srs": "./src/srs.ts",
+    "./session": "./src/session.ts",
+    "./user": "./src/user.ts"
+  },
+  "scripts": {
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "eslint": "^8.57.0"
+  }
+}

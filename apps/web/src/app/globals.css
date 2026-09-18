@@ -1,0 +1,245 @@
+/**
+ * Global styles for Itqan Web App
+ * RTL-first, Arabic typography, Calm Precision design
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-brand-primary: #1B4332;
+    --color-brand-secondary: #1D2A44;
+    --color-brand-accent: #C5A059;
+    --color-surface-canvas: #F3EEE4;
+    --color-surface-elevated: #FFFCF7;
+    --color-surface-brand: #1B4332;
+    --color-surface-icon: #F3EEE4;
+    --color-text-primary: #1A1A1A;
+    --color-text-secondary: #555555;
+    --color-text-inverse: #FDFBF7;
+    --color-state-positive: #2D7A4E;
+    --color-state-attention: #D89E3A;
+    --color-state-danger: #B94A48;
+    --color-state-info: #4A6FA5;
+    --color-divider: #E4D9C8;
+    --color-scope-mahram: #B58484;
+    --ease-entrance: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  }
+
+  * {
+    @apply border-divider;
+  }
+
+  html {
+    @apply scroll-smooth;
+    direction: rtl;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  body {
+    @apply bg-surface-canvas text-text-primary font-body antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Arabic text rendering optimizations */
+  .font-quran {
+    font-family: 'Uthmanic Hafs', 'KFGQPC Uthmanic Script Hafs', serif;
+    font-variant-ligatures: common-ligatures contextual;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .font-heading {
+    font-family: var(--font-amiri), 'Amiri', 'Noto Naskh Arabic', 'Traditional Arabic', serif;
+  }
+
+  .font-body {
+    font-family: var(--font-noto-naskh), 'Noto Naskh Arabic', 'Amiri', 'Traditional Arabic', sans-serif;
+  }
+
+  .font-admin {
+    font-family: 'GE SS Two', 'Alexandria', system-ui, sans-serif;
+  }
+
+  .font-dyslexia {
+    font-family: 'Sakkal Majalla', 'Taha', 'GE SS Two', sans-serif;
+    line-height: 1.75 !important;
+    letter-spacing: 0.02em;
+  }
+
+  /* RTL utilities */
+  .rtl { direction: rtl; }
+  .ltr { direction: ltr; }
+
+  /* Logical properties for RTL support */
+  .ps-4 { padding-inline-start: 1rem; }
+  .pe-4 { padding-inline-end: 1rem; }
+  .ms-4 { margin-inline-start: 1rem; }
+  .me-4 { margin-inline-end: 1rem; }
+
+  /* Focus visible for accessibility */
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand-primary ring-offset-2 ring-surface-elevated;
+  }
+
+  /* Selection colors */
+  ::selection {
+    @apply bg-brand-primary/20 text-text-primary;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-divider rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-text-muted;
+  }
+
+  /* Print styles */
+  @media print {
+    .no-print { display: none !important; }
+    body { @apply bg-white text-black; }
+  }
+}
+
+@layer components {
+  /* Container */
+  .container-main {
+    @apply max-w-content-desktop mx-auto px-4 sm:px-5 lg:px-6;
+  }
+
+  .icon-tile {
+    @apply flex items-center justify-center rounded-xl bg-brand-primary text-surface-canvas shrink-0;
+  }
+
+  .surface-card {
+    @apply rounded-2xl bg-surface-elevated border border-divider shadow-sm;
+  }
+
+  .btn-primary {
+    @apply inline-flex;
+  }
+  
+  .container-mobile {
+    @apply max-w-content-mobile mx-auto px-4;
+  }
+
+  /* Page transitions */
+  .page-enter {
+    @apply animate-fade-in animate-slide-in-right;
+  }
+  .page-exit {
+    @apply animate-fade-out animate-slide-out-left;
+  }
+
+  /* Mushaf specific */
+  .mushaf-page {
+    @apply font-quran leading-[3rem] text-mushaf select-none;
+    direction: rtl;
+  }
+  
+  .mushaf-word {
+    @apply inline-block cursor-pointer transition-colors duration-150;
+    padding: 0 0.125em;
+  }
+  
+  .mushaf-word:hover {
+    @apply bg-brand-primary/10 rounded-sm;
+  }
+  
+  .mushaf-word.active {
+    @apply bg-brand-primary/20;
+  }
+  
+  .mushaf-word.error-jaliyy {
+    @apply text-state-danger underline decoration-wavy underline-offset-2;
+  }
+  
+  .mushaf-word.error-khafiyy {
+    @apply text-state-attention underline decoration-dotted underline-offset-2;
+  }
+  
+  .mushaf-word.hesitation {
+    @apply text-state-attention opacity-70;
+  }
+}
+
+@layer utilities {
+  /* Text truncation at word boundary */
+  .truncate-arabic {
+    @apply truncate;
+    text-overflow: ellipsis;
+    word-break: keep-all;
+  }
+
+  /* Animation keyframes */
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  @keyframes slide-in-right {
+    from { transform: translateX(1rem); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes slide-out-left {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(-1rem); opacity: 0; }
+  }
+  @keyframes slide-up {
+    from { transform: translateY(0.5rem); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .animate-fade-in { animation: fade-in 250ms var(--ease-entrance) forwards; }
+  .animate-fade-out { animation: fade-out 150ms var(--ease-exit) forwards; }
+  .animate-slide-in-right { animation: slide-in-right 250ms var(--ease-entrance) forwards; }
+  .animate-slide-out-left { animation: slide-out-left 150ms var(--ease-exit) forwards; }
+  .animate-slide-up { animation: slide-up 250ms var(--ease-entrance) forwards; }
+  .animate-pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
+  .animate-spin { animation: spin 1s linear infinite; }
+
+  /* Touch targets */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Text balance for headlines */
+  .text-balance { text-wrap: balance; }
+
+  /* Arabic numeral support */
+  .arabic-numerals { font-variant-numeric: tabular-nums; }
+}
