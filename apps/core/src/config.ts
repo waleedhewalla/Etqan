@@ -23,7 +23,7 @@ const envSchema = z.object({
   JWT_REFRESH_EXPIRY: z.string().default('90d'),
   
   // CORS
-  CORS_ORIGIN: z.string().default('http://localhost:9010'),
+  CORS_ORIGIN: z.string().default('http://localhost:9050'),
   
   // API
   API_URL: z.string().url().default('http://localhost:4000'),
