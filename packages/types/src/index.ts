@@ -19,7 +19,15 @@ export * from './session';
 // User/Role/Permission types
 export * from './user';
 
+// Gamification types
+export * from './gamification';
+
+// Multi-tenancy types
+export * from './tenant';
+
 // Re-export common types
 export type { Rating } from './srs';
 export type { SessionMode, SessionStatus } from './session';
 export type { Role, PermissionCode } from './user';
+export type { BadgeCategory } from './gamification';
+export type { TenantPlanTier, TenantFeature } from './tenant';

@@ -82,7 +82,7 @@ export interface ReviewLog {
 export interface QueueItem {
   card: StudentCard;
   priority: number;
-  reason: 'new' | 'overdue' | 'due-today' | 'mutashabihat-paired' | 'recovery' | 'upcoming-assessment';
+  reason: 'new' | 'overdue' | 'due-today' | 'mutashabihat-paired' | 'recovery' | 'upcoming-assessment' | 'sabaq' | 'sabqi' | 'manzil';
   estimatedMinutes: number;
   rationale: string;
 }
@@ -95,4 +95,20 @@ export interface DailyQueue {
   newCount: number;
   reviewCount: number;
   mutashabihatCount: number;
+}
+
+// Gatekeeper Rule: blocks new memorization until recent review mastery >= threshold
+export interface GatekeeperConfig {
+  enabled: boolean;
+  threshold: number; // default 0.85 (85%)
+  lookbackDays: number; // how many days of recent reviews to consider
+  minReviewCount: number; // minimum reviews needed to evaluate
+}
+
+export interface GatekeeperState {
+  locked: boolean;
+  currentMastery: number;
+  threshold: number;
+  deficitCards: number; // cards below threshold
+  message: string;
 }

@@ -15,6 +15,14 @@ import {
   LifeBuoy,
   GraduationCap,
   Users,
+  Lock,
+  Shield,
+  Award,
+  Star,
+  Trophy,
+  Zap,
+  Music,
+  Volume2,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { AppShell } from '@/components/AppShell';
@@ -64,6 +72,27 @@ export default function StudentDashboard() {
     message: 'فاتتك جلسة أمس. استأنفي بخطة ٧ دقائق للتعويض',
     minutes: 7,
   };
+
+  // Gatekeeper state (Feature 1)
+  const gatekeeper = {
+    locked: true,
+    currentMastery: 0.74,
+    threshold: 0.85,
+    deficitCards: 4,
+    message: 'نسبة إتقانك في المراجعة الأخيرة 74% أقل من 85% المعتمدة. وفقاً للمنهجية الأصيلة: «لا يُؤخذ الجديد حتى يثبت القديم». يرجى التركيز على المراجعة اليوم لفك القفل.',
+  };
+
+  // Gamification badges (Feature 5)
+  const badges = [
+    { id: 'streak-7', nameAr: 'سلسلة ٧ أيام', icon: '🔥', earned: true, earnedAt: '2026-09-10' },
+    { id: 'streak-14', nameAr: 'سلسلة ١٤ يوم', icon: '🔥', earned: true, earnedAt: '2026-09-17' },
+    { id: 'surah-fatiha', nameAr: 'إتقان الفاتحة', icon: '📜', earned: true, earnedAt: '2026-08-20' },
+    { id: 'surah-baqarah', nameAr: 'إتقان البقرة', icon: '📜', earned: true, earnedAt: '2026-09-05' },
+    { id: 'tajweed-zero', nameAr: 'صفر أخطاء تجويد', icon: '🌟', earned: true, earnedAt: '2026-09-14' },
+    { id: 'muraja-5', nameAr: '٥ مراجعات أقران', icon: '🤝', earned: false, earnedAt: null },
+    { id: 'streak-30', nameAr: 'سلسلة ٣٠ يوم', icon: '💎', earned: false, earnedAt: null },
+    { id: 'juz-30', nameAr: 'إتمام جزء عمّ', icon: '🏆', earned: false, earnedAt: null },
+  ];
 
   if (isLoading) {
     return (
@@ -179,6 +208,52 @@ export default function StudentDashboard() {
             </Card>
           </section>
 
+          {/* Gatekeeper Rule Banner */}
+          {gatekeeper.locked && (
+            <section className="mb-5">
+              <Card className="border-state-danger/30 bg-state-danger/5 shadow-lg">
+                <CardContent>
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-state-danger/10 flex items-center justify-center flex-shrink-0">
+                      <Lock className="w-6 h-6 text-state-danger" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-heading font-bold text-text-primary">قفل الحفظ الجديد مفعّل</h3>
+                        <Badge variant="red" size="sm">حارس الإتقان</Badge>
+                      </div>
+                      <p className="text-sm text-text-secondary mb-3">{gatekeeper.message}</p>
+                      <div className="flex items-center gap-4 mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-text-secondary">إتقانك الحالي:</span>
+                          <span className="font-bold text-state-danger text-lg">{Math.round(gatekeeper.currentMastery * 100)}%</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-text-secondary">المطلوب:</span>
+                          <span className="font-bold text-state-positive text-lg">{Math.round(gatekeeper.threshold * 100)}%</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-text-secondary">بطاقات تحتاج تحسين:</span>
+                          <span className="font-bold text-state-attention">{gatekeeper.deficitCards}</span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-surface-canvas rounded-full h-3 mb-3">
+                        <div
+                          className="bg-state-danger h-3 rounded-full transition-all duration-500"
+                          style={{ width: `${Math.round(gatekeeper.currentMastery * 100)}%` }}
+                        />
+                      </div>
+                      <Button variant="primary" size="sm">
+                        <Shield className="w-4 h-4 ml-2" />
+                        ابدئي مراجعة فك القفل
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
           {recovery.missed && (
             <section className="mb-5">
               <Card className="border-state-attention/30 bg-state-attention/5">
@@ -229,7 +304,7 @@ export default function StudentDashboard() {
 
       {activeTab === 'mushaf' && <MushafTab onReview={() => setActiveTab('today')} />}
       {activeTab === 'mutashabihat' && <MutashabihatTab />}
-      {activeTab === 'progress' && <ProgressTab />}
+      {activeTab === 'progress' && <ProgressTab badges={badges} />}
       {activeTab === 'curriculum' && <CurriculumTracks onOpenMushaf={() => setActiveTab('mushaf')} />}
       {activeTab === 'account' && <AccountPanel />}
       {activeTab === 'stats' && (
@@ -406,7 +481,10 @@ function MutashabihatTab() {
   );
 }
 
-function ProgressTab() {
+function ProgressTab({ badges }: { badges: Array<{ id: string; nameAr: string; icon: string; earned: boolean; earnedAt: string | null }> }) {
+  const earned = badges.filter(b => b.earned);
+  const locked = badges.filter(b => !b.earned);
+
   return (
     <div className="space-y-4">
       <Card>
@@ -434,24 +512,48 @@ function ProgressTab() {
         </CardContent>
       </Card>
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader><CardTitle>الشهادات والشارات</CardTitle></CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-3">
-              <Badge variant="gold" size="lg">الفاتحة</Badge>
-              <Badge variant="green" size="lg">البقرة</Badge>
-              <Badge variant="info" size="lg">مراجعة أسبوعية</Badge>
+      {/* Gamification Badges */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-brand-accent" />
+            الشارات والإنجازات
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-4">
+            <h4 className="text-sm font-medium text-text-secondary mb-3">مكتسبة ({earned.length})</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+              {earned.map(b => (
+                <div key={b.id} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-brand-accent/5 border border-brand-accent/20">
+                  <span className="text-3xl">{b.icon}</span>
+                  <span className="text-xs font-medium text-text-primary text-center">{b.nameAr}</span>
+                  <span className="text-[10px] text-text-muted">{b.earnedAt}</span>
+                </div>
+              ))}
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>سجل الأخطاء</CardTitle></CardHeader>
-          <CardContent>
-            <p className="text-text-secondary text-sm">لا توجد أخطاء مسجلة بعد. ابدئي جلسة لتسجيل التقدم.</p>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+          <div>
+            <h4 className="text-sm font-medium text-text-secondary mb-3">قادمة ({locked.length})</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+              {locked.map(b => (
+                <div key={b.id} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-surface-canvas border border-divider opacity-50">
+                  <span className="text-3xl grayscale">{b.icon}</span>
+                  <span className="text-xs font-medium text-text-muted text-center">{b.nameAr}</span>
+                  <Lock className="w-3 h-3 text-text-muted" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>سجل الأخطاء</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-text-secondary text-sm">لا توجد أخطاء مسجلة بعد. ابدئي جلسة لتسجيل التقدم.</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

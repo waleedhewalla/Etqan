@@ -76,3 +76,11 @@ export const MIN_INTERVALS = {
   good: 1,         // 1 day
   easy: 4,         // 4 days
 } as const;
+
+// Gatekeeper defaults
+export const GATEKEEPER_DEFAULTS = {
+  enabled: true,
+  threshold: 0.85,
+  lookbackDays: 7,
+  minReviewCount: 3,
+} as const;

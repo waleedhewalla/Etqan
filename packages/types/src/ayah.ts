@@ -68,3 +68,61 @@ export interface StudentTransition {
   reps: number;
   lapses: number;
 }
+
+// Tajweed Interactive Learning Objects (RLOs)
+export type TajweedCategory = 'noon_sakinah' | 'meem_sakinah' | 'madd' | 'qalqalah' | 'lam' | 'ra' | 'makhaarij' | 'sifaat';
+
+export interface TajweedRule {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+  transliteration: string;
+  category: TajweedCategory;
+  descriptionAr: string;
+  exampleAyahRef: Ref;
+  exampleText: string;
+  audioUrl: string | null;
+  color: string;
+}
+
+export interface TajweedRLO {
+  rule: TajweedRule;
+  mastery: number;
+  practiceCount: number;
+  lastPracticedAt: Date | null;
+}
+
+// Tasmi / SpeedGrader types
+export interface TasmiSubmission {
+  id: string;
+  studentId: string;
+  studentName: string;
+  passage: Passage;
+  audioUrl: string | null;
+  durationSeconds: number;
+  submittedAt: Date;
+  previousMastery: number;
+  sessionType: 'sabaq' | 'sabaq_para' | 'manzil';
+  aiPreScreen: AIPreScreen | null;
+  teacherReview: TeacherReview | null;
+}
+
+export interface AIPreScreen {
+  hifzAccuracy: number;
+  tajweedAccuracy: number;
+  fluencyScore: number;
+  confidence: number;
+  flaggedErrors: string[];
+  readyForApproval: boolean;
+}
+
+export interface TeacherReview {
+  hifzScore: number;
+  tajweedScore: number;
+  fluencyScore: number;
+  weightedTotal: number;
+  verdict: 'approved' | 'needs_review' | 'rejected';
+  notes: string;
+  reviewedAt: Date;
+  reviewedBy: string;
+}

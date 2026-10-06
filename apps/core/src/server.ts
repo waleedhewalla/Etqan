@@ -9,6 +9,7 @@ import { fastifySwagger } from '@fastify/swagger';
 import { fastifySwaggerUi } from '@fastify/swagger-ui';
 
 import { config } from './config';
+import { getDb, closeDb } from './db';
 import { jwtPlugin } from './lib/jwt';
 import { authRoutes } from './modules/auth/routes';
 import { sectionRoutes } from './modules/section/routes';
@@ -151,6 +152,10 @@ async function buildApp() {
 async function start() {
   const app = await buildApp();
 
+  // Initialize DB connection pool
+  getDb();
+  app.log.info('Database connection pool initialized');
+
   try {
     await app.listen({ port: config.PORT, host: '0.0.0.0' });
     app.log.info(`Server listening on port ${config.PORT}`);
@@ -159,11 +164,15 @@ async function start() {
     process.exit(1);
   }
 
-  process.on('SIGTERM', async () => {
-    app.log.info('SIGTERM received, shutting down gracefully');
+  const shutdown = async (signal: string) => {
+    app.log.info(`${signal} received, shutting down gracefully`);
     await app.close();
+    await closeDb();
     process.exit(0);
-  });
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 start();

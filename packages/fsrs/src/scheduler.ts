@@ -4,8 +4,8 @@
  * With FSRS-C chain propagation for mutashabihat
  */
 
-import type { FSRSParameters, Rating, CardState, ScheduledCard, ReviewLog } from '../types/src/srs';
-import { FSRS_DEFAULTS, RATING_TO_FSRS, STATE_TRANSITIONS, MIN_INTERVALS } from './constants';
+import type { FSRSParameters, Rating, CardState, ScheduledCard, ReviewLog, GatekeeperConfig, GatekeeperState } from '../types/src/srs';
+import { FSRS_DEFAULTS, RATING_TO_FSRS, STATE_TRANSITIONS, MIN_INTERVALS, GATEKEEPER_DEFAULTS } from './constants';
 
 /**
  * Core FSRS-4.5 algorithm
@@ -216,6 +216,44 @@ export function estimateRetention(card: CardState, futureDate: Date, params: FSR
   if (daysUntil <= 0) return card.retrievability;
   
   return Math.exp(-daysUntil / Math.max(card.stability, 0.001));
+}
+
+/**
+ * Gatekeeper Rule: evaluates whether new memorization should be locked
+ * based on recent review mastery falling below threshold
+ */
+export function checkGatekeeper(
+  recentCards: CardState[],
+  config: GatekeeperConfig = GATEKEEPER_DEFAULTS
+): GatekeeperState {
+  if (!config.enabled) {
+    return { locked: false, currentMastery: 1, threshold: config.threshold, deficitCards: 0, message: '' };
+  }
+
+  const now = new Date();
+  const lookbackMs = config.lookbackDays * 24 * 60 * 60 * 1000;
+  const eligible = recentCards.filter(c =>
+    c.lastReviewedAt && (now.getTime() - c.lastReviewedAt.getTime()) <= lookbackMs &&
+    c.state !== 'new'
+  );
+
+  if (eligible.length < config.minReviewCount) {
+    return { locked: false, currentMastery: 1, threshold: config.threshold, deficitCards: 0, message: '' };
+  }
+
+  const avgMastery = eligible.reduce((sum, c) => sum + c.retrievability, 0) / eligible.length;
+  const deficitCards = eligible.filter(c => c.retrievability < config.threshold).length;
+  const locked = avgMastery < config.threshold;
+
+  return {
+    locked,
+    currentMastery: Math.round(avgMastery * 1000) / 1000,
+    threshold: config.threshold,
+    deficitCards,
+    message: locked
+      ? `نسبة إتقانك في المراجعة الأخيرة ${Math.round(avgMastery * 100)}% أقل من ${Math.round(config.threshold * 100)}% المعتمدة. وفقاً للمنهجية الأصيلة: «لا يُؤخذ الجديد حتى يثبت القديم». يرجى التركيز على المراجعة اليوم لفك القفل.`
+      : '',
+  };
 }
 
 /**

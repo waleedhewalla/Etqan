@@ -2,14 +2,14 @@
 
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Input } from '@itqan/ui';
-import { Users, AlertCircle, TrendingUp, BookOpen, Clock, Trophy, LifeBuoy, UserRound } from 'lucide-react';
+import { Users, AlertCircle, TrendingUp, BookOpen, Clock, Trophy, LifeBuoy, UserRound, Mic, CheckCircle2, Bot, Star } from 'lucide-react';
 import { formatRelativeTime } from '@itqan/ui';
 import { AppShell } from '@/components/AppShell';
 import { HelpTickets } from '@/components/HelpTickets';
 import { AccountPanel } from '@/components/AccountPanel';
 
 export default function TeacherDashboard() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'students' | 'cases' | 'assessments' | 'reports' | 'account' | 'help'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'students' | 'speedgrader' | 'cases' | 'assessments' | 'reports' | 'account' | 'help'>('overview');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Mock data
@@ -46,6 +46,7 @@ export default function TeacherDashboard() {
       items={[
         { id: 'overview', label: 'نظرة عامة', icon: TrendingUp },
         { id: 'students', label: 'قائمة الطالبات', icon: Users },
+        { id: 'speedgrader', label: 'التسميع والتقييم', icon: Mic },
         { id: 'cases', label: 'الحالات المفتوحة', icon: AlertCircle },
         { id: 'assessments', label: 'التقييمات', icon: BookOpen },
         { id: 'reports', label: 'تقارير الجودة', icon: Trophy },
@@ -65,6 +66,7 @@ export default function TeacherDashboard() {
     >
       {activeTab === 'overview' && <OverviewTab stats={sectionStats} upcoming={upcomingAssessments} cases={cases} />}
       {activeTab === 'students' && <StudentsTab students={students} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />}
+      {activeTab === 'speedgrader' && <SpeedGraderTab />}
       {activeTab === 'cases' && <CasesTab cases={cases} />}
       {activeTab === 'assessments' && <AssessmentsTab upcoming={upcomingAssessments} />}
       {activeTab === 'reports' && <ReportsTab />}
@@ -344,6 +346,214 @@ function ReportsTab() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function SpeedGraderTab() {
+  const [selectedSubmission, setSelectedSubmission] = useState<number | null>(null);
+  const [hifzScore, setHifzScore] = useState(90);
+  const [tajweedScore, setTajweedScore] = useState(85);
+  const [fluencyScore, setFluencyScore] = useState(92);
+  const [teacherNotes, setTeacherNotes] = useState('');
+
+  const queue = [
+    { id: 1, student: 'فاطمة أحمد', passage: 'سورة البقرة (الآيات ١-٥)', type: 'sabaq', duration: '٢:١٥', prevMastery: 82, ai: { hifz: 88, tajweed: 85, fluency: 90, ready: true } },
+    { id: 2, student: 'مريم علي', passage: 'سورة آل عمران (الآيات ١٠-٢٠)', type: 'sabaq_para', duration: '١:٤٥', prevMastery: 91, ai: { hifz: 95, tajweed: 92, fluency: 96, ready: true } },
+    { id: 3, student: 'عائشة محمد', passage: 'سورة النساء (الآيات ١-١٠)', type: 'sabaq', duration: '٣:٠٠', prevMastery: 65, ai: { hifz: 72, tajweed: 68, fluency: 75, ready: false } },
+    { id: 4, student: 'زينب عمر', passage: 'سورة المائدة (الآيات ٣٠-٤٠)', type: 'manzil', duration: '١:٣٠', prevMastery: 88, ai: { hifz: 94, tajweed: 91, fluency: 97, ready: true } },
+    { id: 5, student: 'خديجة حسن', passage: 'سورة الأنعام (الآيات ١-١٥)', type: 'sabaq_para', duration: '٢:٣٠', prevMastery: 73, ai: { hifz: 80, tajweed: 76, fluency: 82, ready: false } },
+  ];
+
+  const weightedTotal = Math.round((hifzScore * 0.4) + (tajweedScore * 0.4) + (fluencyScore * 0.2));
+  const selected = queue.find(q => q.id === selectedSubmission);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-heading text-xl font-bold text-text-primary flex items-center gap-2">
+          <Mic className="w-5 h-5 text-brand-primary" />
+          طابور التسميع المجدول
+        </h2>
+        <div className="flex items-center gap-3">
+          <Badge variant="amber">{queue.length} تسميعات قيد المراجعة</Badge>
+          <Badge variant="green">تم تقييم ٢٠ اليوم</Badge>
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-5 gap-4">
+        {/* Queue List */}
+        <div className="lg:col-span-2 space-y-2">
+          <p className="text-sm text-text-secondary font-medium">الأولوية: الورد الجديد ثم السبع ثم الأقدم</p>
+          {queue.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setSelectedSubmission(item.id)}
+              className={`w-full text-right p-4 rounded-xl border transition-all cursor-pointer ${
+                selectedSubmission === item.id
+                  ? 'border-brand-primary bg-brand-primary/5 shadow-md'
+                  : 'border-divider bg-surface-elevated hover:border-brand-primary/30'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div>
+                  <p className="font-medium text-text-primary">{item.student}</p>
+                  <p className="text-sm text-text-secondary">{item.passage}</p>
+                </div>
+                <Badge
+                  variant={item.type === 'sabaq' ? 'green' : item.type === 'sabaq_para' ? 'info' : 'gold'}
+                  size="sm"
+                >
+                  {item.type === 'sabaq' ? 'سبق' : item.type === 'sabaq_para' ? 'سبع' : 'منزل'}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-4 text-xs text-text-muted">
+                <span>المدة: {item.duration}</span>
+                <span>الإتقان السابق: {item.prevMastery}%</span>
+              </div>
+              {/* AI Pre-screen */}
+              <div className="mt-2 p-2 rounded-lg bg-surface-canvas border border-divider">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Bot className="w-3.5 h-3.5 text-brand-primary" />
+                  <span className="text-xs font-medium text-brand-primary">الذكاء الاصطناعي (مسبق)</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-text-secondary">
+                  <span>الحفظ: {item.ai.hifz}%</span>
+                  <span>التجويد: {item.ai.tajweed}%</span>
+                  <span>الطلاقة: {item.ai.fluency}%</span>
+                </div>
+                <div className="mt-1">
+                  {item.ai.ready ? (
+                    <span className="text-xs text-state-positive flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> جاهز للاعتماد
+                    </span>
+                  ) : (
+                    <span className="text-xs text-state-attention flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> يحتاج مراجعة يدوية
+                    </span>
+                  )}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Grading Panel */}
+        <div className="lg:col-span-3">
+          {selected ? (
+            <Card className="sticky top-4">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Star className="w-5 h-5 text-brand-accent" />
+                    معايير التقييم الرقمية المعتمدة
+                  </span>
+                  <Badge variant="info" size="sm">40/40/20</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="p-3 rounded-lg bg-surface-canvas border border-divider">
+                  <p className="font-medium text-text-primary">{selected.student}</p>
+                  <p className="text-sm text-text-secondary">{selected.passage} • المدة: {selected.duration}</p>
+                </div>
+
+                {/* Rubric Sliders */}
+                <div className="space-y-4">
+                  <RubricSlider
+                    label="صحة الحفظ"
+                    weight="40%"
+                    value={hifzScore}
+                    onChange={setHifzScore}
+                    aiValue={selected.ai.hifz}
+                  />
+                  <RubricSlider
+                    label="أحكام التجويد"
+                    weight="40%"
+                    value={tajweedScore}
+                    onChange={setTajweedScore}
+                    aiValue={selected.ai.tajweed}
+                  />
+                  <RubricSlider
+                    label="الطلاقة والانسياب"
+                    weight="20%"
+                    value={fluencyScore}
+                    onChange={setFluencyScore}
+                    aiValue={selected.ai.fluency}
+                  />
+                </div>
+
+                {/* Weighted Total */}
+                <div className="p-4 rounded-xl bg-brand-primary/5 border border-brand-primary/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-text-secondary">الدرجة المرجحة النهائية:</span>
+                    <span className={`text-3xl font-bold ${weightedTotal >= 85 ? 'text-state-positive' : weightedTotal >= 70 ? 'text-state-attention' : 'text-state-danger'}`}>
+                      {weightedTotal}%
+                    </span>
+                  </div>
+                  <p className="text-sm text-text-secondary mt-1">
+                    {weightedTotal >= 90 ? 'متقن (ممتاز)' : weightedTotal >= 85 ? 'متقن (جيد جداً)' : weightedTotal >= 70 ? 'يحتاج تحسين' : 'يحتاج إعادة'}
+                  </p>
+                </div>
+
+                {/* Teacher Notes */}
+                <div>
+                  <label className="text-sm font-medium text-text-primary block mb-2">توجيهات وملاحظات المعلم:</label>
+                  <textarea
+                    value={teacherNotes}
+                    onChange={(e) => setTeacherNotes(e.target.value)}
+                    placeholder="أضف ملاحظاتك هنا..."
+                    className="w-full p-3 rounded-xl border border-divider bg-surface-elevated text-text-primary text-sm resize-none h-20 focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none"
+                    dir="rtl"
+                  />
+                </div>
+
+                <Button size="lg" className="w-full">
+                  <CheckCircle2 className="w-5 h-5 ml-2" />
+                  اعتماد الدرجة وتحديث الجدولة
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Mic className="w-12 h-12 text-text-muted mx-auto mb-3" />
+                <p className="text-text-secondary font-medium">اختر تسميعاً من القائمة لبدء التقييم</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RubricSlider({ label, weight, value, onChange, aiValue }: {
+  label: string;
+  weight: string;
+  value: number;
+  onChange: (v: number) => void;
+  aiValue: number;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-sm font-medium text-text-primary">{label} ({weight})</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-text-muted flex items-center gap-1">
+            <Bot className="w-3 h-3" /> AI: {aiValue}%
+          </span>
+          <span className="text-sm font-bold text-brand-primary">{value}%</span>
+        </div>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={100}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full h-2 bg-surface-canvas rounded-full appearance-none cursor-pointer accent-brand-primary"
+      />
     </div>
   );
 }
