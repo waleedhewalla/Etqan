@@ -3,9 +3,12 @@
  * Based on FSRS-4.5 algorithm with mutashabihat chain propagation
  */
 
+import type { Ref } from './ayah';
+
 export type Rating = 'again' | 'hard' | 'good' | 'easy';
 
 export interface FSRSParameters {
+  w: readonly number[];
   requestRetention: number;
   maximumInterval: number;
   enableFuzz: boolean;

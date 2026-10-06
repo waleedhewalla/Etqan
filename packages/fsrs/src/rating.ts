@@ -62,7 +62,7 @@ export const ALL_RATINGS: Rating[] = ['again', 'hard', 'good', 'easy'];
  * 1 = Again, 2 = Hard, 3 = Good, 4 = Easy
  */
 export function handleRatingKeydown(
-  e: React.KeyboardEvent,
+  e: { key: string },
   onRating: (rating: Rating) => void
 ): void {
   switch (e.key) {

@@ -8,6 +8,19 @@ import { AppShell } from '@/components/AppShell';
 import { HelpTickets } from '@/components/HelpTickets';
 import { AccountPanel } from '@/components/AccountPanel';
 
+type CaseItem = { id: string; student: string; type: string; severity: string; opened: string; status: string };
+type UpcomingAssessment = { title: string; date: string; type: string; students: number };
+type StudentItem = {
+  id: string;
+  name: string;
+  avatar: string | null;
+  status: 'active' | 'at-risk' | 'excused';
+  mastery: number;
+  streak: number;
+  lastActive: string;
+  risk: 'low' | 'medium' | 'high';
+};
+
 export default function TeacherDashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'students' | 'speedgrader' | 'cases' | 'assessments' | 'reports' | 'account' | 'help'>('overview');
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,7 +89,7 @@ export default function TeacherDashboard() {
   );
 }
 
-function OverviewTab({ stats, upcoming, cases }: any) {
+function OverviewTab({ stats, upcoming, cases }: { stats: Record<string, number>; upcoming: UpcomingAssessment[]; cases: CaseItem[] }) {
   return (
     <div className="space-y-4">
       {/* Stats Cards */}
@@ -172,7 +185,7 @@ function OverviewTab({ stats, upcoming, cases }: any) {
   );
 }
 
-function StudentsTab({ students, searchQuery, setSearchQuery }: any) {
+function StudentsTab({ students, searchQuery, setSearchQuery }: { students: StudentItem[]; searchQuery: string; setSearchQuery: (q: string) => void }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -243,7 +256,7 @@ function StudentsTab({ students, searchQuery, setSearchQuery }: any) {
   );
 }
 
-function CasesTab({ cases }: any) {
+function CasesTab({ cases }: { cases: CaseItem[] }) {
   return (
     <div className="space-y-4">
       <Card>
@@ -284,7 +297,7 @@ function CasesTab({ cases }: any) {
   );
 }
 
-function AssessmentsTab({ upcoming }: any) {
+function AssessmentsTab({ upcoming }: { upcoming: UpcomingAssessment[] }) {
   return (
     <div className="space-y-4">
       <Card>
