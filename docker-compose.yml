@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 16
+  postgres:
+    image: postgres:16-alpine
+    container_name: itqan-postgres
+    environment:
+      POSTGRES_DB: itqan
+      POSTGRES_USER: itqan
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-itqan_dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U itqan -d itqan"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - itqan-network
+
+  # Redis 7 for cache and BullMQ
+  redis:
+    image: redis:7-alpine
+    container_name: itqan-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - itqan-network
+
+  # MinIO for S3-compatible object storage (audio files)
+  minio:
+    image: minio/minio:latest
+    container_name: itqan-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-itqan_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-itqan_secret_key}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - itqan-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+networks:
+  itqan-network:
+    driver: bridge

@@ -1,0 +1,6 @@
+version: '3.8'
+
+# Development override
+# Apps (web, core) run locally via `pnpm dev`, not in Docker.
+# Only infrastructure services (postgres, redis, minio) run in Docker.
+# Start with: docker compose up -d
