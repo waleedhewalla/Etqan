@@ -6,5 +6,5 @@ export { scheduleReview, propagateChainEffect, computeIntervals, createReviewLog
 export { getRatingLabel, getRatingColor, getRatingShortcut, getRatingDescription, handleRatingKeydown, ALL_RATINGS } from './rating';
 export { FSRS_DEFAULTS, INITIAL_CARD_STATE, MIN_INTERVALS, GATEKEEPER_DEFAULTS } from './constants';
 
-export type { FSRSParameters, Rating, CardState, ScheduledCard, ReviewLog } from '../types/src/srs';
+export type { FSRSParameters, Rating, CardState, ScheduledCard, ReviewLog } from '@itqan/types';
 export type { ChainPropagationInput, ChainPropagationResult } from './scheduler';

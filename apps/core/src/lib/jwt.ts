@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import fp from 'fastify-plugin';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
 
@@ -29,7 +30,7 @@ const PUBLIC_PATHS = [
   '/docs',
 ];
 
-export async function jwtPlugin(app: FastifyInstance) {
+async function jwtPluginImpl(app: FastifyInstance) {
   app.decorate('generateToken', generateToken);
   app.decorate('verifyToken', verifyToken);
 
@@ -56,6 +57,18 @@ export async function jwtPlugin(app: FastifyInstance) {
     }
   });
 
+}
+
+// Wrapped with fastify-plugin so `authenticate` and the token helpers are
+// visible to routes registered on the root instance.
+export const jwtPlugin = fp(jwtPluginImpl, { name: 'itqan-jwt' });
+
+/**
+ * App-wide auth hook. Not registered yet: it was previously encapsulated inside
+ * jwtPlugin and never ran. Registering it would also block cookie-only routes
+ * such as /v1/auth/refresh in production unless they are added to PUBLIC_PATHS.
+ */
+export async function globalAuthHook(app: FastifyInstance) {
   app.addHook('preHandler', async (request, reply) => {
     if (PUBLIC_PATHS.some(p => request.url.startsWith(p))) return;
     if (request.url.startsWith('/docs')) return;
@@ -93,6 +106,7 @@ declare module 'fastify' {
     authenticate: (request: any, reply: any) => Promise<void>;
   }
   interface FastifyRequest {
-    user?: TokenPayload;
+    // Set by app.authenticate; only read it in routes behind that preHandler.
+    user: TokenPayload;
   }
 }

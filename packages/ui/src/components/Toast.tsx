@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { ctv } from '../lib/utils';
+import { ctv, cva } from '../lib/utils';
 import * as ToastPrimitives from '@radix-ui/react-toast';
 import { X } from 'lucide-react';
 
@@ -11,7 +11,7 @@ import { X } from 'lucide-react';
  * Types: inline, toast, banner, modal
  */
 
-export interface ToastProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface ToastProps extends React.ComponentPropsWithoutRef<typeof ToastPrimitives.Root> {
   variant?: 'info' | 'success' | 'warning' | 'error' | 'mahram-notification';
   title?: string;
   description?: string;
@@ -20,7 +20,7 @@ export interface ToastProps extends React.HTMLAttributes<HTMLDivElement> {
   onDismiss?: () => void;
 }
 
-const toastVariants = ctv(
+const toastVariants = cva(
   'relative rounded-lg border p-4 shadow-lg transition-all duration-200 ' +
   'flex items-start gap-3 min-w-[300px] max-w-md',
   {
@@ -165,12 +165,12 @@ export function Banner({ variant = 'info', title, children, dismissible, onDismi
  * Status Badge
  */
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: 'green' | 'amber' | 'red' | 'gold' | 'info' | 'mahram-scope';
+  variant?: 'green' | 'amber' | 'red' | 'gold' | 'info' | 'mahram-scope' | 'neutral';
   size?: 'sm' | 'md' | 'lg';
   dot?: boolean;
 }
 
-const badgeVariants = ctv(
+const badgeVariants = cva(
   'inline-flex items-center gap-1.5 font-medium rounded-full border',
   {
     variants: {
@@ -181,6 +181,7 @@ const badgeVariants = ctv(
         gold: 'bg-yellow-50 text-yellow-800 border-yellow-200',
         info: 'bg-blue-50 text-blue-800 border-blue-200',
         'mahram-scope': 'bg-scope-mahram/10 text-scope-mahram border-scope-mahram/20',
+        neutral: 'bg-neutral-100 text-neutral-700 border-neutral-200',
       },
       size: {
         sm: 'px-2 py-0.5 text-xs',

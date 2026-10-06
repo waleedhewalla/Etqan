@@ -30,8 +30,9 @@ function cardRowToState(row: typeof studentCards.$inferSelect): CardState {
     difficulty: row.difficulty,
     stability: row.stability,
     retrievability: row.retrievability,
-    dueAt: row.dueAt ? new Date(row.dueAt) : undefined,
-    lastReviewedAt: row.lastReviewedAt ? new Date(row.lastReviewedAt) : undefined,
+    // Cards with no due date yet are due immediately.
+    dueAt: row.dueAt ? new Date(row.dueAt) : new Date(),
+    lastReviewedAt: row.lastReviewedAt ? new Date(row.lastReviewedAt) : null,
     reps: row.reps,
     lapses: row.lapses,
     state: row.state as CardState['state'],
@@ -39,7 +40,8 @@ function cardRowToState(row: typeof studentCards.$inferSelect): CardState {
     semanticStability: row.semanticStability,
     positionalStability: row.positionalStability,
     recognitionStability: row.recognitionStability,
-    transitionId: row.transitionId ?? undefined,
+    transitionId: row.transitionId ?? null,
+    firstSeenAt: new Date(row.createdAt),
   };
 }
 

@@ -4,7 +4,7 @@
  * With FSRS-C chain propagation for mutashabihat
  */
 
-import type { FSRSParameters, Rating, CardState, ScheduledCard, ReviewLog, GatekeeperConfig, GatekeeperState } from '../types/src/srs';
+import type { FSRSParameters, Rating, CardState, ScheduledCard, ReviewLog, GatekeeperConfig, GatekeeperState } from '@itqan/types';
 import { FSRS_DEFAULTS, RATING_TO_FSRS, STATE_TRANSITIONS, MIN_INTERVALS, GATEKEEPER_DEFAULTS } from './constants';
 
 /**
@@ -59,8 +59,9 @@ export function scheduleReview(
   // Calculate new stability
   let stability = card.stability;
   
-  if (newState.state === 'learning' || newState.state === 'relearning') {
-    // Learning/relearning steps
+  if (card.state === 'new' || newState.state === 'learning' || newState.state === 'relearning') {
+    // First review and learning/relearning steps use the initial stability
+    // for the rating (FSRS-4.5: S0(G) = w[G-1]).
     if (rating === 'again') {
       stability = w[0];
     } else if (rating === 'hard') {

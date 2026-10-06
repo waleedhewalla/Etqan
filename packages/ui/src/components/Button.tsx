@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
-import { cn, ctv } from '../lib/utils';
+import { cn, ctv, cva } from '../lib/utils';
 
 /**
  * Button Component
@@ -16,7 +16,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   asChild?: boolean;
 }
 
-const buttonVariants = ctv(
+const buttonVariants = cva(
   'inline-flex items-center justify-center font-medium transition-colors duration-200 rounded-xl cursor-pointer ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ' +
   'disabled:opacity-50 disabled:cursor-not-allowed',

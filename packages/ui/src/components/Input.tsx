@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { ctv } from '../lib/utils';
+import { ctv, cva } from '../lib/utils';
 
 /**
  * Input Component
@@ -18,7 +18,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   variant?: 'default' | 'otp' | 'password' | 'masked';
 }
 
-const inputVariants = ctv(
+const inputVariants = cva(
   'w-full rounded-lg border bg-white text-text-primary placeholder:text-muted ' +
   'transition-colors duration-150 ' +
   'focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent ' +
@@ -220,7 +220,9 @@ export function OTPInput({ length = 4, value, onChange, disabled, autoFocus }: O
       {Array.from({ length }).map((_, i) => (
         <input
           key={i}
-          ref={(el) => (refs.current[i] = el)}
+          ref={(el) => {
+            refs.current[i] = el;
+          }}
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"

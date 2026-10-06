@@ -11,26 +11,10 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Dual-purpose helper used by UI primitives:
- * - cva() constructor when a variants config is passed
- * - class merger otherwise
+ * Class merger used by UI primitives (alias of cn)
  */
-export function ctv(
-  base: string,
-  config: Parameters<typeof cva>[1]
-): ReturnType<typeof cva>;
-export function ctv(...inputs: ClassValue[]): string;
-export function ctv(...inputs: unknown[]): unknown {
-  const config = inputs[1];
-  if (
-    typeof inputs[0] === 'string' &&
-    config &&
-    typeof config === 'object' &&
-    'variants' in (config as Record<string, unknown>)
-  ) {
-    return cva(inputs[0] as string, config as Parameters<typeof cva>[1]);
-  }
-  return twMerge(clsx(inputs as ClassValue[]));
+export function ctv(...inputs: ClassValue[]): string {
+  return twMerge(clsx(inputs));
 }
 
 export type { VariantProps };
@@ -190,14 +174,14 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
  * Deep merge objects
  */
 export function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
-  const result = { ...target };
+  const result: Record<string, unknown> = { ...target };
   for (const key of Object.keys(source)) {
     const sourceValue = source[key];
     if (sourceValue && typeof sourceValue === 'object' && !Array.isArray(sourceValue)) {
-      result[key] = deepMerge(result[key] as Record<string, unknown>, sourceValue as Record<string, unknown>) as T[Extract<keyof T, string>];
+      result[key] = deepMerge(result[key] as Record<string, unknown>, sourceValue as Record<string, unknown>);
     } else if (sourceValue !== undefined) {
-      result[key] = sourceValue as T[Extract<keyof T, string>];
+      result[key] = sourceValue;
     }
   }
-  return result;
+  return result as T;
 }

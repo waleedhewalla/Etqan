@@ -3,6 +3,8 @@
  * Based on Sefaria's Link model
  */
 
+import type { Ref } from './ayah';
+
 export interface MutashabihatCluster {
   id: string;
   ayahRefs: Ref[];
