@@ -120,7 +120,7 @@ export async function authRoutes(app: FastifyInstance) {
     };
 
     const token = generateToken(tokenPayload, '15m');
-    const link = `${process.env.FRONTEND_URL || 'http://localhost:9010'}/auth/login/faculty?token=${token}`;
+    const link = `${process.env.FRONTEND_URL || 'http://localhost:9050'}/auth/login/faculty?token=${token}`;
 
     magicLinkStore.set(token, { email: normalized, expiresAt: Date.now() + 15 * 60 * 1000 });
 

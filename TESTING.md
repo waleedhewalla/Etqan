@@ -24,6 +24,8 @@ pnpm db:migrate             # once apps/core exists
 | `pnpm test`      | Vitest unit tests in every workspace           |
 | `pnpm build`     | Production build of every workspace            |
 
+The web app runs at http://localhost:9050 (`pnpm --filter @itqan/web dev`); the API listens on port 4000.
+
 Run a single workspace with Turbo's filter, e.g. `pnpm test --filter=@itqan/fsrs`.
 
 Each workspace (`apps/core`, `apps/web`, `packages/*`) must define its own
