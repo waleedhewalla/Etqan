@@ -2,7 +2,10 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { eq, and, lte, isNull, asc, desc, sql, count } from 'drizzle-orm';
 import { getDb } from '../../db';
-import { studentCards, reviewLogs, streaks, assignments } from '../../db/schema';
+import { studentCards, reviewLogs, streaks, streakFreezes, assignments } from '../../db/schema';
+import type { Database } from '../../db';
+import { localDate, startOfLocalDay } from '../../lib/dates';
+import { recordActivity } from '../../lib/streak';
 import {
   scheduleReview,
   computeIntervals,
@@ -43,6 +46,26 @@ function cardRowToState(row: typeof studentCards.$inferSelect): CardState {
     transitionId: row.transitionId ?? null,
     firstSeenAt: new Date(row.createdAt),
   };
+}
+
+/** Applies today's activity to the student's streak and returns the new state. */
+export async function recordStudentActivity(db: Database, studentId: string) {
+  const today = localDate();
+  const [row] = await db.select().from(streaks).where(eq(streaks.studentId, studentId)).limit(1);
+  const { state, frozenDates } = recordActivity(row ?? {
+    currentStreak: 0, longestStreak: 0, freezesRemaining: 2, lastActiveDate: null,
+  }, today);
+  if (row && row.lastActiveDate === today) return row;
+
+  const values = { ...state, updatedAt: new Date() };
+  const [saved] = await db.insert(streaks)
+    .values({ studentId, ...values })
+    .onConflictDoUpdate({ target: streaks.studentId, set: values })
+    .returning();
+  if (frozenDates.length) {
+    await db.insert(streakFreezes).values(frozenDates.map((frozenDate) => ({ studentId, frozenDate })));
+  }
+  return saved;
 }
 
 export async function schedulerRoutes(app: FastifyInstance) {
@@ -94,8 +117,7 @@ export async function schedulerRoutes(app: FastifyInstance) {
 
     // 4. Build structured queue: manzil (overdue) → sabqi (due today) → sabaq (new)
     const now = new Date();
-    const todayStart = new Date(targetDate);
-    todayStart.setHours(0, 0, 0, 0);
+    const todayStart = startOfLocalDay(localDate(targetDate));
 
     const manzilItems: QueueItem[] = [];
     const sabqiItems: QueueItem[] = [];
@@ -153,7 +175,7 @@ export async function schedulerRoutes(app: FastifyInstance) {
 
     return {
       studentId: userId,
-      date: targetDate.toISOString().slice(0, 10),
+      date: localDate(targetDate),
       gatekeeper: gatekeeperState,
       queue: {
         manzil: { count: manzilItems.length, items: manzilItems },
@@ -221,38 +243,8 @@ export async function schedulerRoutes(app: FastifyInstance) {
       stateAfter: scheduled as unknown as Record<string, unknown>,
     });
 
-    // Update streak
-    const today = new Date().toISOString().slice(0, 10);
-    const [existingStreak] = await db.select()
-      .from(streaks)
-      .where(eq(streaks.studentId, userId))
-      .limit(1);
-
-    if (existingStreak) {
-      const lastActive = existingStreak.lastActiveDate;
-      if (lastActive !== today) {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const isConsecutive = lastActive === yesterday.toISOString().slice(0, 10);
-
-        const newStreak = isConsecutive ? existingStreak.currentStreak + 1 : 1;
-        await db.update(streaks)
-          .set({
-            currentStreak: newStreak,
-            longestStreak: Math.max(newStreak, existingStreak.longestStreak),
-            lastActiveDate: today,
-            updatedAt: new Date(),
-          })
-          .where(eq(streaks.studentId, userId));
-      }
-    } else {
-      await db.insert(streaks).values({
-        studentId: userId,
-        currentStreak: 1,
-        longestStreak: 1,
-        lastActiveDate: today,
-      });
-    }
+    // Update streak (one missed day is covered by a freeze when one is left)
+    const streak = await recordStudentActivity(db, userId);
 
     // Preview next intervals
     const intervals = computeIntervals(scheduled);
@@ -261,6 +253,7 @@ export async function schedulerRoutes(app: FastifyInstance) {
       card: { id: cardId, ...scheduled },
       log,
       intervals,
+      streak,
     };
   });
 

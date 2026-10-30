@@ -1,265 +1,433 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
-import { useAuth } from './auth-context';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+export const TOKEN_KEY = 'itqan_token';
+export const REFRESH_KEY = 'itqan_refresh_token';
+export const USER_KEY = 'itqan_user';
+
+// ── Response types (mirror apps/core routes) ──
+
+export type Role =
+  | 'student' | 'lecturer' | 'muhaffiza' | 'advisor' | 'dean' | 'sheikh_reviewer'
+  | 'committee_member' | 'sama_committee_member' | 'operator' | 'superadmin' | 'mahram' | 'alumna';
+
+export interface ApiUser {
+  id: string;
+  role: Role;
+  tenantId: string;
+  displayNameAr: string;
+  displayNameEn: string | null;
+  email: string | null;
+  whatsappE164: string | null;
+}
+
+export interface SessionResponse {
+  token: string;
+  refreshToken: string;
+  user: ApiUser;
+  isNewUser?: boolean;
+}
+
+export interface MeResponse {
+  user: ApiUser;
+  tenant: { id: string; nameAr: string; slug: string };
+  sections: { id: string; nameAr: string }[];
+  consents: ConsentPurpose[];
+}
+
+export type ConsentPurpose =
+  | 'voice_recording' | 'analytics' | 'mahram_access' | 'whatsapp_notifications' | 'peer_comparison' | 'data_export';
+
+export type Rating = 'again' | 'hard' | 'good' | 'easy';
+
+export interface QueueCard {
+  id: string;
+  ayahRef: string;
+  state: string;
+  dueAt: string | null;
+}
+
+export interface QueueItem {
+  card: QueueCard;
+  reason: 'manzil' | 'sabqi' | 'sabaq';
+  estimatedMinutes: number;
+  rationale: string;
+}
+
+export interface Gatekeeper {
+  locked: boolean;
+  currentMastery: number;
+  threshold: number;
+  deficitCards: number;
+  message: string;
+}
+
+export interface Streak {
+  currentStreak: number;
+  longestStreak: number;
+  freezesRemaining: number;
+  lastActiveDate?: string | null;
+}
+
+export interface Assignment {
+  id: string;
+  type: 'sabaq' | 'sabqi' | 'manzil';
+  startRef: string;
+  endRef: string;
+  dueDate: string | null;
+  notes: string | null;
+}
+
+export interface QueueResponse {
+  date: string;
+  gatekeeper: Gatekeeper;
+  queue: {
+    manzil: { count: number; items: QueueItem[] };
+    sabqi: { count: number; items: QueueItem[] };
+    sabaq: { count: number; items: QueueItem[]; locked: boolean };
+  };
+  totalItems: number;
+  estimatedMinutes: number;
+  streak: Streak;
+  assignments: Assignment[];
+}
+
+export interface RateResponse {
+  card: { id: string; dueAt: string; state: string };
+  streak: Streak;
+}
+
+export interface StatsResponse {
+  total: number;
+  mastered: number;
+  review: number;
+  new: number;
+  dueNow: number;
+  todayReviews: number;
+  streak: Streak;
+}
+
+export interface Section {
+  id: string;
+  nameAr: string;
+  joinCode?: string;
+  teacherId?: string | null;
+  maxStudents?: number;
+}
+
+export interface StudentSummary {
+  studentId: string;
+  displayNameAr: string;
+  masteryPercent: number;
+  cardsTotal: number;
+  cardsDue: number;
+  reviewsToday: number;
+  lastActiveAt: string | null;
+  inactiveDays: number | null;
+  attendanceRate: number | null;
+  currentStreak: number;
+  atRisk: boolean;
+  riskReasons: ('inactive' | 'attendance')[];
+}
+
+export interface SectionStudentsResponse {
+  sectionId: string;
+  students: StudentSummary[];
+  summary: { totalStudents: number; activeToday: number; atRisk: number; avgMastery: number };
+}
+
+export interface SectionReport {
+  totalStudents: number;
+  tasmiSubmissions: number;
+  pendingReviews: number;
+  avgTasmiScore: number | null;
+}
+
+export interface AttendanceDay {
+  sectionId: string;
+  date: string;
+  records: { studentId: string; displayNameAr: string; present: boolean | null; notes: string | null }[];
+}
+
+export interface AttendanceSaveResponse {
+  saved: number;
+  alerts: { sent: number; skipped: number; failed: number; noGuardian: number };
+}
+
+export interface TasmiSubmission {
+  id: string;
+  studentId: string;
+  studentName?: string;
+  sectionId: string | null;
+  startRef: string;
+  endRef: string;
+  audioUrl: string;
+  durationMs: number | null;
+  submittedAt: string;
+  reviewVerdict: 'approved' | 'redo' | 'flagged' | null;
+  reviewWeightedTotal: number | null;
+}
+
+export interface TasmiReviewInput {
+  hifzScore: number;
+  tajweedScore: number;
+  fluencyScore: number;
+  verdict: 'approved' | 'redo' | 'flagged';
+  notes?: string;
+}
+
+export interface Guardian {
+  id: string;
+  displayNameAr: string;
+  whatsappE164: string | null;
+}
+
+export interface WeeklyReport {
+  student: { id: string; displayNameAr: string };
+  sections: { id: string; nameAr: string }[];
+  week: { start: string; end: string };
+  attendance: { present: number; absent: number; days: { date: string; present: boolean; notes: string | null }[] };
+  revision: { reviews: number; correctPercent: number | null; activeDays: string[] };
+  progress: { masteryPercent: number; cardsTotal: number; cardsDue: number };
+  streak: { current: number; longest: number };
+  tasmi: {
+    id: string; startRef: string; endRef: string; submittedAt: string;
+    verdict: 'approved' | 'redo' | 'flagged' | null; score: number | null; notes: string | null;
+  }[];
+  assignments: {
+    id: string; type: 'sabaq' | 'sabqi' | 'manzil'; startRef: string; endRef: string;
+    dueDate: string | null; completedAt: string | null; score: number | null;
+  }[];
+}
+
+export interface AppNotification {
+  id: string;
+  titleAr: string;
+  bodyAr: string;
+  readAt: string | null;
+  sentAt: string;
+}
+
+/** Arabic error text from an API error, with a fallback. */
+export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاولي مرة أخرى') {
+  const e = err as AxiosError<{ detail?: string; message?: string; code?: string }>;
+  const code = e?.response?.data?.code;
+  if (code === 'ACCOUNT_NOT_FOUND') return 'لا يوجد حساب بهذا الرقم. اطلبي كود الشعبة من معلمتك.';
+  if (e?.response?.status === 429) return 'محاولات كثيرة. انتظري قليلاً ثم حاولي مرة أخرى.';
+  if (!e?.response) return 'تعذّر الاتصال بالخادم. تحققي من الإنترنت.';
+  return fallback;
+}
+
+/**
+ * Normalises an Egyptian or international number to E.164.
+ * "010 1234 5678" → "+201012345678"; "+20 10 …" kept as is.
+ */
+export function normalizePhone(raw: string): string {
+  const digits = raw.replace(/[^\d+]/g, '');
+  if (digits.startsWith('+')) return digits;
+  if (digits.startsWith('00')) return `+${digits.slice(2)}`;
+  if (digits.startsWith('0')) return `+20${digits.slice(1)}`;
+  return `+${digits}`;
+}
+
 class ApiClient {
   private client: AxiosInstance;
+  private refreshing: Promise<string | null> | null = null;
 
   constructor() {
     this.client = axios.create({
       baseURL: `${API_URL}/v1`,
       timeout: 30000,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     });
 
-    // Request interceptor - add auth token
-    this.client.interceptors.request.use(
-      (config: InternalAxiosRequestConfig) => {
-        const token = localStorage.getItem('itqan_token');
-        if (token && config.headers) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
-        // Add idempotency key for mutations
-        if (['post', 'put', 'patch', 'delete'].includes(config.method || '')) {
-          config.headers['Idempotency-Key'] = crypto.randomUUID();
-        }
-        return config;
-      },
-      (error) => Promise.reject(error)
-    );
+    this.client.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
+      if (token && config.headers) config.headers.Authorization = `Bearer ${token}`;
+      return config;
+    });
 
-    // Response interceptor - handle errors
     this.client.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
-        const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-
-        if (error.response?.status === 401 && !originalRequest._retry) {
-          originalRequest._retry = true;
-          
-          // Try to refresh token
-          try {
-            const refreshToken = localStorage.getItem('itqan_refresh_token');
-            if (refreshToken) {
-              const res = await axios.post(`${API_URL}/v1/auth/refresh`, { refreshToken });
-              const { accessToken, refreshToken: newRefreshToken } = res.data;
-              
-              localStorage.setItem('itqan_token', accessToken);
-              localStorage.setItem('itqan_refresh_token', newRefreshToken);
-              
-              originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-              return this.client(originalRequest);
-            }
-          } catch {
-            // Refresh failed - logout
-            localStorage.removeItem('itqan_token');
-            localStorage.removeItem('itqan_refresh_token');
-            localStorage.removeItem('itqan_user');
-            window.location.href = '/auth/login';
+        const original = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
+        const isAuthCall = original?.url?.startsWith('/auth/');
+        if (error.response?.status === 401 && original && !original._retry && !isAuthCall) {
+          original._retry = true;
+          const token = await this.refreshAccessToken();
+          if (token) {
+            original.headers.Authorization = `Bearer ${token}`;
+            return this.client(original);
           }
+          clearSession();
+          if (typeof window !== 'undefined') window.location.href = '/auth/login';
         }
-
-        // Format error response
-        if (error.response?.data) {
-          const data = error.response.data as any;
-          error.message = data.detail || data.title || error.message;
-        }
-
         return Promise.reject(error);
-      }
+      },
     );
   }
 
+  /** One refresh at a time, shared by all requests that got a 401. */
+  private refreshAccessToken(): Promise<string | null> {
+    if (!this.refreshing) {
+      this.refreshing = (async () => {
+        const refreshToken = localStorage.getItem(REFRESH_KEY);
+        if (!refreshToken) return null;
+        try {
+          const res = await axios.post<SessionResponse>(`${API_URL}/v1/auth/refresh`, { refreshToken });
+          saveSession(res.data);
+          return res.data.token;
+        } catch {
+          return null;
+        } finally {
+          setTimeout(() => { this.refreshing = null; }, 0);
+        }
+      })();
+    }
+    return this.refreshing;
+  }
+
   // Auth
-  async requestOtp(whatsapp: string) {
-    return this.client.post('/auth/otp/request', { whatsapp });
+  requestOtp(whatsapp: string, joinCode?: string) {
+    return this.client.post<{ expiresIn: number }>('/auth/otp/request', { whatsapp, joinCode });
   }
 
-  async verifyOtp(whatsapp: string, code: string) {
-    return this.client.post('/auth/otp/verify', { whatsapp, code });
+  verifyOtp(whatsapp: string, code: string, joinCode?: string) {
+    return this.client.post<SessionResponse>('/auth/otp/verify', { whatsapp, code, joinCode });
   }
 
-  async magicLink(email: string) {
+  magicLink(email: string) {
     return this.client.post('/auth/magic-link', { email });
   }
 
-  async verifyMagicLink(token: string) {
-    return this.client.post('/auth/magic-link/verify', { token });
+  verifyMagicLink(token: string) {
+    return this.client.post<SessionResponse>('/auth/magic-link/verify', { token });
   }
 
-  async getMe() {
-    return this.client.get('/users/me');
+  getMe() {
+    return this.client.get<MeResponse>('/auth/me');
+  }
+
+  updateProfile(data: { displayNameAr: string }) {
+    return this.client.patch<{ user: ApiUser }>('/auth/me', data);
+  }
+
+  setConsents(granted: ConsentPurpose[]) {
+    return this.client.put('/auth/me/consents', { granted });
+  }
+
+  logout() {
+    return this.client.post('/auth/logout');
   }
 
   // Sections
-  async getSections() {
-    return this.client.get('/sections');
+  lookupSection(code: string) {
+    return this.client.get<{ nameAr: string; tenantNameAr: string }>(`/sections/lookup/${encodeURIComponent(code)}`);
   }
 
-  async getSection(id: string) {
-    return this.client.get(`/sections/${id}`);
+  getSections() {
+    return this.client.get<Section[]>('/sections');
   }
 
-  async joinSection(code: string) {
-    return this.client.post('/sections/join', { code });
+  joinSection(code: string) {
+    return this.client.post<{ section: { id: string; nameAr: string } }>('/sections/join', { code });
   }
 
-  // Learning
-  async getTodayQueue() {
-    return this.client.get('/learning/today');
+  getSectionStudents(sectionId: string) {
+    return this.client.get<SectionStudentsResponse>(`/sections/${sectionId}/students`);
   }
 
-  async startSession() {
-    return this.client.post('/sessions');
+  getSectionReport(sectionId: string) {
+    return this.client.get<SectionReport>(`/reports/section/${sectionId}`);
   }
 
-  async getSession(id: string) {
-    return this.client.get(`/sessions/${id}`);
+  getAttendance(sectionId: string, date: string) {
+    return this.client.get<AttendanceDay>(`/sections/${sectionId}/attendance`, { params: { date } });
   }
 
-  async rateItem(sessionId: string, itemId: string, rating: string) {
-    return this.client.post(`/sessions/${sessionId}/items/${itemId}/rate`, { rating });
+  saveAttendance(sectionId: string, date: string, records: { studentId: string; present: boolean; notes?: string }[]) {
+    return this.client.put<AttendanceSaveResponse>(`/sections/${sectionId}/attendance`, { date, records });
   }
 
-  async completeSession(sessionId: string) {
-    return this.client.post(`/sessions/${sessionId}/complete`);
+  getGuardians(sectionId: string, studentId: string) {
+    return this.client.get<Guardian[]>(`/sections/${sectionId}/students/${studentId}/guardians`);
   }
 
-  // Voice
-  async submitRecitation(sessionId: string, audioBlob: Blob, ayahRef: string, retain = false) {
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'recitation.webm');
-    formData.append('ayah_ref', ayahRef);
-    formData.append('retain', retain.toString());
-    
-    return this.client.post(`/sessions/${sessionId}/recite`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+  addGuardian(sectionId: string, studentId: string, data: { displayNameAr: string; whatsapp: string }) {
+    return this.client.post<{ guardian: Guardian }>(`/sections/${sectionId}/students/${studentId}/guardians`, data);
+  }
+
+  // Student revision
+  getQueue() {
+    return this.client.get<QueueResponse>('/scheduler/queue');
+  }
+
+  rateCard(cardId: string, rating: Rating, timeTakenMs?: number) {
+    return this.client.post<RateResponse>('/scheduler/rate', { cardId, rating, timeTakenMs });
+  }
+
+  getStats() {
+    return this.client.get<StatsResponse>('/scheduler/stats');
   }
 
   // Tasmi'
-  async submitTasmi(data: { ayahRange: string; purpose: string; audioBlob: Blob }) {
-    const formData = new FormData();
-    formData.append('audio', data.audioBlob, 'tasmi.webm');
-    formData.append('ayah_range', data.ayahRange);
-    formData.append('purpose', data.purpose);
-    
-    return this.client.post('/tasmi/submissions', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+  getPendingTasmi(sectionId?: string) {
+    return this.client.get<TasmiSubmission[]>('/tasmi/pending', { params: { sectionId } });
   }
 
-  async getTasmiQueue() {
-    return this.client.get('/tasmi/queue');
+  reviewTasmi(id: string, data: TasmiReviewInput) {
+    return this.client.post<TasmiSubmission>(`/tasmi/${id}/review`, data);
   }
 
-  async reviewTasmi(id: string, data: any) {
-    return this.client.post(`/tasmi/${id}/assessment`, data);
+  // Reports
+  getWeeklyReport(studentId: string, week?: string) {
+    return this.client.get<WeeklyReport>(`/reports/student/${studentId}/weekly`, { params: { week } });
   }
 
-  // Progress
-  async getProgress(studentId?: string) {
-    return this.client.get('/progress', { params: { student_id: studentId } });
+  getGuardianStudents() {
+    return this.client.get<{ students: WeeklyReport[] }>('/guardian/students');
   }
 
-  async getMilestones(studentId?: string) {
-    return this.client.get('/milestones', { params: { student_id: studentId } });
+  // Notifications
+  getNotifications() {
+    return this.client.get<AppNotification[]>('/notifications');
   }
+}
 
-  // Mutashabihat
-  async getMutashabihat(ayah?: string) {
-    return this.client.get('/mutashabihat', { params: { ayah } });
-  }
+export function saveSession(session: { token: string; refreshToken: string; user?: ApiUser }) {
+  localStorage.setItem(TOKEN_KEY, session.token);
+  localStorage.setItem(REFRESH_KEY, session.refreshToken);
+  if (session.user) localStorage.setItem(USER_KEY, JSON.stringify(session.user));
+}
 
-  async getCluster(id: string) {
-    return this.client.get(`/mutashabihat/${id}`);
-  }
+export function clearSession() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+  localStorage.removeItem(USER_KEY);
+}
 
-  // Mushaf
-  async getAyat(refs: string) {
-    return this.client.get('/ayat', { params: { refs } });
-  }
-
-  async getRecitations(ayahRef: string, reciter?: string) {
-    return this.client.get(`/ayat/${ayahRef}/recitations`, { params: { reciter } });
-  }
-
-  // Teacher endpoints
-  async getSectionHealth(sectionId: string) {
-    return this.client.get(`/sections/${sectionId}/health`);
-  }
-
-  async getStudentProfile(sectionId: string, studentId: string) {
-    return this.client.get(`/sections/${sectionId}/students/${studentId}`);
-  }
-
-  async sendIntervention(sectionId: string, data: any) {
-    return this.client.post(`/sections/${sectionId}/messages`, data);
-  }
-
-  async exportSectionReport(sectionId: string) {
-    return this.client.get(`/sections/${sectionId}/report`, { responseType: 'blob' });
-  }
-
-  // Admin
-  async getDashboard() {
-    return this.client.get('/admin/dashboard');
-  }
-
-  async getAuditLog(params: any) {
-    return this.client.get('/admin/audit', { params });
-  }
+/** Where each role lands after signing in. */
+export function homeFor(role: Role | undefined | null) {
+  if (role === 'student' || role === 'alumna') return '/dashboard';
+  if (role === 'mahram') return '/guardian';
+  // Admins use the teacher dashboard (it lists every halaqa in their institution)
+  // until the admin console is connected to real data.
+  return '/dashboard/teacher';
 }
 
 export const api = new ApiClient();
 
-// React Query hooks
-export function useApi() {
-  return api;
-}
-
-// Typed query keys
 export const queryKeys = {
-  auth: {
-    me: ['auth', 'me'] as const,
-  },
-  sections: {
-    all: ['sections'] as const,
-    detail: (id: string) => ['sections', id] as const,
-    health: (id: string) => ['sections', id, 'health'] as const,
-    students: (id: string) => ['sections', id, 'students'] as const,
-    student: (sectionId: string, studentId: string) => ['sections', sectionId, 'students', studentId] as const,
-  },
-  learning: {
-    today: ['learning', 'today'] as const,
-    session: (id: string) => ['sessions', id] as const,
-    progress: (studentId?: string) => ['progress', studentId] as const,
-    milestones: (studentId?: string) => ['milestones', studentId] as const,
-  },
-  tasmi: {
-    queue: ['tasmi', 'queue'] as const,
-    detail: (id: string) => ['tasmi', id] as const,
-  },
-  mutashabihat: {
-    all: ['mutashabihat'] as const,
-    byAyah: (ayah: string) => ['mutashabihat', 'ayah', ayah] as const,
-    cluster: (id: string) => ['mutashabihat', id] as const,
-  },
-  mushaf: {
-    ayat: (refs: string) => ['ayat', refs] as const,
-    recitations: (ayahRef: string, reciter?: string) => ['ayat', ayahRef, 'recitations', reciter] as const,
-  },
-  teacher: {
-    dashboard: ['teacher', 'dashboard'] as const,
-    sectionHealth: (id: string) => ['teacher', 'sections', id, 'health'] as const,
-    studentProfile: (sectionId: string, studentId: string) => ['teacher', 'sections', sectionId, 'students', studentId] as const,
-  },
-  admin: {
-    dashboard: ['admin', 'dashboard'] as const,
-    audit: (params: any) => ['admin', 'audit', params] as const,
-  },
+  me: ['auth', 'me'] as const,
+  sections: ['sections'] as const,
+  queue: ['scheduler', 'queue'] as const,
+  stats: ['scheduler', 'stats'] as const,
+  sectionStudents: (id: string) => ['sections', id, 'students'] as const,
+  sectionReport: (id: string) => ['sections', id, 'report'] as const,
+  attendance: (id: string, date: string) => ['sections', id, 'attendance', date] as const,
+  guardians: (sectionId: string, studentId: string) => ['sections', sectionId, 'guardians', studentId] as const,
+  pendingTasmi: (sectionId?: string) => ['tasmi', 'pending', sectionId] as const,
+  guardianStudents: ['guardian', 'students'] as const,
+  notifications: ['notifications'] as const,
 } as const;

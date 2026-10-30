@@ -1,16 +1,25 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { Button, Card, CardContent } from '@itqan/ui';
 import { useAuth } from '@/lib/auth-context';
 
+const ROLE_LABELS: Record<string, string> = {
+  student: 'حساب طالبة',
+  mahram: 'حساب ولي أمر',
+};
+
 export function AccountPanel() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const router = useRouter();
   const name = user?.displayNameAr || 'طالبة إتقان';
   const email = user?.email || '—';
   const phone = user?.whatsappE164 || '—';
-  const lastActive = user?.lastActiveAt
-    ? new Date(user.lastActiveAt).toLocaleString('ar-EG')
-    : 'هذه الجلسة';
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/');
+  };
 
   return (
     <section className="space-y-4">
@@ -26,7 +35,7 @@ export function AccountPanel() {
                 <p className="font-heading text-lg font-bold text-text-primary">{name}</p>
                 <p className="text-sm text-text-secondary">{email}</p>
                 <p className="text-xs text-brand-primary mt-1">
-                  {user?.role === 'student' || !user ? 'حساب طالبة — كلية الأزهر للبنات' : 'حساب هيئة تدريس — كلية الأزهر للبنات'}
+                  {ROLE_LABELS[user?.role ?? 'student'] ?? 'حساب هيئة تدريس'}
                 </p>
               </div>
             </div>
@@ -62,11 +71,11 @@ export function AccountPanel() {
                 <span className="ms-2 font-medium" dir="ltr">{phone}</span>
               </label>
             </div>
-            <div className="flex items-start justify-between gap-3 text-sm text-text-secondary">
-              <div>
-                <p>تاريخ الدخول: {lastActive}</p>
-                <p className="mt-1">نوع الجهاز: متصفح الويب</p>
-              </div>
+            <div className="flex items-center justify-between gap-3 text-sm text-text-secondary flex-wrap">
+              <p>نوع الجهاز: متصفح الويب</p>
+              <Button variant="secondary" size="sm" onClick={handleLogout}>
+                تسجيل الخروج
+              </Button>
             </div>
           </CardContent>
         </Card>

@@ -184,6 +184,7 @@ async function start() {
   process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
-start();
+// Tests import buildApp without starting a listener.
+if (!process.env.VITEST) start();
 
 export { buildApp };

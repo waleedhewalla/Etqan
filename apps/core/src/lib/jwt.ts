@@ -11,6 +11,8 @@ export interface TokenPayload {
   email?: string;
   whatsappE164?: string;
   purpose?: string;
+  /** Unique token id, so two links issued in the same second still differ. */
+  jti?: string;
 }
 
 export function generateToken(payload: TokenPayload, expiresIn: string = config.JWT_EXPIRY): string {
@@ -19,6 +21,15 @@ export function generateToken(payload: TokenPayload, expiresIn: string = config.
 
 export function verifyToken(token: string): TokenPayload {
   return jwt.verify(token, config.JWT_SECRET) as TokenPayload;
+}
+
+/** Issues an access token and a longer-lived refresh token for a signed-in user. */
+export function issueSessionTokens(payload: TokenPayload) {
+  const { purpose: _purpose, ...claims } = payload;
+  return {
+    token: generateToken(claims),
+    refreshToken: generateToken({ ...claims, purpose: 'refresh' }, config.JWT_REFRESH_EXPIRY),
+  };
 }
 
 const PUBLIC_PATHS = [
@@ -45,9 +56,15 @@ async function jwtPluginImpl(app: FastifyInstance) {
       });
     }
 
+    let payload: TokenPayload;
     try {
-      request.user = verifyToken(authHeader.slice(7));
+      payload = verifyToken(authHeader.slice(7));
     } catch {
+      payload = { sub: '', role: '', purpose: 'invalid' };
+    }
+
+    // Refresh and magic-link tokens carry a purpose and must not be used as access tokens.
+    if (payload.purpose) {
       return reply.code(401).send({
         type: 'https://itqan.link/errors/unauthorized',
         title: 'Unauthorized',
@@ -55,6 +72,7 @@ async function jwtPluginImpl(app: FastifyInstance) {
         detail: 'Invalid or expired token',
       });
     }
+    request.user = payload;
   });
 
 }

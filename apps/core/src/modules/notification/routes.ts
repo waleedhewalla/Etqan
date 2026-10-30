@@ -2,7 +2,8 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { eq, and, isNull, desc } from 'drizzle-orm';
 import { getDb } from '../../db';
-import { notifications } from '../../db/schema';
+import { notifications, users } from '../../db/schema';
+import { isStaff } from '../../lib/access';
 
 const sendNotificationSchema = z.object({
   userId: z.string().uuid(),
@@ -70,6 +71,13 @@ export async function notificationRoutes(app: FastifyInstance) {
     preHandler: [app.authenticate],
   }, async (request) => {
     const body = request.body as z.infer<typeof sendNotificationSchema>;
+
+    // Staff may notify people in their own institution only.
+    const [target] = await db.select({ tenantId: users.tenantId }).from(users)
+      .where(eq(users.id, body.userId)).limit(1);
+    if (!isStaff(request.user) || !target || target.tenantId !== request.user.facultyId) {
+      return request.server.httpErrors.forbidden('Not allowed to notify this user');
+    }
 
     const [notification] = await db.insert(notifications).values({
       userId: body.userId,

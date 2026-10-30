@@ -5,12 +5,15 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button, Input, OTPInput, Card, CardContent, CardHeader, CardTitle, CardDescription } from '@itqan/ui';
 import { ArrowRight, CheckCircle, AlertCircle, Loader2, Mail, Phone, Eye, EyeOff, Shield, User } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, errorMessage, normalizePhone, type ConsentPurpose } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { toast } from '@/components/Toast';
 import { BrandMark } from '@/components/BrandMark';
 
 export default function JoinPage() {
   const router = useRouter();
+  const { login } = useAuth();
+  const [sectionName, setSectionName] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [sectionCode, setSectionCode] = useState('');
   const [phone, setPhone] = useState('');
@@ -29,23 +32,31 @@ export default function JoinPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
 
+  const whatsapp = normalizePhone(phone);
+  const joinCode = sectionCode.trim().toUpperCase();
+
   const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    
+
     try {
-      // Validate section code exists
-      const res = await api.getSection(sectionCode);
-      if (!res.data) throw new Error('كود الشعبة غير صحيح');
-      
-      // Send OTP
-      await api.requestOtp(phone);
+      const res = await api.lookupSection(joinCode);
+      setSectionName(res.data.nameAr);
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      setError(status === 404 ? 'كود الشعبة غير صحيح' : errorMessage(err));
+      setLoading(false);
+      return;
+    }
+
+    try {
+      await api.requestOtp(whatsapp, joinCode);
       setOtpSent(true);
       setResendTimer(60);
       setStep(2);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'حدث خطأ، حاول مرة أخرى');
+    } catch (err) {
+      setError(errorMessage(err, 'تعذّر إرسال الرمز. تأكدي من رقم الواتساب.'));
     } finally {
       setLoading(false);
     }
@@ -54,21 +65,20 @@ export default function JoinPage() {
   const handleStep2Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (otp.length !== 4) {
-      setError('أدخل الرمز كاملاً');
+      setError('أدخلي الرمز كاملاً');
       return;
     }
-    
+
     setError(null);
     setLoading(true);
-    
+
     try {
-      const res = await api.verifyOtp(phone, otp);
-      const { accessToken, user } = res.data;
-      localStorage.setItem('itqan_token', accessToken);
-      localStorage.setItem('itqan_user', JSON.stringify(user));
+      const res = await api.verifyOtp(whatsapp, otp, joinCode);
+      login(res.data);
+      if (!res.data.isNewUser) setName(res.data.user.displayNameAr);
       setStep(3);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'رمز غير صحيح، حاول مرة أخرى');
+    } catch (err) {
+      setError(errorMessage(err, 'رمز غير صحيح، حاولي مرة أخرى'));
     } finally {
       setLoading(false);
     }
@@ -76,15 +86,23 @@ export default function JoinPage() {
 
   const handleStep3Submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (name.trim().length < 2) {
+      setError('اكتبي اسمك كما تريدين أن يظهر لمعلمتك');
+      return;
+    }
     setError(null);
     setLoading(true);
-    
+
     try {
-      const token = localStorage.getItem('itqan_token');
-      await api.getMe(); // Verify token works
+      const res = await api.updateProfile({ displayNameAr: name.trim() });
+      login({
+        token: localStorage.getItem('itqan_token') ?? '',
+        refreshToken: localStorage.getItem('itqan_refresh_token') ?? '',
+        user: res.data.user,
+      });
       setStep(4);
     } catch (err) {
-      setError('حدث خطأ في التحقق');
+      setError(errorMessage(err, 'تعذّر حفظ الاسم'));
     } finally {
       setLoading(false);
     }
@@ -96,18 +114,21 @@ export default function JoinPage() {
       setError('يجب الموافقة على معالجة البيانات');
       return;
     }
-    
+
     setError(null);
     setLoading(true);
-    
+
+    const granted: ConsentPurpose[] = [];
+    if (consents.voiceRecording) granted.push('voice_recording');
+    if (consents.analytics) granted.push('analytics');
+    if (consents.mahramAccess) granted.push('mahram_access');
+    if (notificationPref === 'whatsapp') granted.push('whatsapp_notifications');
+
     try {
-      // Save preferences
-      const token = localStorage.getItem('itqan_token');
-      // In real app, call API to save preferences
-      
+      await api.setConsents(granted);
       setStep(5);
     } catch (err) {
-      setError('حدث خطأ');
+      setError(errorMessage(err, 'تعذّر حفظ اختياراتك'));
     } finally {
       setLoading(false);
     }
@@ -184,7 +205,7 @@ export default function JoinPage() {
             <CardTitle className="font-heading text-2xl">مرحباً بك في إتقان</CardTitle>
             <CardDescription className="text-text-secondary">
               {step === 1 && 'أدخلي كود الشعبة ورقم الهاتف للبدء'}
-              {step === 2 && 'أدخلي رمز التحقق المرسل لواتساب'}
+              {step === 2 && (sectionName ? `الانضمام إلى ${sectionName} — أدخلي الرمز المرسل لواتساب` : 'أدخلي رمز التحقق المرسل لواتساب')}
               {step === 3 && 'أكملي بياناتك الشخصية'}
               {step === 4 && 'راجعي الموافقات وابدئي'}
               {step === 5 && 'أنت جاهزة! اضغطي للبدء'}
@@ -226,6 +247,12 @@ export default function JoinPage() {
                     <>أرسلي رمز التحقق <ArrowRight className="w-4 h-4" /></>
                   )}
                 </Button>
+                <p className="text-center text-sm text-text-secondary">
+                  لديكِ حساب بالفعل؟{' '}
+                  <Link href="/auth/login" className="text-brand-primary font-medium underline underline-offset-2">
+                    سجّلي الدخول
+                  </Link>
+                </p>
               </form>
             )}
 
@@ -250,7 +277,7 @@ export default function JoinPage() {
                       disabled={resendTimer > 0 || loading}
                       onClick={async () => {
                         try {
-                          await api.requestOtp(phone);
+                          await api.requestOtp(whatsapp, joinCode);
                           setResendTimer(60);
                           toast.success('أُعيد إرسال الرمز');
                         } catch {
