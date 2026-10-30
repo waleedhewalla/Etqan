@@ -60,6 +60,16 @@ chmod 600 .env
    - open `https://app.example.org/auth/login/faculty`, enter the dean's email, and use the link that arrives. You land on the admin console.
    - on a phone, sign up as a student with the join code (a WhatsApp code arrives).
 
+## Audio storage
+
+Recordings are stored in an S3-compatible bucket that only the API can reach (browsers never see it). By default that is a
+MinIO container in this stack. Know the trade-off: MinIO **no longer publishes images on Docker Hub and no longer maintains its
+community edition**, so the pinned image will not receive security fixes. For a pilot that holds recordings for at most a day or
+a month, that may be acceptable; for anything longer-lived, use a managed S3 service (AWS S3, Wasabi, Cloudflare R2, or a
+provider in your region): set `MINIO_ENDPOINT`, `MINIO_USE_SSL`, `MINIO_REGION`, `MINIO_BUCKET` and the key pair in `.env`,
+then start with `docker compose -f compose.prod.yml up -d --build --scale minio=0`. The S3 driver has only been tested against a
+local S3 emulator and MinIO's protocol, not against those services: try a recording end to end before relying on it.
+
 ## Settings you may change later
 
 Edit `.env`, then `docker compose -f compose.prod.yml up -d` (the web app is rebuilt only if `API_DOMAIN` changed: add `--build`).
