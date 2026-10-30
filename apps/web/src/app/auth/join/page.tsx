@@ -413,7 +413,7 @@ export default function JoinPage() {
                 
                 {[
                   { key: 'dataProcessing', title: 'معالجة البيانات الشخصية', desc: 'للحساب، التقدم، والتقارير الأكاديمية', required: true },
-                  { key: 'voiceRecording', title: 'تسجيل الصوت للتسميع', desc: 'يُحذف تلقائياً خلال ٢٤ ساعة', required: false },
+                  { key: 'voiceRecording', title: 'تسجيل الصوت للتسميع', desc: 'يُحذف تلقائياً بعد ٢٤ ساعة من مراجعة المعلمة', required: false },
                   { key: 'analytics', title: 'تحليلات التعلم المجهولة', desc: 'لتحسين المنصة، لا بيانات شخصية', required: false },
                   { key: 'mahramAccess', title: 'رؤية المحرم (اختياري)', desc: 'ملخص تقدم فقط، بدون تفاصيل', required: false },
                 ].map((item) => (

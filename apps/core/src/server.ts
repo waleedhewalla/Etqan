@@ -21,6 +21,7 @@ import { schedulerRoutes } from './modules/scheduler/routes';
 import { mutashabihatRoutes } from './modules/mutashabihat/routes';
 import { voiceProxyRoutes } from './modules/voice-proxy/routes';
 import { sweepPendingChecks } from './lib/asr/runner';
+import { purgeExpiredAudio } from './lib/retention';
 import { assessmentRoutes } from './modules/assessment/routes';
 import { reportingRoutes } from './modules/reporting/routes';
 import { notificationRoutes } from './modules/notification/routes';
@@ -176,6 +177,11 @@ async function start() {
     const sweep = () => sweepPendingChecks(getDb()).catch((e) => app.log.error(e, 'ASR sweep failed'));
     void sweep();
     setInterval(sweep, 60_000).unref();
+
+    // Delete recordings that have outlived their purpose (see lib/retention.ts).
+    const purge = () => purgeExpiredAudio(getDb()).catch((e) => app.log.error(e, 'audio retention failed'));
+    void purge();
+    setInterval(purge, 60 * 60_000).unref();
   } catch (err) {
     app.log.error(err);
     process.exit(1);

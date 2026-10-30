@@ -44,6 +44,11 @@ const envSchema = z.object({
   QURAN_TEXT_PATH: optional(z.string()),
   QURAN_TEXT_URL: z.string().url().default('https://cdn.jsdelivr.net/npm/quran-json@3.1.2/dist/quran.json'),
 
+  // How long a recording is kept. The privacy page promises deletion within 24 hours of the teacher's
+  // review; one nobody reviews is removed after AUDIO_UNREVIEWED_MAX_DAYS so it cannot stay forever.
+  AUDIO_RETENTION_HOURS: z.coerce.number().positive().default(24),
+  AUDIO_UNREVIEWED_MAX_DAYS: z.coerce.number().positive().default(30),
+
   // Recitation checking. 'none' = teacher-only review. 'demo' drops and swaps a few words so the
   // screens can be tried without a service (refused in production). 'openai-compatible' sends the audio
   // to any service that implements POST {ASR_API_URL}/audio/transcriptions.

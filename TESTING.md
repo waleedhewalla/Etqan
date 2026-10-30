@@ -63,6 +63,25 @@ dispute and teacher screens have something to show. The result is only a first l
 it is never a grade, and the teacher confirms or dismisses each flag. A check that fails or hears too little
 never blocks the teacher. Queued checks survive an API restart (they live in the database).
 
+Does it agree with your teachers? After some recitations have been reviewed:
+
+```bash
+pnpm --filter @itqan/core asr:eval            # add --tenant <slug> for one institution
+```
+
+It reports how often teachers confirm the flags (overall, per kind of flag, and per student, numbered rather than named),
+how many the students disputed, and whether "ready for approval" hints matched approvals. It reads only the teachers'
+decisions, never audio. Collect at least ~30 decided flags per kind before drawing conclusions, and check it on your
+own students' voices before relying on it.
+
+### Revision and retention
+
+- When a teacher first reviews a recitation, each ayah recited is rescheduled (`apps/core/src/lib/grading.ts`):
+  *redo* → again; *approved* → good (easy at a memorization score of 95+), hard with one confirmed memory error in that ayah,
+  again with two or more. *Flagged* (waiting for the sheikha) reschedules nothing. Only cards the student already has are touched.
+- Recordings are deleted `AUDIO_RETENTION_HOURS` (24) after review, or `AUDIO_UNREVIEWED_MAX_DAYS` (30) after submission if never reviewed.
+  The job runs when the API starts and then hourly. Scores, notes and flags stay.
+
 ## Try the pilot locally
 
 Start the API and the web app in two terminals:

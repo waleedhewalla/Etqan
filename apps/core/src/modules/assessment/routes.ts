@@ -2,12 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { eq, and, desc, isNull, inArray } from 'drizzle-orm';
-import { compareRefs, countAyat, parseRef } from '@itqan/quran';
-import { getDb } from '../../db';
+import { AYAH_COUNTS, compareRefs, countAyat, parseRef } from '@itqan/quran';
+import { getDb, type Database } from '../../db';
 import { sectionEnrollments, sections, tasmiSubmissions, users } from '../../db/schema';
 import { canViewStudent, isStaff, isTenantAdmin } from '../../lib/access';
 import { MAX_AUDIO_BYTES, sniffAudio } from '../../lib/audio';
 import { hasConsent } from '../../lib/consent';
+import { ayatBetween, gradeRecitation } from '../../lib/grading';
 import { ConsentRequiredError } from '../../lib/errors';
 import { generateToken, verifyToken } from '../../lib/jwt';
 import { RangeNotSatisfiableError, getStorage } from '../../lib/storage';
@@ -278,7 +279,10 @@ export async function assessmentRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const body = request.body as z.infer<typeof reviewTasmiSchema>;
 
-    const [existing] = await db.select({ studentId: tasmiSubmissions.studentId, aiFlaggedErrors: tasmiSubmissions.aiFlaggedErrors })
+    const [existing] = await db.select({
+      studentId: tasmiSubmissions.studentId, aiFlaggedErrors: tasmiSubmissions.aiFlaggedErrors,
+      reviewVerdict: tasmiSubmissions.reviewVerdict, startRef: tasmiSubmissions.startRef, endRef: tasmiSubmissions.endRef,
+    })
       .from(tasmiSubmissions).where(eq(tasmiSubmissions.id, id)).limit(1);
     if (!existing || !isStaff(request.user) || !(await canViewStudent(db, request.user, existing.studentId))) {
       return request.server.httpErrors.notFound('Submission not found');
@@ -291,22 +295,37 @@ export async function assessmentRoutes(app: FastifyInstance) {
 
     const weightedTotal = body.hifzScore * 0.5 + body.tajweedScore * 0.3 + body.fluencyScore * 0.2;
 
-    const [updated] = await db.update(tasmiSubmissions)
-      .set({
-        reviewedBy: reviewerId,
-        reviewedAt: new Date(),
-        reviewHifzScore: body.hifzScore,
-        reviewTajweedScore: body.tajweedScore,
-        reviewFluencyScore: body.fluencyScore,
-        reviewWeightedTotal: weightedTotal,
-        reviewVerdict: body.verdict,
-        reviewNotes: body.notes,
-        aiFlaggedErrors: decided,
-      })
-      .where(eq(tasmiSubmissions.id, id))
-      .returning();
+    // The verdict and the student's rescheduled revision cards change together or not at all.
+    // Cards are rescheduled once: editing a review later must not count twice. A "flagged" review
+    // reschedules nothing, so the sheikha's final decision still counts as the first grading.
+    const firstReview = existing.reviewVerdict !== 'approved' && existing.reviewVerdict !== 'redo';
+    const result = await db.transaction(async (tx) => {
+      const [row] = await tx.update(tasmiSubmissions)
+        .set({
+          reviewedBy: reviewerId,
+          reviewedAt: new Date(),
+          reviewHifzScore: body.hifzScore,
+          reviewTajweedScore: body.tajweedScore,
+          reviewFluencyScore: body.fluencyScore,
+          reviewWeightedTotal: weightedTotal,
+          reviewVerdict: body.verdict,
+          reviewNotes: body.notes,
+          aiFlaggedErrors: decided,
+        })
+        .where(eq(tasmiSubmissions.id, id))
+        .returning();
+      const graded = row && firstReview
+        ? await gradeRecitation(tx as unknown as Database, existing.studentId, {
+          verdict: body.verdict,
+          hifzScore: body.hifzScore,
+          ayat: ayatBetween(existing.startRef, existing.endRef, AYAH_COUNTS),
+          flags: decided,
+        })
+        : 0;
+      return { row, graded };
+    });
 
-    if (!updated) return request.server.httpErrors.notFound('Submission not found');
-    return serializeTasmi(updated);
+    if (!result.row) return request.server.httpErrors.notFound('Submission not found');
+    return { ...serializeTasmi(result.row), graded: result.graded };
   });
 }
