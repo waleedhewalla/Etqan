@@ -1,8 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, isNull, inArray } from 'drizzle-orm';
 import { getDb } from '../../db';
-import { tasmiSubmissions } from '../../db/schema';
+import { sectionEnrollments, sections, tasmiSubmissions, users } from '../../db/schema';
+import { canViewStudent, isStaff, isTenantAdmin } from '../../lib/access';
 
 const submitTasmiSchema = z.object({
   sectionId: z.string().uuid().optional(),
@@ -31,6 +32,16 @@ export async function assessmentRoutes(app: FastifyInstance) {
     const userId = request.user.sub;
     const body = request.body as z.infer<typeof submitTasmiSchema>;
 
+    if (body.sectionId) {
+      const [enrolled] = await db.select({ id: sectionEnrollments.id }).from(sectionEnrollments)
+        .where(and(
+          eq(sectionEnrollments.sectionId, body.sectionId),
+          eq(sectionEnrollments.studentId, userId),
+          isNull(sectionEnrollments.droppedAt),
+        )).limit(1);
+      if (!enrolled) return request.server.httpErrors.badRequest('You are not in this halaqa');
+    }
+
     const [submission] = await db.insert(tasmiSubmissions).values({
       studentId: userId,
       sectionId: body.sectionId,
@@ -43,7 +54,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
     return submission;
   });
 
-  // GET /v1/tasmi — List student's submissions
+  // GET /v1/tasmi — List the student's own submissions
   app.get('/tasmi', {
     preHandler: [app.authenticate],
   }, async (request) => {
@@ -55,33 +66,33 @@ export async function assessmentRoutes(app: FastifyInstance) {
       .limit(50);
   });
 
-  // GET /v1/tasmi/pending — List pending submissions for teacher review
+  // GET /v1/tasmi/pending?sectionId= — unreviewed submissions in the reviewer's halaqat
   app.get('/tasmi/pending', {
     preHandler: [app.authenticate],
   }, async (request) => {
+    const user = request.user;
+    if (!isStaff(user)) return request.server.httpErrors.forbidden('Staff only');
     const { sectionId } = request.query as { sectionId?: string };
 
-    let query = db.select()
+    const managed = await db.select({ id: sections.id }).from(sections)
+      .where(isTenantAdmin(user)
+        ? eq(sections.tenantId, user.facultyId!)
+        : and(eq(sections.tenantId, user.facultyId!), eq(sections.teacherId, user.sub)));
+    let sectionIds = managed.map((m) => m.id);
+    if (sectionId) sectionIds = sectionIds.filter((id) => id === sectionId);
+    if (sectionIds.length === 0) return [];
+
+    const rows = await db.select({ submission: tasmiSubmissions, studentName: users.displayNameAr })
       .from(tasmiSubmissions)
-      .where(eq(tasmiSubmissions.reviewVerdict, null as any))
+      .innerJoin(users, eq(tasmiSubmissions.studentId, users.id))
+      .where(and(inArray(tasmiSubmissions.sectionId, sectionIds), isNull(tasmiSubmissions.reviewVerdict)))
       .orderBy(desc(tasmiSubmissions.submittedAt))
       .limit(50);
 
-    if (sectionId) {
-      query = db.select()
-        .from(tasmiSubmissions)
-        .where(and(
-          eq(tasmiSubmissions.sectionId, sectionId),
-          eq(tasmiSubmissions.reviewVerdict, null as any),
-        ))
-        .orderBy(desc(tasmiSubmissions.submittedAt))
-        .limit(50);
-    }
-
-    return query;
+    return rows.map((r) => ({ ...r.submission, studentName: r.studentName }));
   });
 
-  // GET /v1/tasmi/:id — Get single submission
+  // GET /v1/tasmi/:id — the student, her teacher, or an admin
   app.get('/tasmi/:id', {
     preHandler: [app.authenticate],
   }, async (request) => {
@@ -92,7 +103,9 @@ export async function assessmentRoutes(app: FastifyInstance) {
       .where(eq(tasmiSubmissions.id, id))
       .limit(1);
 
-    if (!submission) return request.server.httpErrors.notFound('Submission not found');
+    if (!submission || !(await canViewStudent(db, request.user, submission.studentId))) {
+      return request.server.httpErrors.notFound('Submission not found');
+    }
     return submission;
   });
 
@@ -104,6 +117,12 @@ export async function assessmentRoutes(app: FastifyInstance) {
     const reviewerId = request.user.sub;
     const { id } = request.params as { id: string };
     const body = request.body as z.infer<typeof reviewTasmiSchema>;
+
+    const [existing] = await db.select({ studentId: tasmiSubmissions.studentId })
+      .from(tasmiSubmissions).where(eq(tasmiSubmissions.id, id)).limit(1);
+    if (!existing || !isStaff(request.user) || !(await canViewStudent(db, request.user, existing.studentId))) {
+      return request.server.httpErrors.notFound('Submission not found');
+    }
 
     const weightedTotal = body.hifzScore * 0.5 + body.tajweedScore * 0.3 + body.fluencyScore * 0.2;
 

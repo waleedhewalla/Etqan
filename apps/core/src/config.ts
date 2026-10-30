@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+// Treat empty variables (e.g. `WHATSAPP_API_KEY=` in .env) as unset.
+const optional = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((v) => (v === '' ? undefined : v), schema.optional());
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(4000),
@@ -29,13 +33,27 @@ const envSchema = z.object({
   API_URL: z.string().url().default('http://localhost:4000'),
   
   // Tarteel
-  TARTEEL_API_KEY: z.string().optional(),
+  TARTEEL_API_KEY: optional(z.string()),
   TARTEEL_API_URL: z.string().url().default('https://api.tarteel.ai'),
   
   // WhatsApp
-  WHATSAPP_API_URL: z.string().url().optional(),
-  WHATSAPP_API_KEY: z.string().optional(),
-  WHATSAPP_TEMPLATE_NAMESPACE: z.string().optional(),
+  WHATSAPP_API_URL: optional(z.string().url()),
+  WHATSAPP_API_KEY: optional(z.string()),
+  WHATSAPP_TEMPLATE_NAMESPACE: optional(z.string()),
+  WHATSAPP_TEMPLATE_OTP: z.string().default('itqan_otp'),
+  WHATSAPP_TEMPLATE_ABSENCE: z.string().default('itqan_absence_alert'),
+  WHATSAPP_TEMPLATE_LANGUAGE: z.string().default('ar'),
+
+  // Email (SendGrid) for staff magic links
+  SENDGRID_API_KEY: optional(z.string()),
+  FROM_EMAIL: z.string().email().default('noreply@itqan.link'),
+  FROM_NAME: z.string().default('إتقان'),
+
+  // Day boundaries for streaks, attendance and weekly reports
+  DEFAULT_TIMEZONE: z.string().default('Africa/Cairo'),
+
+  // Web app (used in magic links)
+  FRONTEND_URL: z.string().url().default('http://localhost:9050'),
   
   // Feature flags
   ENABLE_ASR: z.coerce.boolean().default(false),
