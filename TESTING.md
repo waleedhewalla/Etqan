@@ -63,6 +63,28 @@ dispute and teacher screens have something to show. The result is only a first l
 it is never a grade, and the teacher confirms or dismisses each flag. A check that fails or hears too little
 never blocks the teacher. Queued checks survive an API restart (they live in the database).
 
+### Trying a real transcription service (before students use it)
+
+1. Collect sample recordings with known verse ranges, recited **cleanly** first (then some with a deliberate skipped or swapped word),
+   and a `manifest.json` next to them: `[{ "file": "fatiha.webm", "startRef": "1:1", "endRef": "1:7", "notes": "clean" }]`.
+2. Load the Quran text (`db:seed-quran`), then run the bench with the service's address and key in the environment
+   (the key is never printed):
+
+```bash
+ENABLE_ASR=true ASR_PROVIDER=openai-compatible ASR_API_URL=https://api.openai.com/v1 ASR_API_KEY=... ASR_MODEL=whisper-1 \
+  pnpm --filter @itqan/core asr:bench ./samples
+```
+
+It prints, per file, what the service heard, the accuracy against the Quran text, every flag, and a summary. On clean
+recitations aim for **mean accuracy 90%+** with nothing "could not hear"; a flag on a correctly recited word means the service
+(or our matching), so read the "heard" line. Suggested go/no-go for a pilot: clean accuracy 90%+ here, then flag precision 80%+ from `asr:eval`
+once teachers have decided at least 30 flags. Audio is sent to the service you name, so only use recordings you may share.
+The confidence shown comes from Whisper's own scores and is not calibrated for recitation; watch it on your samples before relying
+on the "could not hear" cut-off (0.5).
+
+Matching ignores vowel marks and alefs (the Uthmani text's dagger alef vs a transcription's full alef), but not other spelling
+differences such as صلاة/صلوة: if the bench shows a systematic one, add it to `packages/quran/src/arabic.ts` with a test.
+
 Does it agree with your teachers? After some recitations have been reviewed:
 
 ```bash

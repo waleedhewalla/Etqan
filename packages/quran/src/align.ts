@@ -11,14 +11,26 @@ export type AlignOp =
   | { type: 'added'; heardIndex: number };
 
 /**
+ * What two words must share to count as the same word. Besides normalizing, alefs are dropped:
+ * the Uthmani text writes many long "aa" sounds with a small dagger alef (ٱلۡعَٰلَمِينَ) where ordinary
+ * spelling, which is what a transcription service writes, uses a full alef (العالمين). A missing or
+ * extra alef is a spelling convention, not a different word. (This makes words that differ only in
+ * their alefs look equal, which is rare in the Quran and an acceptable price.)
+ */
+function matchKey(word: string) {
+  const normalized = normalizeArabic(word);
+  return normalized.replace(/\u{0627}/gu, '') || normalized;
+}
+
+/**
  * Lines up what was heard against the expected words and says, word by word, what
  * happened. Words are compared in their normalized form, so vowel marks and spelling
  * variants never count as mistakes. Uses the fewest-changes alignment, so a repeated
  * word or one skipped word does not shift every word after it.
  */
 export function alignWords(expected: string[], heard: string[]): AlignOp[] {
-  const a = expected.map(normalizeArabic);
-  const b = heard.map(normalizeArabic);
+  const a = expected.map(matchKey);
+  const b = heard.map(matchKey);
   const n = a.length;
   const m = b.length;
 

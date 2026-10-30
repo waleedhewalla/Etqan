@@ -97,6 +97,11 @@ describe('alignWords', () => {
     expect(types(ops)).toBe('ok,ok,ok,ok');
   });
 
+  it('treats dagger-alef and full-alef spellings as the same word', () => {
+    expect(types(alignWords(w('ٱلۡعَٰلَمِينَ ذَٰلِكَ ٱلۡكِتَٰبُ'), w('العالمين ذلك الكتاب')))).toBe('ok,ok,ok');
+    expect(types(alignWords(w('ٱلۡعَٰلَمِينَ'), w('الظالمين')))).toBe('wrong');
+  });
+
   it('finds a missing word without shifting the rest', () => {
     const ops = alignWords(w('ا ب ج د ه'), w('ا ب د ه'));
     expect(types(ops)).toBe('ok,ok,missing,ok,ok');
