@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
 // Treat empty variables (e.g. `WHATSAPP_API_KEY=` in .env) as unset.
+// Environment values are strings: "false" must mean false (z.coerce.boolean() would make it true).
+const flag = (fallback: boolean) =>
+  z.preprocess((v) => (v === undefined || v === '' ? fallback : v === true || v === 'true' || v === '1'), z.boolean());
+
 const optional = <T extends z.ZodTypeAny>(schema: T) =>
   z.preprocess((v) => (v === '' ? undefined : v), schema.optional());
 
@@ -40,9 +44,13 @@ const envSchema = z.object({
   QURAN_TEXT_PATH: optional(z.string()),
   QURAN_TEXT_URL: z.string().url().default('https://cdn.jsdelivr.net/npm/quran-json@3.1.2/dist/quran.json'),
 
-  // Tarteel
-  TARTEEL_API_KEY: optional(z.string()),
-  TARTEEL_API_URL: z.string().url().default('https://api.tarteel.ai'),
+  // Recitation checking. 'none' = teacher-only review. 'demo' drops and swaps a few words so the
+  // screens can be tried without a service (refused in production). 'openai-compatible' sends the audio
+  // to any service that implements POST {ASR_API_URL}/audio/transcriptions.
+  ASR_PROVIDER: z.enum(['none', 'demo', 'openai-compatible']).default('none'),
+  ASR_API_URL: optional(z.string().url()),
+  ASR_API_KEY: optional(z.string()),
+  ASR_MODEL: z.string().default('whisper-1'),
   
   // WhatsApp
   WHATSAPP_API_URL: optional(z.string().url()),
@@ -64,10 +72,10 @@ const envSchema = z.object({
   FRONTEND_URL: z.string().url().default('http://localhost:9050'),
   
   // Feature flags
-  ENABLE_ASR: z.coerce.boolean().default(false),
-  ENABLE_LIVE_HALAQA: z.coerce.boolean().default(false),
-  ENABLE_MUTASHABIHAT: z.coerce.boolean().default(true),
-  ENABLE_FAMILY_PORTAL: z.coerce.boolean().default(false),
+  ENABLE_ASR: flag(false),
+  ENABLE_LIVE_HALAQA: flag(false),
+  ENABLE_MUTASHABIHAT: flag(true),
+  ENABLE_FAMILY_PORTAL: flag(false),
 });
 
 export const config = envSchema.parse(process.env);

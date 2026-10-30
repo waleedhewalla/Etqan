@@ -11,6 +11,8 @@ import { hasConsent } from '../../lib/consent';
 import { ConsentRequiredError } from '../../lib/errors';
 import { generateToken, verifyToken } from '../../lib/jwt';
 import { RangeNotSatisfiableError, getStorage } from '../../lib/storage';
+import { isCheckEnabled, scheduleAsrCheck } from '../../lib/asr/runner';
+import type { FlaggedWord } from '../../lib/asr/types';
 import { auditLog } from '../audit/service';
 
 /** Longest recitation a single recording may cover. */
@@ -26,6 +28,8 @@ function serializeTasmi(row: Submission) {
 }
 
 const reviewTasmiSchema = z.object({
+  /** The teacher's call on each AI flag, by flag id. */
+  flagDecisions: z.record(z.enum(['confirmed', 'dismissed'])).optional(),
   hifzScore: z.number().min(0).max(100),
   tajweedScore: z.number().min(0).max(100),
   fluencyScore: z.number().min(0).max(100),
@@ -89,6 +93,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
     const kind = sniffAudio(audio);
     if (!kind) return errors.unsupportedMediaType('That file is not an audio recording');
 
+    const checkAi = await isCheckEnabled(db, user.facultyId, user.sub);
     const id = randomUUID();
     const key = `tasmi/${user.sub}/${id}.${kind.ext}`;
     await getStorage().put(key, audio, kind.mime);
@@ -103,7 +108,9 @@ export async function assessmentRoutes(app: FastifyInstance) {
       audioContentType: kind.mime,
       audioBytes: audio.length,
       durationMs,
+      aiStatus: checkAi ? 'pending' : null,
     }).returning();
+    if (checkAi) scheduleAsrCheck(db, row.id);
     return serializeTasmi(row);
   });
 
@@ -220,7 +227,11 @@ export async function assessmentRoutes(app: FastifyInstance) {
       .orderBy(desc(tasmiSubmissions.submittedAt))
       .limit(50);
 
-    return rows.map((r) => ({ ...serializeTasmi(r.submission), studentName: r.studentName }));
+    // Submissions the student disputed come first: they are the ones most likely to be wrong.
+    const disputed = (s: Submission) => ((s.aiFlaggedErrors ?? []) as FlaggedWord[]).filter((f) => f.disputed).length;
+    return rows
+      .map((r) => ({ ...serializeTasmi(r.submission), studentName: r.studentName, disputedCount: disputed(r.submission) }))
+      .sort((a, b) => b.disputedCount - a.disputedCount);
   });
 
   // GET /v1/tasmi/:id — the student, her teacher, or an admin
@@ -240,6 +251,24 @@ export async function assessmentRoutes(app: FastifyInstance) {
     return serializeTasmi(submission);
   });
 
+  // POST /v1/tasmi/:id/flags/:flagId/dispute — the student says an AI flag is wrong (before review)
+  app.post('/tasmi/:id/flags/:flagId/dispute', {
+    preHandler: [app.authenticate],
+  }, async (request) => {
+    const { id, flagId } = request.params as { id: string; flagId: string };
+    const [row] = await db.select().from(tasmiSubmissions).where(eq(tasmiSubmissions.id, id)).limit(1);
+    if (!row || row.studentId !== request.user.sub) return request.server.httpErrors.notFound('Submission not found');
+    if (row.reviewVerdict) return request.server.httpErrors.conflict('This recitation was already reviewed');
+
+    const flags = (row.aiFlaggedErrors ?? []) as FlaggedWord[];
+    if (!flags.some((f) => f.id === flagId)) return request.server.httpErrors.notFound('Flag not found');
+
+    const [updated] = await db.update(tasmiSubmissions)
+      .set({ aiFlaggedErrors: flags.map((f) => (f.id === flagId ? { ...f, disputed: true } : f)) })
+      .where(eq(tasmiSubmissions.id, id)).returning();
+    return serializeTasmi(updated);
+  });
+
   // POST /v1/tasmi/:id/review — Teacher reviews a submission
   app.post('/tasmi/:id/review', {
     schema: { body: reviewTasmiSchema },
@@ -249,11 +278,16 @@ export async function assessmentRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const body = request.body as z.infer<typeof reviewTasmiSchema>;
 
-    const [existing] = await db.select({ studentId: tasmiSubmissions.studentId })
+    const [existing] = await db.select({ studentId: tasmiSubmissions.studentId, aiFlaggedErrors: tasmiSubmissions.aiFlaggedErrors })
       .from(tasmiSubmissions).where(eq(tasmiSubmissions.id, id)).limit(1);
     if (!existing || !isStaff(request.user) || !(await canViewStudent(db, request.user, existing.studentId))) {
       return request.server.httpErrors.notFound('Submission not found');
     }
+
+    // Record the teacher's call on each AI flag; flags she did not mention stay undecided.
+    const flags = (existing.aiFlaggedErrors ?? []) as FlaggedWord[];
+    const decisions = body.flagDecisions ?? {};
+    const decided = flags.map((f) => (decisions[f.id] ? { ...f, decision: decisions[f.id] } : f));
 
     const weightedTotal = body.hifzScore * 0.5 + body.tajweedScore * 0.3 + body.fluencyScore * 0.2;
 
@@ -267,6 +301,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
         reviewWeightedTotal: weightedTotal,
         reviewVerdict: body.verdict,
         reviewNotes: body.notes,
+        aiFlaggedErrors: decided,
       })
       .where(eq(tasmiSubmissions.id, id))
       .returning();

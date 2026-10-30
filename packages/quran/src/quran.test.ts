@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AYAH_COUNTS, AYAH_TOTAL, SURA_COUNT, compareRefs, countAyat, normalizeArabic, parseRef, splitWords } from './index';
+import { AYAH_COUNTS, AYAH_TOTAL, SURA_COUNT, alignWords, summarizeAlignment, compareRefs, countAyat, normalizeArabic, parseRef, splitWords } from './index';
 
 describe('normalizeArabic', () => {
   it('removes vowel marks and shadda', () => {
@@ -85,5 +85,52 @@ describe('countAyat', () => {
   it('is 0 when the end comes before the start', () => {
     expect(countAyat([2, 5], [2, 1])).toBe(0);
     expect(countAyat([3, 1], [2, 1])).toBe(0);
+  });
+});
+
+describe('alignWords', () => {
+  const w = (s: string) => s.split(' ');
+  const types = (ops: ReturnType<typeof alignWords>) => ops.map((o) => o.type).join(',');
+
+  it('accepts a perfect recitation, ignoring vowel marks and spelling variants', () => {
+    const ops = alignWords(w('قُلْ هُوَ ٱللَّهُ أَحَدٌ'), w('قل هو الله احد'));
+    expect(types(ops)).toBe('ok,ok,ok,ok');
+  });
+
+  it('finds a missing word without shifting the rest', () => {
+    const ops = alignWords(w('ا ب ج د ه'), w('ا ب د ه'));
+    expect(types(ops)).toBe('ok,ok,missing,ok,ok');
+    expect(ops[2]).toEqual({ type: 'missing', expectedIndex: 2 });
+  });
+
+  it('finds a wrong word and says what was heard', () => {
+    const ops = alignWords(w('ا ب ج'), w('ا خ ج'));
+    expect(types(ops)).toBe('ok,wrong,ok');
+    expect(ops[1]).toEqual({ type: 'wrong', expectedIndex: 1, heardIndex: 1 });
+  });
+
+  it('finds an added word', () => {
+    expect(types(alignWords(w('ا ب'), w('ا س ب')))).toBe('ok,added,ok');
+  });
+
+  it('handles a repeated word without blaming the words that follow', () => {
+    // she said the second word twice, then carried on
+    expect(types(alignWords(w('ا ب ج'), w('ا ب ب ج')))).toBe('ok,ok,added,ok');
+    // the text itself repeats a phrase and she skips one word of the second round
+    const ops = alignWords(w('ا ب ج ا ب ج'), w('ا ب ج ب ج'));
+    const summary = summarizeAlignment(ops, 6);
+    expect(summary).toMatchObject({ ok: 5, missing: 1, wrong: 0, added: 0 });
+  });
+
+  it('reports everything missing for silence and everything added for no text', () => {
+    expect(types(alignWords(w('ا ب'), []))).toBe('missing,missing');
+    expect(types(alignWords([], w('ا ب')))).toBe('added,added');
+    expect(alignWords([], [])).toEqual([]);
+  });
+
+  it('summarizes accuracy', () => {
+    const ops = alignWords(w('ا ب ج د'), w('ا ب د'));
+    expect(summarizeAlignment(ops, 4)).toEqual({ ok: 3, wrong: 0, missing: 1, added: 0, accuracy: 75 });
+    expect(summarizeAlignment([], 0).accuracy).toBe(0);
   });
 });

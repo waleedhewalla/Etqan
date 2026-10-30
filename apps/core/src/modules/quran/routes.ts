@@ -1,9 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { and, asc, eq, gt, gte, inArray, lt, lte, or } from 'drizzle-orm';
+import { asc, inArray } from 'drizzle-orm';
 import { compareRefs, countAyat, parseRef } from '@itqan/quran';
 import { getDb } from '../../db';
 import { quranAyat } from '../../db/schema';
+import { ayatInRange } from '../../lib/quran-range';
 
 const MAX_REFS = 60;
 const MAX_RANGE = 300;
@@ -64,10 +65,7 @@ export async function quranRoutes(app: FastifyInstance) {
     }
 
     const ayat = await db.select(columns).from(quranAyat)
-      .where(and(
-        or(gt(quranAyat.sura, start[0]), and(eq(quranAyat.sura, start[0]), gte(quranAyat.ayah, start[1]))),
-        or(lt(quranAyat.sura, end[0]), and(eq(quranAyat.sura, end[0]), lte(quranAyat.ayah, end[1]))),
-      ))
+      .where(ayatInRange(start, end))
       .orderBy(asc(quranAyat.sura), asc(quranAyat.ayah));
 
     reply.header('Cache-Control', 'private, max-age=3600');

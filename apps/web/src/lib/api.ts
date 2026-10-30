@@ -37,7 +37,7 @@ export interface MeResponse {
 }
 
 export type ConsentPurpose =
-  | 'voice_recording' | 'analytics' | 'mahram_access' | 'whatsapp_notifications' | 'peer_comparison' | 'data_export';
+  | 'voice_recording' | 'analytics' | 'mahram_access' | 'whatsapp_notifications' | 'peer_comparison' | 'data_export' | 'ai_processing';
 
 export type Rating = 'again' | 'hard' | 'good' | 'easy';
 
@@ -155,6 +155,21 @@ export interface AttendanceSaveResponse {
   alerts: { sent: number; skipped: number; failed: number; noGuardian: number };
 }
 
+/** One word the automatic check wants the teacher to look at. */
+export interface FlaggedWord {
+  id: string;
+  ayahRef: string;
+  /** 0-based position of the word in its ayah (for `added`, the word it follows). */
+  position: number;
+  type: 'missing' | 'wrong' | 'added';
+  expected?: string;
+  heard?: string;
+  disputed?: boolean;
+  decision?: 'confirmed' | 'dismissed';
+}
+
+export type AiStatus = 'pending' | 'processing' | 'done' | 'unclear' | 'skipped' | 'failed';
+
 export interface TasmiSubmission {
   id: string;
   studentId: string;
@@ -169,6 +184,13 @@ export interface TasmiSubmission {
   reviewVerdict: 'approved' | 'redo' | 'flagged' | null;
   reviewWeightedTotal: number | null;
   reviewNotes: string | null;
+  /** null = no automatic check was made (switched off, or the student did not agree). */
+  aiStatus: AiStatus | null;
+  aiHifzAccuracy: number | null;
+  aiReadyForApproval: boolean | null;
+  aiFlaggedErrors: FlaggedWord[];
+  /** Pending list only: flags the student says are wrong. */
+  disputedCount?: number;
 }
 
 export interface TasmiReviewInput {
@@ -177,6 +199,8 @@ export interface TasmiReviewInput {
   fluencyScore: number;
   verdict: 'approved' | 'redo' | 'flagged';
   notes?: string;
+  /** The teacher's call on each automatic flag, by flag id. */
+  flagDecisions?: Record<string, 'confirmed' | 'dismissed'>;
 }
 
 export interface Guardian {
@@ -406,6 +430,18 @@ class ApiClient {
     return this.client.get<{ url: string }>(`/tasmi/${id}/audio-link`);
   }
 
+  disputeFlag(id: string, flagId: string) {
+    return this.client.post<TasmiSubmission>(`/tasmi/${id}/flags/${flagId}/dispute`);
+  }
+
+  getVoiceStatus() {
+    return this.client.get<{ available: boolean; provider: string | null; enabled: boolean }>('/voice/status');
+  }
+
+  setAiChecking(enabled: boolean) {
+    return this.client.put<{ enabled: boolean }>('/voice/institution', { enabled });
+  }
+
   deleteTasmiAudio(id: string) {
     return this.client.delete(`/tasmi/${id}/audio`);
   }
@@ -475,6 +511,7 @@ export const queryKeys = {
   attendance: (id: string, date: string) => ['sections', id, 'attendance', date] as const,
   guardians: (sectionId: string, studentId: string) => ['sections', sectionId, 'guardians', studentId] as const,
   myTasmi: ['tasmi', 'mine'] as const,
+  voiceStatus: ['voice', 'status'] as const,
   pendingTasmi: (sectionId?: string) => ['tasmi', 'pending', sectionId] as const,
   guardianStudents: ['guardian', 'students'] as const,
   ayat: (source: string) => ['ayat', source] as const,

@@ -1,37 +1,51 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../../db';
+import { tenants } from '../../db/schema';
+import { ADMIN_ROLES } from '../../lib/access';
+import { getAsrProvider } from '../../lib/asr';
+import { auditLog } from '../audit/service';
 
 export async function voiceProxyRoutes(app: FastifyInstance) {
-  // POST /v1/voice/check — Proxy to Tarteel ASR for voice recitation check
-  app.post('/voice/check', {
-    preHandler: [app.authenticate],
-  }, async (request) => {
-    // Tarteel API integration placeholder — requires API key and multipart audio
-    const tarteelApiKey = process.env.TARTEEL_API_KEY;
-    if (!tarteelApiKey) {
-      return request.server.httpErrors.serviceUnavailable('Voice check service not configured');
-    }
+  const db = getDb();
 
-    const data = await request.file();
-    if (!data) {
-      return request.server.httpErrors.badRequest('Audio file required');
-    }
+  async function institutionEnabled(tenantId?: string) {
+    if (!tenantId) return false;
+    const [tenant] = await db.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+    return tenant?.settings?.aiChecking === true;
+  }
 
-    const { expectedRef, mode } = request.query as { expectedRef: string; mode?: string };
-
-    // Placeholder response — actual Tarteel integration TBD
+  // GET /v1/voice/status — is AI recitation checking available, and switched on for this institution?
+  app.get('/voice/status', { preHandler: [app.authenticate] }, async (request) => {
+    const provider = getAsrProvider();
     return {
-      status: 'not_configured',
-      message: 'Tarteel ASR integration pending API key setup',
-      expectedRef,
-      mode: mode ?? 'hifz',
+      available: Boolean(provider),
+      provider: provider?.name ?? null,
+      enabled: Boolean(provider) && await institutionEnabled(request.user.facultyId),
     };
   });
 
-  // GET /v1/voice/status — Check voice service availability
-  app.get('/voice/status', async () => {
-    return {
-      available: !!process.env.TARTEEL_API_KEY,
-      provider: 'tarteel',
-    };
+  // PUT /v1/voice/institution — an administrator switches AI checking on or off for the institution
+  const switchSchema = z.object({ enabled: z.boolean() });
+  app.put('/voice/institution', {
+    schema: { body: switchSchema },
+    preHandler: [app.authenticate],
+  }, async (request) => {
+    const user = request.user;
+    if (!(ADMIN_ROLES as readonly string[]).includes(user.role) || !user.facultyId) {
+      return request.server.httpErrors.forbidden('Administrators only');
+    }
+    const { enabled } = request.body as z.infer<typeof switchSchema>;
+
+    const [tenant] = await db.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, user.facultyId)).limit(1);
+    if (!tenant) return request.server.httpErrors.notFound('Institution not found');
+    await db.update(tenants).set({ settings: { ...tenant.settings, aiChecking: enabled } }).where(eq(tenants.id, user.facultyId));
+
+    await auditLog({
+      actorId: user.sub, actorRole: user.role, tenantId: user.facultyId, action: enabled ? 'ai_checking.enable' : 'ai_checking.disable',
+      targetType: 'tenant', targetId: user.facultyId, ip: request.ip,
+    });
+    return { enabled };
   });
 }

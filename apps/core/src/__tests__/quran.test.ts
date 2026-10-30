@@ -130,7 +130,8 @@ describe.skipIf(!process.env.DATABASE_URL)('quran text in the database', () => {
       expect(res.headers['cache-control']).toContain('private');
     });
 
-    it.skipIf(hadRealText)('says when some verses are not loaded', async () => {
+    it('says when some verses are not loaded', async () => {
+      if (hadRealText) return; // with the real text loaded every verse exists
       const body = (await get('/v1/ayat?refs=114:2,114:6')).json();
       expect(body.ayat.map((a: { ref: string }) => a.ref)).toEqual(['114:2']);
       expect(body.complete).toBe(false);

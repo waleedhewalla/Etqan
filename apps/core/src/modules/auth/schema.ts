@@ -35,6 +35,6 @@ export const profileUpdateSchema = z.object({
 export const consentsSchema = z.object({
   granted: z.array(z.enum([
     'voice_recording', 'analytics', 'mahram_access', 'whatsapp_notifications',
-    'peer_comparison', 'data_export',
+    'peer_comparison', 'data_export', 'ai_processing',
   ])),
 });

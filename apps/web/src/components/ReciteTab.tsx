@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@itqan/ui';
 import { AYAH_COUNTS } from '@itqan/quran';
-import { api, errorMessage, queryKeys, type ConsentPurpose } from '@/lib/api';
+import { api, errorMessage, queryKeys, type ConsentPurpose, type TasmiSubmission } from '@/lib/api';
 import { formatAyahRange, SURAH_NAMES, toArabicDigits } from '@/lib/quran';
 import { VerseText } from '@/components/VerseText';
 import { RecitationRecorder, type Recording } from '@/components/RecitationRecorder';
 import { TasmiAudio } from '@/components/TasmiAudio';
+import { FlaggedVerse } from '@/components/FlaggedVerse';
 import { LoadError, Spinner } from '@/components/LoadState';
 
 const MAX_AYAT = 60;
@@ -23,7 +24,14 @@ const VERDICT: Record<string, { label: string; tone: string }> = {
 export function ReciteTab() {
   const queryClient = useQueryClient();
   const me = useQuery({ queryKey: queryKeys.me, queryFn: () => api.getMe().then((r) => r.data) });
-  const mine = useQuery({ queryKey: queryKeys.myTasmi, queryFn: () => api.getMyTasmi().then((r) => r.data), refetchOnMount: 'always' });
+  const voice = useQuery({ queryKey: queryKeys.voiceStatus, queryFn: () => api.getVoiceStatus().then((r) => r.data) });
+  const mine = useQuery({
+    queryKey: queryKeys.myTasmi,
+    queryFn: () => api.getMyTasmi().then((r) => r.data),
+    refetchOnMount: 'always',
+    // while an automatic check is running, look again every few seconds
+    refetchInterval: (q) => (q.state.data?.some((t) => t.aiStatus === 'pending' || t.aiStatus === 'processing') ? 3000 : false),
+  });
 
   const [sectionId, setSectionId] = useState('');
   const [sura, setSura] = useState(114);
@@ -37,11 +45,14 @@ export function ReciteTab() {
   const sections = me.data?.sections ?? [];
   const section = sectionId || sections[0]?.id || '';
   const hasConsent = me.data?.consents.includes('voice_recording') ?? false;
+  const aiOn = voice.data?.enabled ?? false;
+  const hasAiConsent = me.data?.consents.includes('ai_processing') ?? false;
+  const [withAi, setWithAi] = useState(true);
   const count = AYAH_COUNTS[sura - 1];
   const invalidRange = to < from || to - from + 1 > MAX_AYAT;
 
   const grant = useMutation({
-    mutationFn: () => api.setConsents([...(me.data?.consents ?? []), 'voice_recording'] as ConsentPurpose[]),
+    mutationFn: (purposes: ConsentPurpose[]) => api.setConsents([...new Set([...(me.data?.consents ?? []), ...purposes])]),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.me }),
   });
 
@@ -62,6 +73,11 @@ export function ReciteTab() {
       setRecorderKey((k) => k + 1);
       queryClient.invalidateQueries({ queryKey: queryKeys.myTasmi });
     },
+  });
+
+  const dispute = useMutation({
+    mutationFn: ({ id, flagId }: { id: string; flagId: string }) => api.disputeFlag(id, flagId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.myTasmi }),
   });
 
   const remove = useMutation({
@@ -93,11 +109,28 @@ export function ReciteTab() {
                 لتسجيل صوتكِ نحتاج موافقتكِ. يُحفظ التسجيل بشكل خاص، وتسمعه معلمتكِ ومسؤولو مؤسستكِ فقط،
                 ويمكنكِ حذفه في أي وقت. يمكنكِ سحب الموافقة من صفحة «حسابي».
               </p>
-              <Button onClick={() => grant.mutate()} loading={grant.isPending}>أوافق على تسجيل صوتي</Button>
+              {aiOn && (
+                <label className="flex items-start gap-2 text-sm">
+                  <input id="consent-ai" type="checkbox" checked={withAi} onChange={(e) => setWithAi(e.target.checked)} className="mt-1" />
+                  <span>
+                    أسمح بفحصٍ آلي أولي لتسجيلي (اختياري). يضع علامات على الكلمات لمعلمتي فقط، ولا يُحتسب كدرجة،
+                    ويمكنني الاعتراض على أي علامة. يُرسل التسجيل إلى خدمة التفريغ الصوتي لهذا الغرض.
+                  </span>
+                </label>
+              )}
+              <Button onClick={() => grant.mutate(['voice_recording', ...(aiOn && withAi ? ['ai_processing' as const] : [])])} loading={grant.isPending}>
+                أوافق على تسجيل صوتي
+              </Button>
               {grant.isError && <p role="alert" className="text-sm text-red-800">{errorMessage(grant.error)}</p>}
             </div>
           ) : (
             <>
+              {aiOn && !hasAiConsent && (
+                <div className="rounded-xl border border-divider bg-surface-canvas p-3 text-sm flex items-center justify-between gap-3 flex-wrap">
+                  <span>يمكنكِ السماح بفحصٍ آلي أولي يساعد معلمتكِ (اختياري، ولا يُحتسب كدرجة).</span>
+                  <Button size="sm" variant="outline" loading={grant.isPending} onClick={() => grant.mutate(['ai_processing'])}>أسمح بالفحص الآلي</Button>
+                </div>
+              )}
               <div className="flex flex-wrap items-end gap-3">
                 {sections.length > 1 && (
                   <label className="text-sm">
@@ -183,6 +216,11 @@ export function ReciteTab() {
                     {t.reviewWeightedTotal != null && ` · الدرجة ${toArabicDigits(Math.round(t.reviewWeightedTotal))}`}
                   </p>
                   {t.reviewNotes && <p className="text-sm rounded-lg bg-surface-canvas px-3 py-2">{t.reviewNotes}</p>}
+                  <AiResult
+                    t={t}
+                    onDispute={(flagId) => dispute.mutate({ id: t.id, flagId })}
+                    busy={dispute.isPending}
+                  />
                   <div className="flex items-center gap-3 flex-wrap">
                     <TasmiAudio id={t.id} hasAudio={t.hasAudio} />
                     {t.hasAudio && (
@@ -199,5 +237,39 @@ export function ReciteTab() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** What the automatic check found, in words the student can act on. */
+function AiResult({ t, onDispute, busy }: { t: TasmiSubmission; onDispute: (flagId: string) => void; busy: boolean }) {
+  if (t.aiStatus === 'pending' || t.aiStatus === 'processing') {
+    return <p role="status" className="text-sm text-text-secondary">جارٍ الفحص الآلي الأولي…</p>;
+  }
+  if (t.aiStatus === 'unclear') {
+    return (
+      <p role="note" className="text-sm rounded-lg px-3 py-2 bg-amber-50 text-amber-900">
+        لم نسمع تسجيلكِ بوضوح كافٍ للفحص الآلي. إن أردتِ، أعيدي التسجيل في مكان أهدأ وقرّبي الجهاز منكِ. ستستمع معلمتكِ إلى هذا التسجيل على أي حال.
+      </p>
+    );
+  }
+  if (t.aiStatus !== 'done') return null;
+
+  if (t.aiFlaggedErrors.length === 0) {
+    return <p className="text-sm text-text-secondary">لم يجد الفحص الآلي ملاحظات. القرار لمعلمتكِ.</p>;
+  }
+  return (
+    <details className="text-sm" open={!t.reviewVerdict}>
+      <summary className="cursor-pointer font-medium">الفحص الآلي الأولي: {toArabicDigits(t.aiFlaggedErrors.length)} ملاحظة</summary>
+      <div className="mt-2 space-y-2">
+        <FlaggedVerse
+          start={t.startRef}
+          end={t.endRef}
+          flags={t.aiFlaggedErrors}
+          onDispute={t.reviewVerdict ? undefined : onDispute}
+          disputeBusy={busy}
+        />
+        <p className="text-xs text-text-secondary">قد يُخطئ الفحص الآلي. إن رأيتِ علامةً خاطئة فاضغطي «أعترض» لتنظر فيها معلمتكِ أولاً. القرار والدرجة لها وحدها.</p>
+      </div>
+    </details>
   );
 }

@@ -15,6 +15,8 @@ import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 import { WeeklyReportView } from '@/components/WeeklyReportView';
 import { VerseText } from '@/components/VerseText';
 import { TasmiAudio } from '@/components/TasmiAudio';
+import { FlaggedVerse } from '@/components/FlaggedVerse';
+import { AiCheckingSwitch } from '@/components/AiCheckingSwitch';
 import { useRequireRole } from '@/lib/auth-context';
 import {
   api, errorMessage, normalizePhone, queryKeys,
@@ -120,7 +122,12 @@ export default function TeacherDashboard() {
       case 'attendance':
         return <AttendanceTab sectionId={section.id} />;
       case 'speedgrader':
-        return <SpeedGraderTab sectionId={section.id} />;
+        return (
+          <div className="space-y-4">
+            {['dean', 'advisor', 'operator', 'superadmin'].includes(user?.role ?? '') && <AiCheckingSwitch />}
+            <SpeedGraderTab sectionId={section.id} />
+          </div>
+        );
       case 'cases':
         return <CasesTab students={students.filter((s) => s.atRisk)} onOpen={(id) => { setOpenStudent(id); setActiveTab('students'); }} />;
       case 'assessments':
@@ -499,6 +506,9 @@ function SpeedGraderTab({ sectionId }: { sectionId: string }) {
                 >
                   <p className="font-medium text-text-primary">{p.studentName}</p>
                   <p className="text-sm text-text-secondary">{formatAyahRange(p.startRef, p.endRef)}</p>
+                  {(p.disputedCount ?? 0) > 0 && (
+                    <Badge className="mt-1 bg-amber-50 text-amber-900">اعتراض على الفحص الآلي</Badge>
+                  )}
                 </button>
               </li>
             ))}
@@ -530,12 +540,14 @@ function ReviewForm({ submission, onDone }: { submission: TasmiSubmission; onDon
   const [scores, setScores] = useState({ hifz: 90, tajweed: 85, fluency: 85 });
   const [verdict, setVerdict] = useState<TasmiReviewInput['verdict']>('approved');
   const [notes, setNotes] = useState('');
+  const [decisions, setDecisions] = useState<Record<string, 'confirmed' | 'dismissed'>>({});
   const weighted = Math.round(scores.hifz * 0.5 + scores.tajweed * 0.3 + scores.fluency * 0.2);
 
   const submit = useMutation({
     mutationFn: () => api.reviewTasmi(submission.id, {
       hifzScore: scores.hifz, tajweedScore: scores.tajweed, fluencyScore: scores.fluency, verdict,
       notes: notes.trim() || undefined,
+      flagDecisions: Object.keys(decisions).length ? decisions : undefined,
     }),
     onSuccess: onDone,
   });
@@ -549,9 +561,7 @@ function ReviewForm({ submission, onDone }: { submission: TasmiSubmission; onDon
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="rounded-xl border border-divider bg-surface-canvas p-4 max-h-56 overflow-y-auto">
-          <VerseText start={submission.startRef} end={submission.endRef} />
-        </div>
+        <AiPanel submission={submission} decisions={decisions} onDecide={(id, d) => setDecisions((c) => ({ ...c, [id]: d }))} />
 
         <TasmiAudio id={submission.id} hasAudio={submission.hasAudio} />
 
@@ -588,6 +598,47 @@ function ReviewForm({ submission, onDone }: { submission: TasmiSubmission; onDon
         <Button onClick={() => submit.mutate()} loading={submit.isPending}>اعتماد التقييم</Button>
       </CardContent>
     </Card>
+  );
+}
+
+/** The automatic check's first look at a recitation (never a grade), with the verses marked. */
+function AiPanel({ submission, decisions, onDecide }: {
+  submission: TasmiSubmission;
+  decisions: Record<string, 'confirmed' | 'dismissed'>;
+  onDecide: (flagId: string, decision: 'confirmed' | 'dismissed') => void;
+}) {
+  const { aiStatus, aiFlaggedErrors: flags } = submission;
+  const plain = (
+    <div className="rounded-xl border border-divider bg-surface-canvas p-4 max-h-56 overflow-y-auto">
+      <VerseText start={submission.startRef} end={submission.endRef} />
+    </div>
+  );
+
+  if (aiStatus === 'done') {
+    return (
+      <section className="space-y-3" aria-label="الفحص الآلي">
+        <div className="flex items-center gap-2 flex-wrap text-sm">
+          <Badge>فحص آلي أولي</Badge>
+          <span>نسبة الكلمات المطابقة: <b className="tabular-nums">{toArabicDigits(Math.round(submission.aiHifzAccuracy ?? 0))}٪</b></span>
+          <span className="text-text-secondary">
+            {flags.length === 0 ? '— لم تُرصد ملاحظات.' : `— ${toArabicDigits(flags.length)} ملاحظة تحتاج نظرك.`}
+          </span>
+        </div>
+        <FlaggedVerse start={submission.startRef} end={submission.endRef} flags={flags} decisions={decisions} onDecide={onDecide} />
+        <p className="text-xs text-text-secondary">العلامات مؤشر أولي وقد تُخطئ، خاصة في التجويد. استمعي للتسجيل، فالقرار والدرجة لكِ.</p>
+      </section>
+    );
+  }
+
+  const note = aiStatus === 'pending' || aiStatus === 'processing' ? 'الفحص الآلي جارٍ، وقد تظهر العلامات بعد قليل.'
+    : aiStatus === 'unclear' ? 'لم يُسمع التسجيل بوضوح كافٍ للفحص الآلي. استمعي إليه مباشرة.'
+      : aiStatus === 'failed' ? 'تعذّر الفحص الآلي لهذا التسجيل. راجعيه يدوياً.'
+        : null;
+  return (
+    <section className="space-y-2" aria-label="الفحص الآلي">
+      {note && <p role="note" className="text-sm rounded-lg px-3 py-2 bg-amber-50 text-amber-900">{note}</p>}
+      {plain}
+    </section>
   );
 }
 

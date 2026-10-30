@@ -62,7 +62,7 @@ export const badgeTierEnum = pgEnum('badge_tier', [
 
 export const consentPurposeEnum = pgEnum('consent_purpose', [
   'voice_recording', 'analytics', 'mahram_access', 'whatsapp_notifications',
-  'peer_comparison', 'data_export',
+  'peer_comparison', 'data_export', 'ai_processing',
 ]);
 
 export const mutashabihatSourceEnum = pgEnum('mutashabihat_source', [
@@ -338,6 +338,11 @@ export const tasmiSubmissions = pgTable('tasmi_submissions', {
   aiConfidence: real('ai_confidence'),
   aiFlaggedErrors: jsonb('ai_flagged_errors').$type<unknown[]>().default([]),
   aiReadyForApproval: boolean('ai_ready_for_approval'),
+  /** null = never queued; pending → processing → done | unclear | skipped | failed */
+  aiStatus: varchar('ai_status', { length: 16 }),
+  aiProvider: varchar('ai_provider', { length: 32 }),
+  aiCheckedAt: timestamp('ai_checked_at', { withTimezone: true }),
+  aiError: text('ai_error'),
   reviewedBy: uuid('reviewed_by').references(() => users.id),
   reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
   reviewHifzScore: real('review_hifz_score'),

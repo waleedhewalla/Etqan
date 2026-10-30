@@ -47,6 +47,22 @@ Students record from the **التسميع** tab; the teacher listens in **الت
 - Automated browser runs can use Chromium's fake microphone:
   `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`.
 
+### The automatic first check (optional)
+
+A check runs only when **all four** hold: `ENABLE_ASR=true` with an `ASR_PROVIDER` other than `none`;
+the institution's administrator turned it on (التسميع والتقييم tab, dean/advisor/operator);
+the student allowed it (an optional consent, separate from voice recording);
+and the Quran text is loaded. To try it locally:
+
+```bash
+ENABLE_ASR=true ASR_PROVIDER=demo STORAGE_DRIVER=memory pnpm --filter @itqan/core dev
+```
+
+The `demo` provider cannot hear anything: it skips one word and swaps another so the flags,
+dispute and teacher screens have something to show. The result is only a first look for the teacher:
+it is never a grade, and the teacher confirms or dismisses each flag. A check that fails or hears too little
+never blocks the teacher. Queued checks survive an API restart (they live in the database).
+
 ## Try the pilot locally
 
 Start the API and the web app in two terminals:
