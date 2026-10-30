@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export const TOKEN_KEY = 'itqan_token';
 export const REFRESH_KEY = 'itqan_refresh_token';
@@ -37,7 +37,7 @@ export interface MeResponse {
 }
 
 export type ConsentPurpose =
-  | 'voice_recording' | 'analytics' | 'mahram_access' | 'whatsapp_notifications' | 'peer_comparison' | 'data_export';
+  | 'voice_recording' | 'analytics' | 'mahram_access' | 'whatsapp_notifications' | 'peer_comparison' | 'data_export' | 'ai_processing';
 
 export type Rating = 'again' | 'hard' | 'good' | 'easy';
 
@@ -155,6 +155,21 @@ export interface AttendanceSaveResponse {
   alerts: { sent: number; skipped: number; failed: number; noGuardian: number };
 }
 
+/** One word the automatic check wants the teacher to look at. */
+export interface FlaggedWord {
+  id: string;
+  ayahRef: string;
+  /** 0-based position of the word in its ayah (for `added`, the word it follows). */
+  position: number;
+  type: 'missing' | 'wrong' | 'added';
+  expected?: string;
+  heard?: string;
+  disputed?: boolean;
+  decision?: 'confirmed' | 'dismissed';
+}
+
+export type AiStatus = 'pending' | 'processing' | 'done' | 'unclear' | 'skipped' | 'failed';
+
 export interface TasmiSubmission {
   id: string;
   studentId: string;
@@ -162,11 +177,20 @@ export interface TasmiSubmission {
   sectionId: string | null;
   startRef: string;
   endRef: string;
-  audioUrl: string;
+  /** Whether a recording is stored (it may have been deleted by the student). */
+  hasAudio: boolean;
   durationMs: number | null;
   submittedAt: string;
   reviewVerdict: 'approved' | 'redo' | 'flagged' | null;
   reviewWeightedTotal: number | null;
+  reviewNotes: string | null;
+  /** null = no automatic check was made (switched off, or the student did not agree). */
+  aiStatus: AiStatus | null;
+  aiHifzAccuracy: number | null;
+  aiReadyForApproval: boolean | null;
+  aiFlaggedErrors: FlaggedWord[];
+  /** Pending list only: flags the student says are wrong. */
+  disputedCount?: number;
 }
 
 export interface TasmiReviewInput {
@@ -175,6 +199,8 @@ export interface TasmiReviewInput {
   fluencyScore: number;
   verdict: 'approved' | 'redo' | 'flagged';
   notes?: string;
+  /** The teacher's call on each automatic flag, by flag id. */
+  flagDecisions?: Record<string, 'confirmed' | 'dismissed'>;
 }
 
 export interface Guardian {
@@ -201,6 +227,21 @@ export interface WeeklyReport {
   }[];
 }
 
+export interface AyahText {
+  ref: string;
+  sura: number;
+  ayah: number;
+  suraNameAr: string;
+  textUthmani: string;
+  wordCount: number;
+}
+
+export interface AyatResponse {
+  ayat: AyahText[];
+  /** False when some of the requested verses are not loaded on the server yet. */
+  complete: boolean;
+}
+
 export interface AppNotification {
   id: string;
   titleAr: string;
@@ -213,6 +254,9 @@ export interface AppNotification {
 export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاولي مرة أخرى') {
   const e = err as AxiosError<{ detail?: string; message?: string; code?: string }>;
   const code = e?.response?.data?.code;
+  if (code === 'CONSENT_REQUIRED') return 'نحتاج موافقتكِ على تسجيل الصوت أولاً.';
+  if (e?.response?.status === 413) return 'التسجيل كبير جداً. سجّلي مقطعاً أقصر.';
+  if (e?.response?.status === 415) return 'تعذّر قبول هذا التسجيل. جرّبي متصفحاً آخر.';
   if (code === 'ACCOUNT_NOT_FOUND') return 'لا يوجد حساب بهذا الرقم. اطلبي كود الشعبة من معلمتك.';
   if (e?.response?.status === 429) return 'محاولات كثيرة. انتظري قليلاً ثم حاولي مرة أخرى.';
   if (!e?.response) return 'تعذّر الاتصال بالخادم. تحققي من الإنترنت.';
@@ -372,6 +416,36 @@ class ApiClient {
   }
 
   // Tasmi'
+  /** Sends a recording: multipart with startRef, endRef, sectionId, durationMs and the `audio` file. */
+  uploadTasmi(form: FormData) {
+    return this.client.post<TasmiSubmission>('/tasmi', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  }
+
+  getMyTasmi() {
+    return this.client.get<TasmiSubmission[]>('/tasmi');
+  }
+
+  /** A short-lived URL (path on the API) the browser can play. */
+  getTasmiAudioLink(id: string) {
+    return this.client.get<{ url: string }>(`/tasmi/${id}/audio-link`);
+  }
+
+  disputeFlag(id: string, flagId: string) {
+    return this.client.post<TasmiSubmission>(`/tasmi/${id}/flags/${flagId}/dispute`);
+  }
+
+  getVoiceStatus() {
+    return this.client.get<{ available: boolean; provider: string | null; enabled: boolean }>('/voice/status');
+  }
+
+  setAiChecking(enabled: boolean) {
+    return this.client.put<{ enabled: boolean }>('/voice/institution', { enabled });
+  }
+
+  deleteTasmiAudio(id: string) {
+    return this.client.delete(`/tasmi/${id}/audio`);
+  }
+
   getPendingTasmi(sectionId?: string) {
     return this.client.get<TasmiSubmission[]>('/tasmi/pending', { params: { sectionId } });
   }
@@ -387,6 +461,15 @@ class ApiClient {
 
   getGuardianStudents() {
     return this.client.get<{ students: WeeklyReport[] }>('/guardian/students');
+  }
+
+  // Quran text
+  getAyat(refs: string[]) {
+    return this.client.get<AyatResponse>('/ayat', { params: { refs: refs.join(',') } });
+  }
+
+  getAyatRange(start: string, end: string) {
+    return this.client.get<AyatResponse>('/ayat/range', { params: { start, end } });
   }
 
   // Notifications
@@ -427,7 +510,10 @@ export const queryKeys = {
   sectionReport: (id: string) => ['sections', id, 'report'] as const,
   attendance: (id: string, date: string) => ['sections', id, 'attendance', date] as const,
   guardians: (sectionId: string, studentId: string) => ['sections', sectionId, 'guardians', studentId] as const,
+  myTasmi: ['tasmi', 'mine'] as const,
+  voiceStatus: ['voice', 'status'] as const,
   pendingTasmi: (sectionId?: string) => ['tasmi', 'pending', sectionId] as const,
   guardianStudents: ['guardian', 'students'] as const,
+  ayat: (source: string) => ['ayat', source] as const,
   notifications: ['notifications'] as const,
 } as const;

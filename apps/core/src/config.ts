@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
 // Treat empty variables (e.g. `WHATSAPP_API_KEY=` in .env) as unset.
+// Environment values are strings: "false" must mean false (z.coerce.boolean() would make it true).
+const flag = (fallback: boolean) =>
+  z.preprocess((v) => (v === undefined || v === '' ? fallback : v === true || v === 'true' || v === '1'), z.boolean());
+
 const optional = <T extends z.ZodTypeAny>(schema: T) =>
   z.preprocess((v) => (v === '' ? undefined : v), schema.optional());
 
@@ -20,6 +24,10 @@ const envSchema = z.object({
   MINIO_ACCESS_KEY: z.string().default('minioadmin'),
   MINIO_SECRET_KEY: z.string().default('minioadmin'),
   MINIO_BUCKET: z.string().default('itqan-audio'),
+  MINIO_USE_SSL: z.preprocess((v) => v === 'true' || v === '1', z.boolean()).default(false),
+  MINIO_REGION: z.string().default('us-east-1'),
+  // 'memory' keeps recordings in process memory (tests, quick local runs); anything else uses MinIO/S3.
+  STORAGE_DRIVER: z.enum(['s3', 'memory']).default('s3'),
 
   // JWT
   JWT_SECRET: z.string().min(32).default('dev-secret-change-me-in-production-32chars'),
@@ -32,9 +40,22 @@ const envSchema = z.object({
   // API
   API_URL: z.string().url().default('http://localhost:4000'),
   
-  // Tarteel
-  TARTEEL_API_KEY: optional(z.string()),
-  TARTEEL_API_URL: z.string().url().default('https://api.tarteel.ai'),
+  // Quran text loader (`pnpm db:seed-quran`): a local JSON file wins over the URL.
+  QURAN_TEXT_PATH: optional(z.string()),
+  QURAN_TEXT_URL: z.string().url().default('https://cdn.jsdelivr.net/npm/quran-json@3.1.2/dist/quran.json'),
+
+  // How long a recording is kept. The privacy page promises deletion within 24 hours of the teacher's
+  // review; one nobody reviews is removed after AUDIO_UNREVIEWED_MAX_DAYS so it cannot stay forever.
+  AUDIO_RETENTION_HOURS: z.coerce.number().positive().default(24),
+  AUDIO_UNREVIEWED_MAX_DAYS: z.coerce.number().positive().default(30),
+
+  // Recitation checking. 'none' = teacher-only review. 'demo' drops and swaps a few words so the
+  // screens can be tried without a service (refused in production). 'openai-compatible' sends the audio
+  // to any service that implements POST {ASR_API_URL}/audio/transcriptions.
+  ASR_PROVIDER: z.enum(['none', 'demo', 'openai-compatible']).default('none'),
+  ASR_API_URL: optional(z.string().url()),
+  ASR_API_KEY: optional(z.string()),
+  ASR_MODEL: z.string().default('whisper-1'),
   
   // WhatsApp
   WHATSAPP_API_URL: optional(z.string().url()),
@@ -56,10 +77,10 @@ const envSchema = z.object({
   FRONTEND_URL: z.string().url().default('http://localhost:9050'),
   
   // Feature flags
-  ENABLE_ASR: z.coerce.boolean().default(false),
-  ENABLE_LIVE_HALAQA: z.coerce.boolean().default(false),
-  ENABLE_MUTASHABIHAT: z.coerce.boolean().default(true),
-  ENABLE_FAMILY_PORTAL: z.coerce.boolean().default(false),
+  ENABLE_ASR: flag(false),
+  ENABLE_LIVE_HALAQA: flag(false),
+  ENABLE_MUTASHABIHAT: flag(true),
+  ENABLE_FAMILY_PORTAL: flag(false),
 });
 
 export const config = envSchema.parse(process.env);

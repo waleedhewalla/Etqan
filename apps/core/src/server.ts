@@ -20,11 +20,14 @@ import { sessionRoutes } from './modules/session/routes';
 import { schedulerRoutes } from './modules/scheduler/routes';
 import { mutashabihatRoutes } from './modules/mutashabihat/routes';
 import { voiceProxyRoutes } from './modules/voice-proxy/routes';
+import { sweepPendingChecks } from './lib/asr/runner';
+import { purgeExpiredAudio } from './lib/retention';
 import { assessmentRoutes } from './modules/assessment/routes';
 import { reportingRoutes } from './modules/reporting/routes';
 import { notificationRoutes } from './modules/notification/routes';
 import { auditRoutes } from './modules/audit/routes';
 import { healthRoutes } from './modules/health/routes';
+import { quranRoutes } from './modules/quran/routes';
 import { errorHandler } from './lib/errors';
 import { auditPlugin } from './modules/audit/plugin';
 
@@ -141,6 +144,7 @@ async function buildApp() {
   await app.register(reportingRoutes, { prefix: '/v1' });
   await app.register(notificationRoutes, { prefix: '/v1' });
   await app.register(auditRoutes, { prefix: '/v1' });
+  await app.register(quranRoutes, { prefix: '/v1' });
 
   // Global error handler
   app.setErrorHandler(errorHandler as any);
@@ -168,6 +172,16 @@ async function start() {
   try {
     await app.listen({ port: config.PORT, host: '0.0.0.0' });
     app.log.info(`Server listening on port ${config.PORT}`);
+
+    // Pick up recitation checks that were queued before a restart, then keep looking.
+    const sweep = () => sweepPendingChecks(getDb()).catch((e) => app.log.error(e, 'ASR sweep failed'));
+    void sweep();
+    setInterval(sweep, 60_000).unref();
+
+    // Delete recordings that have outlived their purpose (see lib/retention.ts).
+    const purge = () => purgeExpiredAudio(getDb()).catch((e) => app.log.error(e, 'audio retention failed'));
+    void purge();
+    setInterval(purge, 60 * 60_000).unref();
   } catch (err) {
     app.log.error(err);
     process.exit(1);

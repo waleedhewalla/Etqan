@@ -62,7 +62,7 @@ export const badgeTierEnum = pgEnum('badge_tier', [
 
 export const consentPurposeEnum = pgEnum('consent_purpose', [
   'voice_recording', 'analytics', 'mahram_access', 'whatsapp_notifications',
-  'peer_comparison', 'data_export',
+  'peer_comparison', 'data_export', 'ai_processing',
 ]);
 
 export const mutashabihatSourceEnum = pgEnum('mutashabihat_source', [
@@ -224,6 +224,22 @@ export const syllabusPassages = pgTable('syllabus_passages', {
   syllabusIdx: index('syllabus_passages_syllabus_idx').on(t.syllabusId),
 }));
 
+// ── Quran text ──
+
+// One row per ayah (Hafs). Words are derived by splitting on whitespace.
+// Loaded by `db:seed-quran`; the source and its licence are credited on /credits.
+export const quranAyat = pgTable('quran_ayat', {
+  ref: varchar('ref', { length: 12 }).primaryKey(),
+  sura: integer('sura').notNull(),
+  ayah: integer('ayah').notNull(),
+  suraNameAr: text('sura_name_ar').notNull(),
+  textUthmani: text('text_uthmani').notNull(),
+  textNormalized: text('text_normalized').notNull(),
+  wordCount: integer('word_count').notNull(),
+}, (t) => ({
+  suraAyahIdx: uniqueIndex('quran_ayat_sura_ayah_idx').on(t.sura, t.ayah),
+}));
+
 // ── SRS Cards (FSRS) ──
 
 export const studentCards = pgTable('student_cards', {
@@ -308,7 +324,12 @@ export const tasmiSubmissions = pgTable('tasmi_submissions', {
   sectionId: uuid('section_id').references(() => sections.id),
   startRef: varchar('start_ref', { length: 12 }).notNull(),
   endRef: varchar('end_ref', { length: 12 }).notNull(),
-  audioUrl: text('audio_url').notNull(),
+  /** Legacy / seeded rows only. New recordings use audioKey. */
+  audioUrl: text('audio_url'),
+  audioKey: text('audio_key'),
+  audioContentType: varchar('audio_content_type', { length: 64 }),
+  audioBytes: integer('audio_bytes'),
+  audioDeletedAt: timestamp('audio_deleted_at', { withTimezone: true }),
   durationMs: integer('duration_ms'),
   submittedAt: timestamp('submitted_at', { withTimezone: true }).defaultNow().notNull(),
   aiHifzAccuracy: real('ai_hifz_accuracy'),
@@ -317,6 +338,11 @@ export const tasmiSubmissions = pgTable('tasmi_submissions', {
   aiConfidence: real('ai_confidence'),
   aiFlaggedErrors: jsonb('ai_flagged_errors').$type<unknown[]>().default([]),
   aiReadyForApproval: boolean('ai_ready_for_approval'),
+  /** null = never queued; pending → processing → done | unclear | skipped | failed */
+  aiStatus: varchar('ai_status', { length: 16 }),
+  aiProvider: varchar('ai_provider', { length: 32 }),
+  aiCheckedAt: timestamp('ai_checked_at', { withTimezone: true }),
+  aiError: text('ai_error'),
   reviewedBy: uuid('reviewed_by').references(() => users.id),
   reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
   reviewHifzScore: real('review_hifz_score'),

@@ -16,6 +16,94 @@ pnpm db:migrate
 pnpm --filter @itqan/core db:seed   # demo pilot halaqa (safe to re-run)
 ```
 
+## Quran text
+
+The verse text is not stored in this repository. Load it into the database once:
+
+```bash
+pnpm --filter @itqan/core db:seed-quran            # downloads QURAN_TEXT_URL
+QURAN_TEXT_PATH=./quran.json pnpm --filter @itqan/core db:seed-quran   # or a local file
+```
+
+The loader checks the file against the standard Hafs verse counts (114 suras,
+6,236 ayat) and refuses a damaged or partial file without touching the table.
+Running it again does nothing unless you pass `--force`. Until it has run, the
+app shows "text not loaded yet" where verses would appear.
+
+The source is the `quran-json` dataset, which is published under **CC BY-SA 4.0**
+(its package metadata says CC-BY, but its README and LICENSE say BY-SA). The app
+credits it on `/credits`. Check that licence with whoever signs off on the
+content before a public launch.
+
+## Recording a recitation
+
+Students record from the **التسميع** tab; the teacher listens in **التسميع والتقييم**.
+
+- Recordings are stored in MinIO (`docker compose up -d minio`) and are only reachable through the API,
+  which checks who may listen and hands out five-minute links. For a quick trial without MinIO set
+  `STORAGE_DRIVER=memory` (recordings vanish when the API restarts).
+- A student must first agree to voice recording (a prompt appears on the tab; the join flow also asks).
+- The browser only allows the microphone on **HTTPS or `localhost`**. A production deployment needs HTTPS.
+- Automated browser runs can use Chromium's fake microphone:
+  `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`.
+
+### The automatic first check (optional)
+
+A check runs only when **all four** hold: `ENABLE_ASR=true` with an `ASR_PROVIDER` other than `none`;
+the institution's administrator turned it on (التسميع والتقييم tab, dean/advisor/operator);
+the student allowed it (an optional consent, separate from voice recording);
+and the Quran text is loaded. To try it locally:
+
+```bash
+ENABLE_ASR=true ASR_PROVIDER=demo STORAGE_DRIVER=memory pnpm --filter @itqan/core dev
+```
+
+The `demo` provider cannot hear anything: it skips one word and swaps another so the flags,
+dispute and teacher screens have something to show. The result is only a first look for the teacher:
+it is never a grade, and the teacher confirms or dismisses each flag. A check that fails or hears too little
+never blocks the teacher. Queued checks survive an API restart (they live in the database).
+
+### Trying a real transcription service (before students use it)
+
+1. Collect sample recordings with known verse ranges, recited **cleanly** first (then some with a deliberate skipped or swapped word),
+   and a `manifest.json` next to them: `[{ "file": "fatiha.webm", "startRef": "1:1", "endRef": "1:7", "notes": "clean" }]`.
+2. Load the Quran text (`db:seed-quran`), then run the bench with the service's address and key in the environment
+   (the key is never printed):
+
+```bash
+ENABLE_ASR=true ASR_PROVIDER=openai-compatible ASR_API_URL=https://api.openai.com/v1 ASR_API_KEY=... ASR_MODEL=whisper-1 \
+  pnpm --filter @itqan/core asr:bench ./samples
+```
+
+It prints, per file, what the service heard, the accuracy against the Quran text, every flag, and a summary. On clean
+recitations aim for **mean accuracy 90%+** with nothing "could not hear"; a flag on a correctly recited word means the service
+(or our matching), so read the "heard" line. Suggested go/no-go for a pilot: clean accuracy 90%+ here, then flag precision 80%+ from `asr:eval`
+once teachers have decided at least 30 flags. Audio is sent to the service you name, so only use recordings you may share.
+The confidence shown comes from Whisper's own scores and is not calibrated for recitation; watch it on your samples before relying
+on the "could not hear" cut-off (0.5).
+
+Matching ignores vowel marks and alefs (the Uthmani text's dagger alef vs a transcription's full alef), but not other spelling
+differences such as صلاة/صلوة: if the bench shows a systematic one, add it to `packages/quran/src/arabic.ts` with a test.
+
+Does it agree with your teachers? After some recitations have been reviewed:
+
+```bash
+pnpm --filter @itqan/core asr:eval            # add --tenant <slug> for one institution
+```
+
+It reports how often teachers confirm the flags (overall, per kind of flag, and per student, numbered rather than named),
+how many the students disputed, and whether "ready for approval" hints matched approvals. It reads only the teachers'
+decisions, never audio. Collect at least ~30 decided flags per kind before drawing conclusions, and check it on your
+own students' voices before relying on it.
+
+### Revision and retention
+
+- When a teacher first reviews a recitation, each ayah recited is rescheduled (`apps/core/src/lib/grading.ts`):
+  *redo* → again; *approved* → good (easy at a memorization score of 95+), hard with one confirmed memory error in that ayah,
+  again with two or more. *Flagged* (waiting for the sheikha) reschedules nothing. Only cards the student already has are touched.
+- Recordings are deleted `AUDIO_RETENTION_HOURS` (24) after review, or `AUDIO_UNREVIEWED_MAX_DAYS` (30) after submission if never reviewed.
+  The job runs when the API starts and then hourly. Scores, notes and flags stay.
+
 ## Try the pilot locally
 
 Start the API and the web app in two terminals:

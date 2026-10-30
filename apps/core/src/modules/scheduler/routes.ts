@@ -2,20 +2,17 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { eq, and, lte, isNull, asc, desc, sql, count } from 'drizzle-orm';
 import { getDb } from '../../db';
-import { studentCards, reviewLogs, streaks, streakFreezes, assignments } from '../../db/schema';
-import type { Database } from '../../db';
+import { studentCards, reviewLogs, streaks, assignments } from '../../db/schema';
 import { localDate, startOfLocalDay } from '../../lib/dates';
-import { recordActivity } from '../../lib/streak';
+import { applyRating, cardRowToState, recordStudentActivity } from '../../lib/cards';
 import {
-  scheduleReview,
   computeIntervals,
-  createReviewLog,
   checkGatekeeper,
   prioritizeQueue,
   GATEKEEPER_DEFAULTS,
   INITIAL_CARD_STATE,
 } from '@itqan/fsrs';
-import type { CardState, Rating, QueueItem } from '@itqan/types';
+import type { Rating, QueueItem } from '@itqan/types';
 
 const rateSchema = z.object({
   cardId: z.string().uuid(),
@@ -27,46 +24,6 @@ const queueQuerySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });
-
-function cardRowToState(row: typeof studentCards.$inferSelect): CardState {
-  return {
-    difficulty: row.difficulty,
-    stability: row.stability,
-    retrievability: row.retrievability,
-    // Cards with no due date yet are due immediately.
-    dueAt: row.dueAt ? new Date(row.dueAt) : new Date(),
-    lastReviewedAt: row.lastReviewedAt ? new Date(row.lastReviewedAt) : null,
-    reps: row.reps,
-    lapses: row.lapses,
-    state: row.state as CardState['state'],
-    phoneticStability: row.phoneticStability,
-    semanticStability: row.semanticStability,
-    positionalStability: row.positionalStability,
-    recognitionStability: row.recognitionStability,
-    transitionId: row.transitionId ?? null,
-    firstSeenAt: new Date(row.createdAt),
-  };
-}
-
-/** Applies today's activity to the student's streak and returns the new state. */
-export async function recordStudentActivity(db: Database, studentId: string) {
-  const today = localDate();
-  const [row] = await db.select().from(streaks).where(eq(streaks.studentId, studentId)).limit(1);
-  const { state, frozenDates } = recordActivity(row ?? {
-    currentStreak: 0, longestStreak: 0, freezesRemaining: 2, lastActiveDate: null,
-  }, today);
-  if (row && row.lastActiveDate === today) return row;
-
-  const values = { ...state, updatedAt: new Date() };
-  const [saved] = await db.insert(streaks)
-    .values({ studentId, ...values })
-    .onConflictDoUpdate({ target: streaks.studentId, set: values })
-    .returning();
-  if (frozenDates.length) {
-    await db.insert(streakFreezes).values(frozenDates.map((frozenDate) => ({ studentId, frozenDate })));
-  }
-  return saved;
-}
 
 export async function schedulerRoutes(app: FastifyInstance) {
   const db = getDb();
@@ -209,39 +166,7 @@ export async function schedulerRoutes(app: FastifyInstance) {
       return request.server.httpErrors.notFound('Card not found');
     }
 
-    const cardState = cardRowToState(card);
-    const scheduled = scheduleReview(cardState, rating as Rating);
-    const log = createReviewLog(cardId, cardState, rating as Rating, scheduled, timeTakenMs ?? 0);
-
-    // Update card
-    await db.update(studentCards)
-      .set({
-        state: scheduled.state,
-        difficulty: scheduled.difficulty,
-        stability: scheduled.stability,
-        retrievability: scheduled.retrievability,
-        phoneticStability: scheduled.phoneticStability ?? card.phoneticStability,
-        semanticStability: scheduled.semanticStability ?? card.semanticStability,
-        positionalStability: scheduled.positionalStability ?? card.positionalStability,
-        recognitionStability: scheduled.recognitionStability ?? card.recognitionStability,
-        dueAt: scheduled.dueAt ? new Date(scheduled.dueAt as unknown as string) : null,
-        lastReviewedAt: new Date(),
-        reps: scheduled.reps,
-        lapses: scheduled.lapses,
-        updatedAt: new Date(),
-      })
-      .where(eq(studentCards.id, cardId));
-
-    // Insert review log
-    await db.insert(reviewLogs).values({
-      cardId,
-      rating: rating as typeof reviewLogs.$inferInsert.rating,
-      reviewedAt: new Date(),
-      timeTakenMs: timeTakenMs ?? 0,
-      wasCorrect: rating !== 'again',
-      stateBefore: cardState as unknown as Record<string, unknown>,
-      stateAfter: scheduled as unknown as Record<string, unknown>,
-    });
+    const { scheduled, log } = await applyRating(db, card, rating as Rating, timeTakenMs ?? 0);
 
     // Update streak (one missed day is covered by a freeze when one is left)
     const streak = await recordStudentActivity(db, userId);
