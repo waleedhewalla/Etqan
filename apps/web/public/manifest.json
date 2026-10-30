@@ -1,0 +1,17 @@
+{
+  "name": "إتقان — حفظ القرآن ومراجعته",
+  "short_name": "إتقان",
+  "description": "مراجعة الحفظ اليومية، حتى بلا اتصال بالإنترنت.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FEFCF7",
+  "theme_color": "#1B4332",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Amiri, Noto_Naskh_Arabic, Inter } from 'next/font/google';
+import { ServiceWorker } from '@/components/ServiceWorker';
 import { Providers } from './providers';
 import { ToastProvider } from '@itqan/ui';
 import './globals.css';
@@ -64,9 +65,12 @@ export default function RootLayout({
     >
       <head>
         <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#1B4332" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body className="bg-surface-canvas text-text-primary antialiased min-h-screen flex flex-col">
         <Providers>
+          <ServiceWorker />
           <ToastProvider>
             {children}
           </ToastProvider>

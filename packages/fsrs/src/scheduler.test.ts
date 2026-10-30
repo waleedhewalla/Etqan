@@ -45,4 +45,12 @@ describe('computeIntervals', () => {
     expect(i.hard).toBeLessThanOrEqual(i.good);
     expect(i.good).toBeLessThanOrEqual(i.easy);
   });
+
+  it('schedules from the time the review happened, not from now', () => {
+    const then = new Date('2026-01-10T08:00:00Z');
+    const next = scheduleReview(newCard(), 'good', undefined, then);
+    expect(next.lastReviewedAt).toEqual(then);
+    expect(next.dueAt.getTime()).toBeGreaterThan(then.getTime());
+    expect(next.dueAt.getTime() - then.getTime()).toBeLessThan(400 * 86_400_000);
+  });
 });

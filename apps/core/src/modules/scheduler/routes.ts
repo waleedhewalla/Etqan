@@ -21,6 +21,22 @@ const rateSchema = z.object({
   timeTakenMs: z.number().int().min(0).optional(),
 });
 
+const rateBatchSchema = z.object({
+  reviews: z.array(z.object({
+    /** Made up on the device when the review was done; makes sending it twice harmless. */
+    clientId: z.string().min(8).max(64),
+    cardId: z.string().uuid(),
+    rating: z.enum(['again', 'hard', 'good', 'easy']),
+    timeTakenMs: z.number().int().min(0).max(3_600_000).optional(),
+    reviewedAt: z.string().datetime(),
+  })).min(1).max(200),
+});
+
+/** Reviews done offline are accepted for this long after they happened. */
+const OFFLINE_MAX_AGE_MS = 14 * 86_400_000;
+/** A device clock may run a little fast. */
+const CLOCK_SKEW_MS = 5 * 60_000;
+
 const queueQuerySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -184,6 +200,56 @@ export async function schedulerRoutes(app: FastifyInstance) {
       streak,
       newBadges,
     };
+  });
+
+  // POST /v1/scheduler/rate-batch — reviews done offline, sent when the device is back online.
+  // Each is applied as of when it happened. Sending the same one twice is harmless (clientId).
+  app.post('/scheduler/rate-batch', {
+    schema: { body: rateBatchSchema },
+    preHandler: [app.authenticate],
+  }, async (request) => {
+    const userId = request.user.sub;
+    const { reviews } = request.body as z.infer<typeof rateBatchSchema>;
+    const now = Date.now();
+    const results: { clientId: string; status: 'applied' | 'duplicate' | 'stale' | 'too_old' | 'invalid_time' | 'not_found' }[] = [];
+
+    // Oldest first, so the card's history is built in the order it happened.
+    const ordered = [...reviews].sort((a, b) => Date.parse(a.reviewedAt) - Date.parse(b.reviewedAt));
+    for (const r of ordered) {
+      const at = new Date(r.reviewedAt);
+      if (at.getTime() > now + CLOCK_SKEW_MS) { results.push({ clientId: r.clientId, status: 'invalid_time' }); continue; }
+      if (at.getTime() < now - OFFLINE_MAX_AGE_MS) { results.push({ clientId: r.clientId, status: 'too_old' }); continue; }
+
+      const [card] = await db.select().from(studentCards)
+        .where(and(eq(studentCards.id, r.cardId), eq(studentCards.studentId, userId))).limit(1);
+      if (!card) { results.push({ clientId: r.clientId, status: 'not_found' }); continue; }
+
+      const [already] = await db.select({ id: reviewLogs.id }).from(reviewLogs)
+        .where(and(eq(reviewLogs.cardId, card.id), eq(reviewLogs.clientId, r.clientId))).limit(1);
+      if (already) { results.push({ clientId: r.clientId, status: 'duplicate' }); continue; }
+
+      // The card was reviewed after this one happened (on another device, or sooner online): that review is newer, keep it.
+      if (card.lastReviewedAt && card.lastReviewedAt.getTime() >= at.getTime()) {
+        results.push({ clientId: r.clientId, status: 'stale' });
+        continue;
+      }
+
+      try {
+        await db.transaction(async (tx) => {
+          await applyRating(tx as unknown as typeof db, card, r.rating as Rating, r.timeTakenMs ?? 0, { at, clientId: r.clientId });
+          await recordStudentActivity(tx as unknown as typeof db, userId, at);
+        });
+        results.push({ clientId: r.clientId, status: 'applied' });
+      } catch (err) {
+        // Two requests racing with the same clientId: the unique index lets only one through.
+        if ((err as { code?: string }).code === '23505') results.push({ clientId: r.clientId, status: 'duplicate' });
+        else throw err;
+      }
+    }
+
+    const applied = results.filter((x) => x.status === 'applied').length;
+    const [streak] = await db.select().from(streaks).where(eq(streaks.studentId, userId)).limit(1);
+    return { results, applied, streak: streak ?? null, newBadges: applied ? await awardBadges(db, userId) : [] };
   });
 
   // GET /v1/scheduler/intervals/:cardId — Preview intervals for all ratings

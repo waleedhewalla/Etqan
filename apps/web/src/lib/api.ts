@@ -91,9 +91,20 @@ export interface QueueResponse {
   estimatedMinutes: number;
   streak: Streak;
   assignments: Assignment[];
+  /** Set when this is the copy saved on the device because the server could not be reached. */
+  offlineSavedAt?: string;
 }
 
 export interface EarnedBadge { id: string; nameAr: string; icon: string; tier: 'bronze' | 'silver' | 'gold' | 'diamond' }
+
+export interface BatchReviewResult { clientId: string; status: 'applied' | 'duplicate' | 'stale' | 'too_old' | 'invalid_time' | 'not_found' }
+
+export interface RateBatchResponse {
+  results: BatchReviewResult[];
+  applied: number;
+  streak: Streak | null;
+  newBadges: EarnedBadge[];
+}
 
 export interface RateResponse {
   card: { id: string; dueAt: string; state: string };
@@ -475,6 +486,11 @@ class ApiClient {
 
   answerDrill(id: string, answer: string) {
     return this.client.post<DrillResult>(`/mutashabihat/drills/${id}/answer`, { answer });
+  }
+
+  /** Reviews done offline, sent oldest first; each one carries when it happened. */
+  rateBatch(reviews: { clientId: string; cardId: string; rating: Rating; timeTakenMs: number; reviewedAt: string }[]) {
+    return this.client.post<RateBatchResponse>('/scheduler/rate-batch', { reviews });
   }
 
   getBadges() {

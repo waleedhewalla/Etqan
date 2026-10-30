@@ -37,6 +37,9 @@ import { MushafReader } from '@/components/MushafReader';
 import { VerseText } from '@/components/VerseText';
 import { ReciteTab } from '@/components/ReciteTab';
 import { MutashabihatTrainer } from '@/components/MutashabihatTrainer';
+import { OfflineSync, OFFLINE_CHANGED } from '@/components/OfflineSync';
+import { getOfflineStore, isNetworkError } from '@/lib/offline';
+import { useAuth } from '@/lib/auth-context';
 import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 
 type StudentTab =
@@ -58,8 +61,24 @@ export default function StudentDashboard() {
 
   const queueQuery = useQuery({
     queryKey: queryKeys.queue,
-    queryFn: () => api.getQueue().then((r) => r.data),
+    // The queue is also saved on the device. With no connection the saved copy is used, so a session can still start.
+    queryFn: async () => {
+      const store = getOfflineStore();
+      try {
+        const data = (await api.getQueue()).data;
+        if (store && user) {
+          void store.saveSnapshot(user.id, data).catch(() => undefined);
+          void cacheVerses(store, data);
+        }
+        return data;
+      } catch (err) {
+        const saved = isNetworkError(err) && store && user ? await store.loadSnapshot(user.id).catch(() => undefined) : undefined;
+        if (saved) return { ...saved.queue, offlineSavedAt: saved.savedAt };
+        throw err;
+      }
+    },
     enabled: ready,
+    networkMode: 'always',
   });
   const statsQuery = useQuery({
     queryKey: queryKeys.stats,
@@ -117,6 +136,12 @@ export default function StudentDashboard() {
         </div>
       }
     >
+      <OfflineSync />
+      {queue?.offlineSavedAt && (
+        <p role="note" className="mb-4 rounded-xl bg-surface-canvas border border-divider px-4 py-2 text-sm text-text-secondary">
+          هذه نسخة ورد اليوم المحفوظة على جهازكِ ({new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(queue.offlineSavedAt))}).
+        </p>
+      )}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <div>
           <p className="text-sm text-text-secondary">مرحباً</p>
@@ -412,8 +437,17 @@ function QueueTable({ queue }: { queue: QueueResponse }) {
 }
 
 /** Steps through the day's cards; each rating reschedules the card with FSRS. */
+/** Saves the text of today's verses so "show the verse" still works offline. Best effort. */
+async function cacheVerses(store: NonNullable<ReturnType<typeof getOfflineStore>>, queue: QueueResponse) {
+  const refs = [...new Set([queue.queue.manzil, queue.queue.sabqi, queue.queue.sabaq].flatMap((p) => p.items.map((i) => i.card.ayahRef)))];
+  for (let i = 0; i < refs.length; i += 60) {
+    try { await store.saveAyat((await api.getAyat(refs.slice(i, i + 60))).data.ayat); } catch { return; }
+  }
+}
+
 function ReviewSession({ items, onFinish }: { items: QueueItem[]; onFinish: () => void }) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [index, setIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -443,7 +477,23 @@ function ReviewSession({ items, onFinish }: { items: QueueItem[]; onFinish: () =
       setIndex((i) => i + 1);
       shownAt.current = Date.now();
     } catch (err) {
-      setError(errorMessage(err, 'لم يُحفظ التقييم. حاولي مرة أخرى.'));
+      // No connection: keep the review on the device with the time it happened, and carry on. It is sent later.
+      const store = getOfflineStore();
+      if (isNetworkError(err) && store && user) {
+        try {
+          await store.addPending({ userId: user.id, cardId: current.card.id, rating, timeTakenMs: Date.now() - shownAt.current });
+          await store.markDone(user.id, current.card.id);
+          window.dispatchEvent(new Event(OFFLINE_CHANGED));
+          setCounts((c) => ({ ...c, [rating]: c[rating] + 1 }));
+          setShowVerse(false);
+          setIndex((i) => i + 1);
+          shownAt.current = Date.now();
+        } catch {
+          setError('لا يوجد اتصال وتعذّر حفظ المراجعة على الجهاز. حاولي مرة أخرى.');
+        }
+      } else {
+        setError(errorMessage(err, 'لم يُحفظ التقييم. حاولي مرة أخرى.'));
+      }
     } finally {
       setSaving(false);
     }

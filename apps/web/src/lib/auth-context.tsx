@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { getOfflineStore } from './offline';
 import { api, clearSession, homeFor, saveSession, TOKEN_KEY, USER_KEY, type ApiUser, type Role, type SessionResponse } from './api';
 
 interface AuthContextType {
@@ -45,9 +46,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // Signing out locally is enough if the server can't be reached.
     }
+    // Today's saved queue goes with her sign-out; reviews still waiting stay, to be sent at her next sign-in.
+    if (user) await getOfflineStore()?.forgetUser(user.id).catch(() => undefined);
     clearSession();
     setUser(null);
-  }, []);
+  }, [user]);
 
   const refreshUser = useCallback(async () => {
     const res = await api.getMe();

@@ -126,6 +126,26 @@ There is no bundled dataset: the QUL mutashabihat data's licence could not be ve
 - A wrong answer brings that verse's revision card back sooner (rated "hard"); a right answer changes nothing, so it cannot be
   used to push cards away. The Quran text must be loaded.
 
+## Offline revision
+
+A student can open the app and review today's cards with no connection, and her reviews are sent when it returns.
+
+- **How it works:** a service worker (`apps/web/public/sw.js`) keeps the pages she has opened and the app's scripts, so the
+  app opens offline. Today's queue and its verse text are saved on the device (IndexedDB) each time the queue loads. A review
+  made offline is stored with the time it happened and sent to `POST /v1/scheduler/rate-batch` when the connection is back
+  (the `online` event, and every 30 s while any are waiting). The banner at the top of the dashboard shows what is waiting.
+- **Rules on the server:** each review carries a client id, so sending one twice counts once; reviews are applied oldest first and
+  scheduled as of when they happened (so the next due date and the streak day are right); a review is skipped as *stale* if the card
+  was reviewed more recently (for example on another device); reviews older than 14 days or dated in the future are refused.
+- **Needs one online visit first:** the app opens offline only after it has been opened once online with the service worker active
+  (the first visit installs it). Signing in and the first queue still need a connection.
+- **Trying it:** the service worker registers in production builds only (`pnpm build && pnpm --filter @itqan/web start`), or set
+  `NEXT_PUBLIC_ENABLE_SW=true` for a dev server (which may then serve stale code: clear site data when done). In Chrome DevTools, tick
+  Network → Offline, reload, and review. Signing out removes the saved queue from the device; reviews still waiting stay for the next sign-in.
+- **Limits:** only revision sessions work offline. Recording, the mushaf reader, similar verses and the teacher screens need a connection.
+  Sending a review that was made on a card the student has since changed on another device drops it silently as stale.
+- The install prompt ("add to home screen") comes from `manifest.json` and its icons; those are simple placeholders, replace them with the real logo.
+
 ## Try the pilot locally
 
 Start the API and the web app in two terminals:

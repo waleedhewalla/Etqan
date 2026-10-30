@@ -1,7 +1,8 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { api, queryKeys } from '@/lib/api';
+import { api, queryKeys, type AyatResponse } from '@/lib/api';
+import { getOfflineStore, isNetworkError } from '@/lib/offline';
 import { toArabicDigits } from '@/lib/quran';
 import { LoadError, Spinner } from '@/components/LoadState';
 
@@ -15,7 +16,20 @@ export function VerseText(props: Source & { className?: string }) {
   const key = 'refs' in props ? props.refs.join(',') : `${props.start}-${props.end}`;
   const query = useQuery({
     queryKey: queryKeys.ayat(key),
-    queryFn: () => ('refs' in props ? api.getAyat(props.refs) : api.getAyatRange(props.start, props.end)).then((r) => r.data),
+    queryFn: async (): Promise<AyatResponse> => {
+      const store = getOfflineStore();
+      try {
+        const data = await ('refs' in props ? api.getAyat(props.refs) : api.getAyatRange(props.start, props.end)).then((r) => r.data);
+        if (store && data.ayat.length) void store.saveAyat(data.ayat).catch(() => undefined);
+        return data;
+      } catch (err) {
+        // No connection: the verses saved on the device with today's queue, if all of them are there.
+        const saved = 'refs' in props && isNetworkError(err) && store ? await store.loadAyat(props.refs).catch(() => null) : null;
+        if (saved) return { ayat: saved, complete: true };
+        throw err;
+      }
+    },
+    networkMode: 'always',
     staleTime: 24 * 60 * 60 * 1000, // the text does not change
   });
 

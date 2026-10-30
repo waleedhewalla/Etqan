@@ -14,10 +14,11 @@ import { FSRS_DEFAULTS, RATING_TO_FSRS, STATE_TRANSITIONS, MIN_INTERVALS, GATEKE
 export function scheduleReview(
   card: CardState,
   rating: Rating,
-  params: FSRSParameters = FSRS_DEFAULTS
+  params: FSRSParameters = FSRS_DEFAULTS,
+  /** When the review happened. Reviews done offline are applied later, with their real time. */
+  now: Date = new Date()
 ): ScheduledCard {
   const r = RATING_TO_FSRS[rating];
-  const now = new Date();
   
   // Clone card state
   const newState: CardState = { ...card };
@@ -195,13 +196,14 @@ export function createReviewLog(
   card: CardState,
   rating: Rating,
   scheduled: ScheduledCard,
-  timeTakenMs: number
+  timeTakenMs: number,
+  reviewedAt: Date = new Date()
 ): ReviewLog {
   return {
     id: `review-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     cardId,
     rating,
-    reviewedAt: new Date(),
+    reviewedAt,
     timeTakenMs,
     wasCorrect: rating !== 'again',
     stateBefore: { ...card },
