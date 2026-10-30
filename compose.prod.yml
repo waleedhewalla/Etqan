@@ -1,9 +1,9 @@
-# Itqan for a real server: HTTPS, the API, the web app, Postgres and private audio storage.
+# Itqan for a real server: HTTPS, the API, the web app, Postgres, and recordings on a private volume.
 #
 #   cp .env.production.example .env      # then fill it in
 #   docker compose -f compose.prod.yml up -d --build
 #
-# Only Caddy is reachable from outside (ports 80/443). Postgres and MinIO are not published at all.
+# Only Caddy is reachable from outside (ports 80/443). Postgres is not published at all.
 # See docs/DEPLOY.md for the full runbook (first institution, Quran text, updates, backups).
 
 name: itqan
@@ -23,19 +23,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-
-  # Private audio storage. MinIO stopped publishing on Docker Hub and no longer maintains its community edition:
-  # this is the last release published on quay.io, pinned so it cannot change under you. Because it will not get
-  # security updates, consider a managed S3 service instead (docs/DEPLOY.md, "Audio storage").
-  minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    restart: unless-stopped
-    command: server /data
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY in .env}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY in .env}
-    volumes:
-      - minio_data:/data
 
   # Applies database migrations, then exits. The API starts only after it succeeds.
   migrate:
@@ -61,12 +48,14 @@ services:
       FRONTEND_URL: https://${APP_DOMAIN}
       # The API is reachable only through Caddy, so its X-Forwarded-For can be trusted (per-IP rate limits need it).
       TRUST_PROXY: "true"
-      STORAGE_DRIVER: s3
-      # Defaults to the MinIO above; set these to use any S3-compatible service instead.
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      # Recordings are files on the audio_data volume. Set STORAGE_DRIVER=s3 and the MINIO_* values in .env to use a
+      # managed S3-compatible service instead (needed only to run the API on more than one machine).
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-file}
+      AUDIO_DIR: /data/audio
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-true}
       MINIO_REGION: ${MINIO_REGION:-us-east-1}
       MINIO_BUCKET: ${MINIO_BUCKET:-itqan-audio}
       WHATSAPP_API_URL: ${WHATSAPP_API_URL:-}
@@ -82,9 +71,10 @@ services:
       ASR_API_URL: ${ASR_API_URL:-}
       ASR_API_KEY: ${ASR_API_KEY:-}
       ASR_MODEL: ${ASR_MODEL:-whisper-1}
+    volumes:
+      - audio_data:/data/audio
     depends_on:
       migrate: { condition: service_completed_successfully }
-      minio: { condition: service_started, required: false }
 
   web:
     build:
@@ -116,6 +106,6 @@ services:
 
 volumes:
   postgres_data:
-  minio_data:
+  audio_data:
   caddy_data:
   caddy_config:
