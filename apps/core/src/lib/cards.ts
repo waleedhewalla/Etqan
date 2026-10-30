@@ -27,8 +27,8 @@ export function cardRowToState(row: typeof studentCards.$inferSelect): CardState
 }
 
 /** Applies today's activity to the student's streak and returns the new state. */
-export async function recordStudentActivity(db: Database, studentId: string) {
-  const today = localDate();
+export async function recordStudentActivity(db: Database, studentId: string, at: Date = new Date()) {
+  const today = localDate(at);
   const [row] = await db.select().from(streaks).where(eq(streaks.studentId, studentId)).limit(1);
   const { state, frozenDates } = recordActivity(row ?? {
     currentStreak: 0, longestStreak: 0, freezesRemaining: 2, lastActiveDate: null,
@@ -47,10 +47,15 @@ export async function recordStudentActivity(db: Database, studentId: string) {
 }
 
 /** Reschedules a card for a rating and writes the review log. The streak is the caller's concern. */
-export async function applyRating(db: Database, card: typeof studentCards.$inferSelect, rating: Rating, timeTakenMs = 0) {
+export async function applyRating(
+  db: Database, card: typeof studentCards.$inferSelect, rating: Rating, timeTakenMs = 0,
+  /** When the review happened (offline reviews are applied later) and a client id that makes the write idempotent. */
+  options: { at?: Date; clientId?: string } = {},
+) {
+  const at = options.at ?? new Date();
   const cardState = cardRowToState(card);
-  const scheduled = scheduleReview(cardState, rating);
-  const log = createReviewLog(card.id, cardState, rating, scheduled, timeTakenMs);
+  const scheduled = scheduleReview(cardState, rating, undefined, at);
+  const log = createReviewLog(card.id, cardState, rating, scheduled, timeTakenMs, at);
 
   await db.update(studentCards)
     .set({
@@ -63,7 +68,7 @@ export async function applyRating(db: Database, card: typeof studentCards.$infer
       positionalStability: scheduled.positionalStability ?? card.positionalStability,
       recognitionStability: scheduled.recognitionStability ?? card.recognitionStability,
       dueAt: scheduled.dueAt ? new Date(scheduled.dueAt as unknown as string) : null,
-      lastReviewedAt: new Date(),
+      lastReviewedAt: at,
       reps: scheduled.reps,
       lapses: scheduled.lapses,
       updatedAt: new Date(),
@@ -73,7 +78,8 @@ export async function applyRating(db: Database, card: typeof studentCards.$infer
   await db.insert(reviewLogs).values({
     cardId: card.id,
     rating: rating as typeof reviewLogs.$inferInsert.rating,
-    reviewedAt: new Date(),
+    reviewedAt: at,
+    clientId: options.clientId ?? null,
     timeTakenMs,
     wasCorrect: rating !== 'again',
     stateBefore: cardState as unknown as Record<string, unknown>,

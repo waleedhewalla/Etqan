@@ -272,12 +272,15 @@ export const reviewLogs = pgTable('review_logs', {
   cardId: uuid('card_id').references(() => studentCards.id, { onDelete: 'cascade' }).notNull(),
   rating: ratingEnum('rating').notNull(),
   reviewedAt: timestamp('reviewed_at', { withTimezone: true }).defaultNow().notNull(),
+  /** Set for reviews sent from a device that was offline, so sending them twice cannot count them twice. */
+  clientId: varchar('client_id', { length: 64 }),
   timeTakenMs: integer('time_taken_ms'),
   wasCorrect: boolean('was_correct').notNull(),
   stateBefore: jsonb('state_before').$type<Record<string, unknown>>(),
   stateAfter: jsonb('state_after').$type<Record<string, unknown>>(),
 }, (t) => ({
   cardIdx: index('review_logs_card_idx').on(t.cardId),
+  clientIdx: uniqueIndex('review_logs_client_idx').on(t.cardId, t.clientId),
   reviewedAtIdx: index('review_logs_reviewed_at_idx').on(t.reviewedAt),
 }));
 
