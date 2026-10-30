@@ -5,6 +5,7 @@ import { getDb } from '../../db';
 import { studentCards, reviewLogs, streaks, assignments } from '../../db/schema';
 import { localDate, startOfLocalDay } from '../../lib/dates';
 import { applyRating, cardRowToState, recordStudentActivity } from '../../lib/cards';
+import { awardBadges } from '../../lib/badges';
 import {
   computeIntervals,
   checkGatekeeper,
@@ -171,6 +172,8 @@ export async function schedulerRoutes(app: FastifyInstance) {
     // Update streak (one missed day is covered by a freeze when one is left)
     const streak = await recordStudentActivity(db, userId);
 
+    const newBadges = await awardBadges(db, userId);
+
     // Preview next intervals
     const intervals = computeIntervals(scheduled);
 
@@ -179,6 +182,7 @@ export async function schedulerRoutes(app: FastifyInstance) {
       log,
       intervals,
       streak,
+      newBadges,
     };
   });
 

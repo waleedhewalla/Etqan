@@ -8,6 +8,7 @@ import { sectionEnrollments, sections, tasmiSubmissions, users } from '../../db/
 import { canViewStudent, isStaff, isTenantAdmin } from '../../lib/access';
 import { MAX_AUDIO_BYTES, sniffAudio } from '../../lib/audio';
 import { hasConsent } from '../../lib/consent';
+import { awardBadges } from '../../lib/badges';
 import { ayatBetween, gradeRecitation } from '../../lib/grading';
 import { ConsentRequiredError } from '../../lib/errors';
 import { generateToken, verifyToken } from '../../lib/jwt';
@@ -326,6 +327,8 @@ export async function assessmentRoutes(app: FastifyInstance) {
     });
 
     if (!result.row) return request.server.httpErrors.notFound('Submission not found');
+    // Badges after the transaction commits: an approved recitation or newly mastered cards may earn one.
+    await awardBadges(db, existing.studentId);
     return { ...serializeTasmi(result.row), graded: result.graded };
   });
 }
