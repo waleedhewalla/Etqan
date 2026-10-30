@@ -1,9 +1,15 @@
+const path = require('path');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // A self-contained server (`node server.js`) for the container image; traced from the monorepo root so the
+  // workspace packages are included.
+  output: 'standalone',
   transpilePackages: ['@itqan/ui', '@itqan/types', '@itqan/fsrs', '@itqan/quran'],
   experimental: {
     optimizePackageImports: ['@itqan/ui', 'lucide-react'],
+    outputFileTracingRoot: path.join(__dirname, '../../'),
   },
   images: {
     domains: ['localhost', 'minio', 'cdn.everyayah.com'],

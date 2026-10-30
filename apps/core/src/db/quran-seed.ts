@@ -85,7 +85,7 @@ export async function seedQuran(db: Database, rows: AyahRow[], options: { force?
   return { inserted: rows.length, skipped: false };
 }
 
-if (process.argv[1]?.endsWith('quran-seed.ts')) {
+if (/quran-seed\.(ts|mjs)$/.test(process.argv[1] ?? '')) {
   (async () => {
     const rows = parseQuranJson(await loadQuranSource());
     const result = await seedQuran(getDb(), rows, { force: process.argv.includes('--force') });
