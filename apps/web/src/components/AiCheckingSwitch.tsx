@@ -14,7 +14,7 @@ export function AiCheckingSwitch() {
   });
 
   if (!status.data) return null;
-  const { available, enabled } = status.data;
+  const { available, enabled, included } = status.data;
 
   return (
     <Card>
@@ -26,7 +26,9 @@ export function AiCheckingSwitch() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        {!available ? (
+        {!included ? (
+          <p className="text-sm text-text-secondary">الفحص الآلي غير مشمول في ترخيص مؤسستكم الحالي. تواصلوا مع إدارة إتقان لترقية الخطة.</p>
+        ) : !available ? (
           <p className="text-sm text-text-secondary">خدمة الفحص الآلي غير مفعّلة في هذا النظام حالياً، فالمراجعة تتم بواسطة المعلمة وحدها.</p>
         ) : (
           <div className="flex items-center gap-3 flex-wrap">

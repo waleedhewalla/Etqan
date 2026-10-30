@@ -155,7 +155,16 @@ export interface AtRiskStudent {
 export interface AdminOverview {
   institution: {
     id: string; nameAr: string; slug: string; domain: string | null; active: boolean;
-    plan: { tier: 'free' | 'madrasa_basic' | 'madrasa_pro' | 'enterprise'; maxStudents: number; maxHalaqat: number; features: string[]; validUntil: string | null };
+    plan: {
+      tier: 'free' | 'madrasa_basic' | 'madrasa_pro' | 'enterprise'; maxStudents: number; maxHalaqat: number;
+      /** Features in effect (the tier's plus any added; none once expired). */
+      features: string[]; validUntil: string | null;
+      status: {
+        enforcement: 'warn' | 'block'; expired: boolean;
+        students: { used: number; limit: number; state: 'ok' | 'near' | 'full' | 'over' };
+        halaqat: { used: number; limit: number; state: 'ok' | 'near' | 'full' | 'over' };
+      };
+    };
   };
   usage: { students: number; halaqat: number };
   activity: { reviewsThisWeek: number; reviewsLastWeek: number; activeThisWeek: number; activeToday: number; avgMastery: number };
@@ -329,6 +338,8 @@ export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاول�
   if (code === 'CONSENT_REQUIRED') return 'نحتاج موافقتكِ على تسجيل الصوت أولاً.';
   if (e?.response?.status === 413) return 'التسجيل كبير جداً. سجّلي مقطعاً أقصر.';
   if (e?.response?.status === 415) return 'تعذّر قبول هذا التسجيل. جرّبي متصفحاً آخر.';
+  if (code === 'PLAN_LIMIT_REACHED') return 'بلغت المؤسسة حدّ ترخيصها (الطالبات أو الحلقات) أو انتهى ترخيصها. تواصلي مع إدارة المؤسسة.';
+  if (code === 'PLAN_FEATURE_NOT_INCLUDED') return 'هذه الميزة غير مشمولة في ترخيص مؤسستكم.';
   if (code === 'ACCOUNT_NOT_FOUND') return 'لا يوجد حساب بهذا الرقم. اطلبي كود الشعبة من معلمتك.';
   if (e?.response?.status === 429) return 'محاولات كثيرة. انتظري قليلاً ثم حاولي مرة أخرى.';
   if (!e?.response) return 'تعذّر الاتصال بالخادم. تحققي من الإنترنت.';
@@ -554,7 +565,7 @@ class ApiClient {
   }
 
   getVoiceStatus() {
-    return this.client.get<{ available: boolean; provider: string | null; enabled: boolean }>('/voice/status');
+    return this.client.get<{ available: boolean; provider: string | null; included: boolean; enabled: boolean }>('/voice/status');
   }
 
   setAiChecking(enabled: boolean) {

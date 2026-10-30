@@ -100,10 +100,15 @@ export default function AdminDashboard() {
                     <span className="text-sm text-text-secondary">الخطة</span>
                     <Badge variant="gold" size="sm">{PLAN_LABEL[data.institution.plan.tier] ?? data.institution.plan.tier}</Badge>
                   </div>
-                  <Usage label="الطالبات" used={data.usage.students} limit={data.institution.plan.maxStudents} />
-                  <Usage label="الحلقات" used={data.usage.halaqat} limit={data.institution.plan.maxHalaqat} />
+                  {data.institution.plan.status.expired && (
+                    <p role="alert" data-testid="plan-expired" className="text-sm rounded-lg px-3 py-2 bg-red-50 text-red-800">
+                      انتهى ترخيص المؤسسة. {data.institution.plan.status.enforcement === 'block' ? 'لا يمكن إضافة طالبات أو حلقات جديدة، ويستمر تعلّم الطالبات الحاليات.' : 'جدّدوه لتفعيل الميزات المدفوعة.'}
+                    </p>
+                  )}
+                  <Usage label="الطالبات" {...data.institution.plan.status.students} enforcement={data.institution.plan.status.enforcement} />
+                  <Usage label="الحلقات" {...data.institution.plan.status.halaqat} enforcement={data.institution.plan.status.enforcement} />
                   {data.institution.plan.validUntil && (
-                    <p className="text-sm text-text-secondary">سارية حتى {formatDate(data.institution.plan.validUntil)}</p>
+                    <p className="text-sm text-text-secondary">{data.institution.plan.status.expired ? 'انتهت في' : 'سارية حتى'} {formatDate(data.institution.plan.validUntil)}</p>
                   )}
                   {data.institution.plan.features.length > 0 && (
                     <ul className="space-y-1.5">
@@ -114,7 +119,11 @@ export default function AdminDashboard() {
                       ))}
                     </ul>
                   )}
-                  <p className="text-xs text-text-secondary">الحدود أعلاه مسجّلة للمؤسسة للعلم، ولا يُمنع الانضمام عند بلوغها بعد.</p>
+                  <p className="text-xs text-text-secondary">
+                    {data.institution.plan.status.enforcement === 'block'
+                      ? 'عند بلوغ الحد أو انتهاء الترخيص لا تُقبل طالبات أو حلقات جديدة. الطالبات الحاليات لا يُمنعن من المراجعة.'
+                      : 'الحدود للتنبيه فقط الآن: لا يُمنع الانضمام عند بلوغها.'}
+                  </p>
                 </CardContent>
               </Card>
 
@@ -191,17 +200,23 @@ function Stat({ icon, label, value, note }: { icon: React.ReactNode; label: stri
   );
 }
 
-function Usage({ label, used, limit }: { label: string; used: number; limit: number }) {
+const STATE_NOTE = {
+  ok: null, near: 'اقتربتم من الحد', full: 'بلغتم الحد', over: 'تجاوزتم الحد',
+} as const;
+
+function Usage({ label, used, limit, state, enforcement }: { label: string; used: number; limit: number; state: 'ok' | 'near' | 'full' | 'over'; enforcement: 'warn' | 'block' }) {
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const note = STATE_NOTE[state];
   return (
-    <div>
+    <div data-testid={`usage-${state}`}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm text-text-secondary">{label}</span>
         <span className="text-sm font-bold text-text-primary">{toArabicDigits(used)} / {toArabicDigits(limit)}</span>
       </div>
       <div className="w-full bg-surface-canvas rounded-full h-3" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={limit} aria-valuenow={used}>
-        <div className={`h-3 rounded-full ${used > limit ? 'bg-state-danger' : 'bg-brand-primary'}`} style={{ width: `${pct}%` }} />
+        <div className={`h-3 rounded-full ${state === 'over' || state === 'full' ? 'bg-state-danger' : state === 'near' ? 'bg-state-attention' : 'bg-brand-primary'}`} style={{ width: `${pct}%` }} />
       </div>
+      {note && <p className="text-xs mt-1 text-state-attention">{note}{state !== 'near' && enforcement === 'block' ? ': لا إضافة جديدة' : ''}</p>}
     </div>
   );
 }

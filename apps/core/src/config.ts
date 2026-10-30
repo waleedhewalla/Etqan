@@ -44,6 +44,11 @@ const envSchema = z.object({
   QURAN_TEXT_PATH: optional(z.string()),
   QURAN_TEXT_URL: z.string().url().default('https://cdn.jsdelivr.net/npm/quran-json@3.1.2/dist/quran.json'),
 
+  // What an institution's plan limits do. 'warn' only reports them (the admin console shows "full" or "expired");
+  // 'block' also stops an institution that is full or expired from adding students and halaqat. Students already
+  // learning are never locked out. Whether AI checking is included in the plan is checked in both modes.
+  PLAN_ENFORCEMENT: z.enum(['warn', 'block']).default('warn'),
+
   // How long a recording is kept. The privacy page promises deletion within 24 hours of the teacher's
   // review; one nobody reviews is removed after AUDIO_UNREVIEWED_MAX_DAYS so it cannot stay forever.
   AUDIO_RETENTION_HOURS: z.coerce.number().positive().default(24),
