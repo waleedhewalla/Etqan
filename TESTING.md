@@ -112,6 +112,20 @@ Ya-Sin, Al-Baqarah). The **خطتي والكفايات** tab shows earned badges
 review session when one is earned, and an in-app notification is left. An earned badge is kept even if progress later dips.
 Add a badge by adding a line to the catalog: its definition is copied to the database on first use.
 
+## Look-alike verses (المتشابهات)
+
+There is no bundled dataset: the QUL mutashabihat data's licence could not be verified, so clusters are written by teachers.
+
+- A teacher proposes a cluster (2–6 verses, optional note) in her **المتشابهات** tab. It waits for approval by a scholar:
+  the `sheikh_reviewer` role or an administrator of the same institution. Only approved clusters are visible to students,
+  and clusters never cross institutions (a null-institution "shared" cluster can only be ruled on by the superadmin).
+- A student sees the clusters that contain a verse she is memorizing (**المتشابهات** tab), with the words that set them apart
+  highlighted, and can practise: a fill-in-the-blank when two verses differ by exactly one swapped word, or "which verse is this?".
+  "Which verse" is only asked about verses worded differently from every other verse in the cluster, since verses worded
+  identically (only their surroundings differ) cannot be told apart from their text.
+- A wrong answer brings that verse's revision card back sooner (rated "hard"); a right answer changes nothing, so it cannot be
+  used to push cards away. The Quran text must be loaded.
+
 ## Try the pilot locally
 
 Start the API and the web app in two terminals:

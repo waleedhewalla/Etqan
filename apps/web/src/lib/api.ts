@@ -102,6 +102,31 @@ export interface RateResponse {
   newBadges?: EarnedBadge[];
 }
 
+export interface ClusterAyah { ref: string; text: string | null }
+
+export interface Cluster {
+  id: string;
+  ayahRefs: string[];
+  source: 'kirmani' | 'ansari' | 'sakhawi' | 'other';
+  tawjihAr: string | null;
+  approvalStatus: 'draft' | 'pending_review' | 'approved' | 'rejected';
+  tenantId: string | null;
+  createdBy: string | null;
+  /** The verses in mushaf order; `text` is null when the Quran text is not loaded. */
+  ayat: ClusterAyah[];
+}
+
+export interface Drill {
+  id: string;
+  clusterId: string;
+  drillType: 'cloze' | 'timed-choice';
+  targetRef: string | null;
+  question: string;
+  options: string[];
+}
+
+export interface DrillResult { drillId: string; wasCorrect: boolean; correctAnswer: string; rescheduled: boolean }
+
 export interface BadgeProgress extends EarnedBadge {
   descriptionAr: string;
   category: string;
@@ -423,6 +448,35 @@ class ApiClient {
     return this.client.post<RateResponse>('/scheduler/rate', { cardId, rating, timeTakenMs });
   }
 
+  // Look-alike verses
+  getMyClusters() {
+    return this.client.get<Cluster[]>('/mutashabihat/mine');
+  }
+
+  getClusters(status?: Cluster['approvalStatus']) {
+    return this.client.get<Cluster[]>('/mutashabihat/clusters', { params: { status } });
+  }
+
+  createCluster(data: { ayahRefs: string[]; source: Cluster['source']; tawjihAr?: string }) {
+    return this.client.post<Cluster>('/mutashabihat/clusters', data);
+  }
+
+  reviewCluster(id: string, decision: 'approved' | 'rejected') {
+    return this.client.post<Cluster>(`/mutashabihat/clusters/${id}/review`, { decision });
+  }
+
+  deleteCluster(id: string) {
+    return this.client.delete(`/mutashabihat/clusters/${id}`);
+  }
+
+  generateDrill(clusterId: string, drillType: Drill['drillType'], targetRef?: string) {
+    return this.client.post<Drill>('/mutashabihat/drills/generate', { clusterId, drillType, targetRef });
+  }
+
+  answerDrill(id: string, answer: string) {
+    return this.client.post<DrillResult>(`/mutashabihat/drills/${id}/answer`, { answer });
+  }
+
   getBadges() {
     return this.client.get<BadgeProgress[]>('/badges');
   }
@@ -529,6 +583,8 @@ export const queryKeys = {
   myTasmi: ['tasmi', 'mine'] as const,
   voiceStatus: ['voice', 'status'] as const,
   badges: ['badges'] as const,
+  myClusters: ['mutashabihat', 'mine'] as const,
+  clusters: (status: string) => ['mutashabihat', 'clusters', status] as const,
   pendingTasmi: (sectionId?: string) => ['tasmi', 'pending', sectionId] as const,
   guardianStudents: ['guardian', 'students'] as const,
   ayat: (source: string) => ['ayat', source] as const,

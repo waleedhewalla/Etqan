@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription, Badge } from '@itqan/ui';
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@itqan/ui';
 import {
   BookOpen,
   Target,
@@ -36,6 +36,7 @@ import { PreviewNotice } from '@/components/PreviewNotice';
 import { MushafReader } from '@/components/MushafReader';
 import { VerseText } from '@/components/VerseText';
 import { ReciteTab } from '@/components/ReciteTab';
+import { MutashabihatTrainer } from '@/components/MutashabihatTrainer';
 import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 
 type StudentTab =
@@ -228,7 +229,7 @@ export default function StudentDashboard() {
 
       {activeTab === 'mushaf' && <MushafTab onReview={() => { setActiveTab('today'); setReviewing(true); }} />}
       {activeTab === 'recite' && <ReciteTab />}
-      {activeTab === 'mutashabihat' && <MutashabihatTab />}
+      {activeTab === 'mutashabihat' && <MutashabihatTrainer />}
       {activeTab === 'progress' && <ProgressTab />}
       {activeTab === 'curriculum' && (
         <>
@@ -566,31 +567,6 @@ function MushafTab({ onReview }: { onReview?: () => void }) {
       <SessionTypePicker onNew={() => undefined} onReview={onReview} />
       <MushafReader />
     </div>
-  );
-}
-
-function MutashabihatTab() {
-  return (
-    <>
-    <PreviewNotice>تدريب المتشابهات يصل في مرحلة قادمة.</PreviewNotice>
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Target className="w-5 h-5" />
-          المتشابهات
-        </CardTitle>
-        <CardDescription>تدريب المقارنة بين الآيات المتشابهة</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <EmptyState
-          icon={Target}
-          title="لا توجد متشابهات مستحقة اليوم"
-          description="ستظهر هنا عند وصول آيات متشابهة في خطتك"
-        />
-        <Button variant="secondary" className="w-full">استكشاف جميع المتشابهات</Button>
-      </CardContent>
-    </Card>
-    </>
   );
 }
 
