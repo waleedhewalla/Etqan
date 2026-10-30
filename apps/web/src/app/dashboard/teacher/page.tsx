@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Input } from '@itqan/ui';
 import {
@@ -168,6 +169,9 @@ export default function TeacherDashboard() {
           <p className="text-sm text-text-secondary">مرحباً {user?.displayNameAr}</p>
           <h1 className="font-heading text-2xl font-bold text-text-primary">{section?.nameAr ?? 'لوحة المعلمة'}</h1>
         </div>
+        {['dean', 'advisor', 'operator', 'superadmin'].includes(user?.role ?? '') && (
+          <Link href="/admin" className="text-sm rounded-xl border border-divider px-3 py-2 hover:border-brand-primary/40">لوحة الإدارة</Link>
+        )}
         {(sectionsQuery.data?.length ?? 0) > 1 && (
           <label className="text-sm flex items-center gap-2">
             <span className="text-text-secondary">الحلقة</span>

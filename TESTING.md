@@ -146,6 +146,18 @@ A student can open the app and review today's cards with no connection, and her 
   Sending a review that was made on a card the student has since changed on another device drops it silently as stale.
 - The install prompt ("add to home screen") comes from `manifest.json` and its icons; those are simple placeholders, replace them with the real logo.
 
+## Admin console and early warning
+
+Deans, advisors, operators and the superadmin land on **/admin** after signing in (it links to the halaqa screens). It shows, from live data:
+students in halaqat, who was active this week and today, reviews this week against last week, average mastery, the plan stored for the institution,
+and the early-warning list. A superadmin can switch institution; everyone else only ever sees their own (`GET /v1/admin/overview`).
+
+- **Who is flagged** (`apps/core/src/lib/risk.ts`, shared with the teacher's roster): no review for 3 days or never started, or attendance below 70%
+  over 30 days. **High** priority when both apply, when she has been away for 14 days, or when she never started; otherwise medium.
+  It is a plain rule with stated reasons, not a prediction or score, and the page says so.
+- **Plan limits are shown, not enforced.** `plan_max_students`, `plan_max_halaqat`, `plan_features` and `plan_valid_until` are stored on the institution
+  and displayed, but joining a full institution or using an expired plan is not blocked yet (that needs product decisions: see the PR).
+
 ## Try the pilot locally
 
 Start the API and the web app in two terminals:
