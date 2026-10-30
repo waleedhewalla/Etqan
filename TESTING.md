@@ -35,6 +35,18 @@ The source is the `quran-json` dataset, which is published under **CC BY-SA 4.0*
 credits it on `/credits`. Check that licence with whoever signs off on the
 content before a public launch.
 
+## Recording a recitation
+
+Students record from the **التسميع** tab; the teacher listens in **التسميع والتقييم**.
+
+- Recordings are stored in MinIO (`docker compose up -d minio`) and are only reachable through the API,
+  which checks who may listen and hands out five-minute links. For a quick trial without MinIO set
+  `STORAGE_DRIVER=memory` (recordings vanish when the API restarts).
+- A student must first agree to voice recording (a prompt appears on the tab; the join flow also asks).
+- The browser only allows the microphone on **HTTPS or `localhost`**. A production deployment needs HTTPS.
+- Automated browser runs can use Chromium's fake microphone:
+  `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`.
+
 ## Try the pilot locally
 
 Start the API and the web app in two terminals:

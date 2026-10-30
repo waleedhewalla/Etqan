@@ -324,7 +324,12 @@ export const tasmiSubmissions = pgTable('tasmi_submissions', {
   sectionId: uuid('section_id').references(() => sections.id),
   startRef: varchar('start_ref', { length: 12 }).notNull(),
   endRef: varchar('end_ref', { length: 12 }).notNull(),
-  audioUrl: text('audio_url').notNull(),
+  /** Legacy / seeded rows only. New recordings use audioKey. */
+  audioUrl: text('audio_url'),
+  audioKey: text('audio_key'),
+  audioContentType: varchar('audio_content_type', { length: 64 }),
+  audioBytes: integer('audio_bytes'),
+  audioDeletedAt: timestamp('audio_deleted_at', { withTimezone: true }),
   durationMs: integer('duration_ms'),
   submittedAt: timestamp('submitted_at', { withTimezone: true }).defaultNow().notNull(),
   aiHifzAccuracy: real('ai_hifz_accuracy'),

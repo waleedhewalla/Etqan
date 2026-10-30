@@ -14,6 +14,7 @@ import { PreviewNotice } from '@/components/PreviewNotice';
 import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 import { WeeklyReportView } from '@/components/WeeklyReportView';
 import { VerseText } from '@/components/VerseText';
+import { TasmiAudio } from '@/components/TasmiAudio';
 import { useRequireRole } from '@/lib/auth-context';
 import {
   api, errorMessage, normalizePhone, queryKeys,
@@ -552,9 +553,7 @@ function ReviewForm({ submission, onDone }: { submission: TasmiSubmission; onDon
           <VerseText start={submission.startRef} end={submission.endRef} />
         </div>
 
-        <audio controls preload="none" src={submission.audioUrl} className="w-full">
-          متصفحك لا يدعم تشغيل الصوت.
-        </audio>
+        <TasmiAudio id={submission.id} hasAudio={submission.hasAudio} />
 
         <RubricSlider id="score-hifz" label="الحفظ" weight="٥٠٪" value={scores.hifz} onChange={(v) => setScores((s) => ({ ...s, hifz: v }))} />
         <RubricSlider id="score-tajweed" label="التجويد" weight="٣٠٪" value={scores.tajweed} onChange={(v) => setScores((s) => ({ ...s, tajweed: v }))} />

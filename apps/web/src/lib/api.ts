@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export const TOKEN_KEY = 'itqan_token';
 export const REFRESH_KEY = 'itqan_refresh_token';
@@ -162,11 +162,13 @@ export interface TasmiSubmission {
   sectionId: string | null;
   startRef: string;
   endRef: string;
-  audioUrl: string;
+  /** Whether a recording is stored (it may have been deleted by the student). */
+  hasAudio: boolean;
   durationMs: number | null;
   submittedAt: string;
   reviewVerdict: 'approved' | 'redo' | 'flagged' | null;
   reviewWeightedTotal: number | null;
+  reviewNotes: string | null;
 }
 
 export interface TasmiReviewInput {
@@ -228,6 +230,9 @@ export interface AppNotification {
 export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاولي مرة أخرى') {
   const e = err as AxiosError<{ detail?: string; message?: string; code?: string }>;
   const code = e?.response?.data?.code;
+  if (code === 'CONSENT_REQUIRED') return 'نحتاج موافقتكِ على تسجيل الصوت أولاً.';
+  if (e?.response?.status === 413) return 'التسجيل كبير جداً. سجّلي مقطعاً أقصر.';
+  if (e?.response?.status === 415) return 'تعذّر قبول هذا التسجيل. جرّبي متصفحاً آخر.';
   if (code === 'ACCOUNT_NOT_FOUND') return 'لا يوجد حساب بهذا الرقم. اطلبي كود الشعبة من معلمتك.';
   if (e?.response?.status === 429) return 'محاولات كثيرة. انتظري قليلاً ثم حاولي مرة أخرى.';
   if (!e?.response) return 'تعذّر الاتصال بالخادم. تحققي من الإنترنت.';
@@ -387,6 +392,24 @@ class ApiClient {
   }
 
   // Tasmi'
+  /** Sends a recording: multipart with startRef, endRef, sectionId, durationMs and the `audio` file. */
+  uploadTasmi(form: FormData) {
+    return this.client.post<TasmiSubmission>('/tasmi', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  }
+
+  getMyTasmi() {
+    return this.client.get<TasmiSubmission[]>('/tasmi');
+  }
+
+  /** A short-lived URL (path on the API) the browser can play. */
+  getTasmiAudioLink(id: string) {
+    return this.client.get<{ url: string }>(`/tasmi/${id}/audio-link`);
+  }
+
+  deleteTasmiAudio(id: string) {
+    return this.client.delete(`/tasmi/${id}/audio`);
+  }
+
   getPendingTasmi(sectionId?: string) {
     return this.client.get<TasmiSubmission[]>('/tasmi/pending', { params: { sectionId } });
   }
@@ -451,6 +474,7 @@ export const queryKeys = {
   sectionReport: (id: string) => ['sections', id, 'report'] as const,
   attendance: (id: string, date: string) => ['sections', id, 'attendance', date] as const,
   guardians: (sectionId: string, studentId: string) => ['sections', sectionId, 'guardians', studentId] as const,
+  myTasmi: ['tasmi', 'mine'] as const,
   pendingTasmi: (sectionId?: string) => ['tasmi', 'pending', sectionId] as const,
   guardianStudents: ['guardian', 'students'] as const,
   ayat: (source: string) => ['ayat', source] as const,

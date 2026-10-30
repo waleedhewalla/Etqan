@@ -20,6 +20,10 @@ const envSchema = z.object({
   MINIO_ACCESS_KEY: z.string().default('minioadmin'),
   MINIO_SECRET_KEY: z.string().default('minioadmin'),
   MINIO_BUCKET: z.string().default('itqan-audio'),
+  MINIO_USE_SSL: z.preprocess((v) => v === 'true' || v === '1', z.boolean()).default(false),
+  MINIO_REGION: z.string().default('us-east-1'),
+  // 'memory' keeps recordings in process memory (tests, quick local runs); anything else uses MinIO/S3.
+  STORAGE_DRIVER: z.enum(['s3', 'memory']).default('s3'),
 
   // JWT
   JWT_SECRET: z.string().min(32).default('dev-secret-change-me-in-production-32chars'),

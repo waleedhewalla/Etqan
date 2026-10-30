@@ -20,7 +20,12 @@ export async function auditRoutes(app: FastifyInstance) {
     };
     const limit = Math.min(parseInt(limitStr || '100', 10), 500);
 
+    // Admins see their own institution's log; only a superadmin sees every institution.
     const conditions = [];
+    if (request.user.role !== 'superadmin') {
+      if (!request.user.facultyId) return request.server.httpErrors.forbidden('No institution on this account');
+      conditions.push(eq(auditLogs.tenantId, request.user.facultyId));
+    }
     if (userId) conditions.push(eq(auditLogs.userId, userId));
     if (action) conditions.push(eq(auditLogs.action, action));
     if (from) conditions.push(gte(auditLogs.createdAt, new Date(from)));

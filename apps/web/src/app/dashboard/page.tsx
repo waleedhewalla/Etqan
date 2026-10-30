@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   CalendarCheck,
   Trophy,
+  Mic,
 } from 'lucide-react';
 import { useRequireRole } from '@/lib/auth-context';
 import { api, errorMessage, queryKeys, type QueueItem, type QueueResponse, type Rating } from '@/lib/api';
@@ -34,12 +35,14 @@ import { IconTile } from '@/components/IconTile';
 import { PreviewNotice } from '@/components/PreviewNotice';
 import { MushafReader } from '@/components/MushafReader';
 import { VerseText } from '@/components/VerseText';
+import { ReciteTab } from '@/components/ReciteTab';
 import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 
 type StudentTab =
   | 'today'
   | 'progress'
   | 'mushaf'
+  | 'recite'
   | 'mutashabihat'
   | 'curriculum'
   | 'account'
@@ -83,6 +86,7 @@ export default function StudentDashboard() {
   const navItems = [
     { id: 'today', label: 'الورد واليوم', icon: Sun },
     { id: 'mushaf', label: 'المصحف والحفظ', icon: BookOpen },
+    { id: 'recite', label: 'التسميع', icon: Mic },
     { id: 'mutashabihat', label: 'المتشابهات', icon: Target },
     { id: 'progress', label: 'خطتي والكفايات', icon: TrendingUp },
     { id: 'curriculum', label: 'المناهج التعليمية', icon: GraduationCap },
@@ -223,6 +227,7 @@ export default function StudentDashboard() {
       )}
 
       {activeTab === 'mushaf' && <MushafTab onReview={() => { setActiveTab('today'); setReviewing(true); }} />}
+      {activeTab === 'recite' && <ReciteTab />}
       {activeTab === 'mutashabihat' && <MutashabihatTab />}
       {activeTab === 'progress' && <ProgressTab badges={EXAMPLE_BADGES} />}
       {activeTab === 'curriculum' && (
