@@ -408,6 +408,9 @@ export const mutashabihatClusters = pgTable('mutashabihat_clusters', {
   ayahRefs: jsonb('ayah_refs').$type<string[]>().notNull(),
   source: mutashabihatSourceEnum('source').default('other').notNull(),
   tawjihAr: text('tawjih_ar'),
+  /** The institution whose teachers wrote it. Null = a curated cluster shared by every institution. */
+  tenantId: uuid('tenant_id').references(() => tenants.id),
+  createdBy: uuid('created_by').references(() => users.id),
   approvalStatus: approvalStatusEnum('approval_status').default('draft').notNull(),
   approvedBy: uuid('approved_by').references(() => users.id),
   approvedAt: timestamp('approved_at', { withTimezone: true }),
@@ -429,6 +432,8 @@ export const mutashabihatDrills = pgTable('mutashabihat_drills', {
   studentId: uuid('student_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   clusterId: uuid('cluster_id').references(() => mutashabihatClusters.id).notNull(),
   drillType: mutashabihatDrillTypeEnum('drill_type').notNull(),
+  /** The verse the question is about. */
+  targetRef: varchar('target_ref', { length: 12 }),
   question: text('question').notNull(),
   options: jsonb('options').$type<string[]>().default([]),
   correctAnswer: text('correct_answer'),

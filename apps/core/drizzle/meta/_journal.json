@@ -29,6 +29,13 @@
       "when": 1793362821821,
       "tag": "0003_same_katie_power",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1793378351318,
+      "tag": "0004_massive_sleepwalker",
+      "breakpoints": true
     }
   ]
 }

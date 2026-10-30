@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Input } from '@itqan/ui';
 import {
   Users, AlertCircle, TrendingUp, BookOpen, Trophy, LifeBuoy, UserRound, Mic, CheckCircle2,
-  CalendarCheck, Copy, UserPlus, X,
+  CalendarCheck, Copy, UserPlus, X, Target,
 } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { HelpTickets } from '@/components/HelpTickets';
@@ -17,6 +17,7 @@ import { VerseText } from '@/components/VerseText';
 import { TasmiAudio } from '@/components/TasmiAudio';
 import { FlaggedVerse } from '@/components/FlaggedVerse';
 import { AiCheckingSwitch } from '@/components/AiCheckingSwitch';
+import { MutashabihatAuthoring } from '@/components/MutashabihatAuthoring';
 import { useRequireRole } from '@/lib/auth-context';
 import {
   api, errorMessage, normalizePhone, queryKeys,
@@ -24,7 +25,7 @@ import {
 } from '@/lib/api';
 import { formatAyahRange, toArabicDigits } from '@/lib/quran';
 
-type TeacherTab = 'overview' | 'students' | 'attendance' | 'speedgrader' | 'cases' | 'assessments' | 'reports' | 'account' | 'help';
+type TeacherTab = 'overview' | 'students' | 'attendance' | 'speedgrader' | 'mutashabihat' | 'cases' | 'assessments' | 'reports' | 'account' | 'help';
 
 const TEACHER_ROLES = ['lecturer', 'muhaffiza', 'sheikh_reviewer', 'advisor', 'dean', 'operator', 'superadmin'] as const;
 
@@ -81,6 +82,7 @@ export default function TeacherDashboard() {
     { id: 'students', label: 'قائمة الطالبات', icon: Users },
     { id: 'attendance', label: 'الحضور', icon: CalendarCheck },
     { id: 'speedgrader', label: 'التسميع والتقييم', icon: Mic },
+    { id: 'mutashabihat', label: 'المتشابهات', icon: Target },
     { id: 'cases', label: 'بحاجة متابعة', icon: AlertCircle },
     { id: 'assessments', label: 'التقييمات', icon: BookOpen },
     { id: 'reports', label: 'تقارير الجودة', icon: Trophy },
@@ -128,6 +130,8 @@ export default function TeacherDashboard() {
             <SpeedGraderTab sectionId={section.id} />
           </div>
         );
+      case 'mutashabihat':
+        return <MutashabihatAuthoring role={user?.role ?? ''} />;
       case 'cases':
         return <CasesTab students={students.filter((s) => s.atRisk)} onOpen={(id) => { setOpenStudent(id); setActiveTab('students'); }} />;
       case 'assessments':
