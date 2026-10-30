@@ -1,13 +1,14 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { eq, and, count, isNull, inArray, sql, gte, desc, max } from 'drizzle-orm';
+import { eq, and, count, isNull, desc } from 'drizzle-orm';
 import { getDb } from '../../db';
 import {
   sections, sectionEnrollments, users, assignments, attendance, guardianLinks,
   studentCards, reviewLogs, streaks, tenants,
 } from '../../db/schema';
 import { canManageSection, isStaff, isTenantAdmin, loadManagedSection, GUARDIAN_ROLE } from '../../lib/access';
-import { addDays, localDate, startOfLocalDay } from '../../lib/dates';
+import { localDate } from '../../lib/dates';
+import { loadStudentSignals, riskReasons } from '../../lib/risk';
 import { enrollStudent } from '../auth/routes';
 import { auditLog } from '../audit/service';
 import { notifyGuardiansOfAbsence } from '../notification/service';
@@ -49,10 +50,6 @@ const addGuardianSchema = z.object({
   whatsapp: z.string().regex(/^\+[1-9]\d{6,14}$/),
 });
 
-/** A student with no review for this many days is flagged for follow-up. */
-export const INACTIVE_DAYS_AT_RISK = 3;
-/** Attendance below this share over the last 30 days is flagged. */
-export const ATTENDANCE_AT_RISK = 0.7;
 
 function generateJoinCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -205,66 +202,22 @@ export async function sectionRoutes(app: FastifyInstance) {
     const ids = students.map((s) => s.id);
     if (ids.length === 0) return { sectionId: id, students: [], summary: emptySummary() };
 
-    const now = new Date();
-    const today = localDate(now);
-    const since30 = addDays(today, -29);
-
-    const cardStats = await db.select({
-      studentId: studentCards.studentId,
-      total: count(),
-      settled: sql<number>`count(*) filter (where ${studentCards.state} in ('review','mastered'))`.mapWith(Number),
-      due: sql<number>`count(*) filter (where ${studentCards.dueAt} <= ${now.toISOString()}::timestamptz)`.mapWith(Number),
-    }).from(studentCards).where(inArray(studentCards.studentId, ids)).groupBy(studentCards.studentId);
-
-    const lastReview = await db.select({
-      studentId: studentCards.studentId,
-      last: max(reviewLogs.reviewedAt),
-      reviewsToday: sql<number>`count(*) filter (where ${reviewLogs.reviewedAt} >= ${startOfLocalDay(today).toISOString()}::timestamptz)`.mapWith(Number),
-    }).from(reviewLogs)
-      .innerJoin(studentCards, eq(reviewLogs.cardId, studentCards.id))
-      .where(inArray(studentCards.studentId, ids))
-      .groupBy(studentCards.studentId);
-
-    const attendanceStats = await db.select({
-      studentId: attendance.studentId,
-      marked: count(),
-      present: sql<number>`count(*) filter (where ${attendance.present})`.mapWith(Number),
-    }).from(attendance)
-      .where(and(eq(attendance.sectionId, id), inArray(attendance.studentId, ids), gte(attendance.date, since30)))
-      .groupBy(attendance.studentId);
-
-    const streakRows = await db.select().from(streaks).where(inArray(streaks.studentId, ids));
-
-    const byId = <T extends { studentId: string }>(rows: T[]) => new Map(rows.map((r) => [r.studentId, r]));
-    const cardsBy = byId(cardStats);
-    const reviewsBy = byId(lastReview);
-    const attendanceBy = byId(attendanceStats);
-    const streakBy = byId(streakRows);
+    const signals = await loadStudentSignals(db, ids, { sectionId: id });
 
     const rows = students.map((s) => {
-      const cards = cardsBy.get(s.id);
-      const reviews = reviewsBy.get(s.id);
-      const att = attendanceBy.get(s.id);
-      const lastActiveAt = reviews?.last ? new Date(reviews.last) : null;
-      const inactiveDays = lastActiveAt
-        ? Math.max(0, Math.floor((now.getTime() - lastActiveAt.getTime()) / 86_400_000))
-        : null;
-      const attendanceRate = att && att.marked > 0 ? att.present / att.marked : null;
-      const reasons: string[] = [];
-      if (inactiveDays === null || inactiveDays >= INACTIVE_DAYS_AT_RISK) reasons.push('inactive');
-      if (attendanceRate !== null && attendanceRate < ATTENDANCE_AT_RISK) reasons.push('attendance');
-
+      const sig = signals.get(s.id)!;
+      const reasons = riskReasons(sig);
       return {
         studentId: s.id,
         displayNameAr: s.displayNameAr,
-        masteryPercent: cards?.total ? Math.round((cards.settled / cards.total) * 100) : 0,
-        cardsTotal: cards?.total ?? 0,
-        cardsDue: cards?.due ?? 0,
-        reviewsToday: reviews?.reviewsToday ?? 0,
-        lastActiveAt,
-        inactiveDays,
-        attendanceRate,
-        currentStreak: streakBy.get(s.id)?.currentStreak ?? 0,
+        masteryPercent: sig.masteryPercent,
+        cardsTotal: sig.cardsTotal,
+        cardsDue: sig.cardsDue,
+        reviewsToday: sig.reviewsToday,
+        lastActiveAt: sig.lastActiveAt,
+        inactiveDays: sig.inactiveDays,
+        attendanceRate: sig.attendanceRate,
+        currentStreak: sig.currentStreak,
         atRisk: reasons.length > 0,
         riskReasons: reasons,
       };

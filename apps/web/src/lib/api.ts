@@ -138,6 +138,30 @@ export interface Drill {
 
 export interface DrillResult { drillId: string; wasCorrect: boolean; correctAnswer: string; rescheduled: boolean }
 
+export interface AtRiskStudent {
+  studentId: string;
+  displayNameAr: string;
+  halaqat: string[];
+  level: 'medium' | 'high';
+  reasons: ('inactive' | 'attendance')[];
+  /** Whole days since her last review; null = she has never reviewed. */
+  inactiveDays: number | null;
+  /** Share of marked days attended over the last 30 days; null = nothing marked. */
+  attendanceRate: number | null;
+  masteryPercent: number;
+  lastActiveAt: string | null;
+}
+
+export interface AdminOverview {
+  institution: {
+    id: string; nameAr: string; slug: string; domain: string | null; active: boolean;
+    plan: { tier: 'free' | 'madrasa_basic' | 'madrasa_pro' | 'enterprise'; maxStudents: number; maxHalaqat: number; features: string[]; validUntil: string | null };
+  };
+  usage: { students: number; halaqat: number };
+  activity: { reviewsThisWeek: number; reviewsLastWeek: number; activeThisWeek: number; activeToday: number; avgMastery: number };
+  atRisk: { high: number; medium: number; students: AtRiskStudent[]; truncated: boolean };
+}
+
 export interface BadgeProgress extends EarnedBadge {
   descriptionAr: string;
   category: string;
@@ -493,6 +517,15 @@ class ApiClient {
     return this.client.post<RateBatchResponse>('/scheduler/rate-batch', { reviews });
   }
 
+  // Administration
+  getAdminOverview(tenantId?: string) {
+    return this.client.get<AdminOverview>('/admin/overview', { params: { tenantId } });
+  }
+
+  getAdminTenants() {
+    return this.client.get<{ id: string; nameAr: string; slug: string; planTier: string; active: boolean }[]>('/admin/tenants');
+  }
+
   getBadges() {
     return this.client.get<BadgeProgress[]>('/badges');
   }
@@ -580,8 +613,7 @@ export function clearSession() {
 export function homeFor(role: Role | undefined | null) {
   if (role === 'student' || role === 'alumna') return '/dashboard';
   if (role === 'mahram') return '/guardian';
-  // Admins use the teacher dashboard (it lists every halaqa in their institution)
-  // until the admin console is connected to real data.
+  if (role === 'dean' || role === 'advisor' || role === 'operator' || role === 'superadmin') return '/admin';
   return '/dashboard/teacher';
 }
 
@@ -599,6 +631,8 @@ export const queryKeys = {
   myTasmi: ['tasmi', 'mine'] as const,
   voiceStatus: ['voice', 'status'] as const,
   badges: ['badges'] as const,
+  adminOverview: (tenantId?: string) => ['admin', 'overview', tenantId ?? 'own'] as const,
+  adminTenants: ['admin', 'tenants'] as const,
   myClusters: ['mutashabihat', 'mine'] as const,
   clusters: (status: string) => ['mutashabihat', 'clusters', status] as const,
   pendingTasmi: (sectionId?: string) => ['tasmi', 'pending', sectionId] as const,
