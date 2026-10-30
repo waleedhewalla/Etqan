@@ -1,0 +1,27 @@
+# Caddy terminates HTTPS (certificates from Let's Encrypt, renewed automatically) and forwards to the app.
+# APP_DOMAIN and API_DOMAIN come from .env; both must already point at this server's address.
+{
+	email {$ACME_EMAIL}
+}
+
+(common) {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=86400"
+		-Server
+	}
+}
+
+{$APP_DOMAIN} {
+	import common
+	reverse_proxy web:3000
+}
+
+{$API_DOMAIN} {
+	import common
+	# a little above the API's 10 MB recording limit
+	request_body {
+		max_size 12MB
+	}
+	reverse_proxy api:4000
+}

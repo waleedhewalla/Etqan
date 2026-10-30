@@ -157,7 +157,8 @@ describe.skipIf(!hasDb)('after the review', () => {
     const [good, hard, untouched] = [await dueOf('112:1'), await dueOf('112:2'), await dueOf('111:1')];
     expect(good.reps).toBe(3);
     expect(hard.reps).toBe(3);
-    expect(good.dueAt!.getTime()).toBeGreaterThan(hard.dueAt!.getTime()); // good is further away than hard
+    // Compare stability, not due dates: the scheduler fuzzes each due date by up to 15%, which can reorder two close ones.
+    expect(good.stability).toBeGreaterThan(hard.stability);
     expect(good.dueAt!.getTime()).toBeGreaterThan(Date.now() + 86_400_000);
     expect(untouched.reps).toBe(2); // outside the recited range
 

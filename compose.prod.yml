@@ -1,0 +1,115 @@
+# Itqan for a real server: HTTPS, the API, the web app, Postgres and private audio storage.
+#
+#   cp .env.production.example .env      # then fill it in
+#   docker compose -f compose.prod.yml up -d --build
+#
+# Only Caddy is reachable from outside (ports 80/443). Postgres and MinIO are not published at all.
+# See docs/DEPLOY.md for the full runbook (first institution, Quran text, updates, backups).
+
+name: itqan
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: itqan
+      POSTGRES_USER: itqan
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U itqan -d itqan"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY in .env}
+    volumes:
+      - minio_data:/data
+
+  # Applies database migrations, then exits. The API starts only after it succeeds.
+  migrate:
+    build: { context: ., target: api }
+    image: itqan-api
+    command: ["node", "dist/migrate.mjs"]
+    environment:
+      DATABASE_URL: postgresql://itqan:${POSTGRES_PASSWORD}@postgres:5432/itqan
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    build: { context: ., target: api }
+    image: itqan-api
+    restart: unless-stopped
+    environment: &api_env
+      NODE_ENV: production
+      DATABASE_URL: postgresql://itqan:${POSTGRES_PASSWORD}@postgres:5432/itqan
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (at least 32 random characters)}
+      API_URL: https://${API_DOMAIN:?set API_DOMAIN in .env}
+      CORS_ORIGIN: https://${APP_DOMAIN:?set APP_DOMAIN in .env}
+      FRONTEND_URL: https://${APP_DOMAIN}
+      # The API is reachable only through Caddy, so its X-Forwarded-For can be trusted (per-IP rate limits need it).
+      TRUST_PROXY: "true"
+      STORAGE_DRIVER: s3
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_USE_SSL: "false"
+      WHATSAPP_API_URL: ${WHATSAPP_API_URL:-}
+      WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:-}
+      WHATSAPP_TEMPLATE_NAMESPACE: ${WHATSAPP_TEMPLATE_NAMESPACE:-}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      FROM_EMAIL: ${FROM_EMAIL:-noreply@itqan.link}
+      PLAN_ENFORCEMENT: ${PLAN_ENFORCEMENT:-warn}
+      AUDIO_RETENTION_HOURS: ${AUDIO_RETENTION_HOURS:-24}
+      AUDIO_UNREVIEWED_MAX_DAYS: ${AUDIO_UNREVIEWED_MAX_DAYS:-30}
+      ENABLE_ASR: ${ENABLE_ASR:-false}
+      ASR_PROVIDER: ${ASR_PROVIDER:-none}
+      ASR_API_URL: ${ASR_API_URL:-}
+      ASR_API_KEY: ${ASR_API_KEY:-}
+      ASR_MODEL: ${ASR_MODEL:-whisper-1}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      minio: { condition: service_started }
+
+  web:
+    build:
+      context: .
+      target: web
+      args:
+        NEXT_PUBLIC_API_URL: https://${API_DOMAIN:?set API_DOMAIN in .env}
+    image: itqan-web
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN in .env}
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env (Let's Encrypt contact)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+      - api
+
+volumes:
+  postgres_data:
+  minio_data:
+  caddy_data:
+  caddy_config:

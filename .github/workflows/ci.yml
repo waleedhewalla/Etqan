@@ -72,3 +72,73 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  # Builds the production images and runs the stack the way docs/DEPLOY.md describes (without Caddy, which
+  # needs real domain names), so a broken Dockerfile or compose file fails here and not on a server.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Throwaway configuration
+        run: |
+          {
+            echo "APP_DOMAIN=app.example.test"
+            echo "API_DOMAIN=api.example.test"
+            echo "ACME_EMAIL=ci@example.test"
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
+            echo "JWT_SECRET=$(openssl rand -base64 36 | tr -d '\n')"
+            echo "MINIO_ACCESS_KEY=ci$(openssl rand -hex 6)"
+            echo "MINIO_SECRET_KEY=$(openssl rand -hex 16)"
+          } > .env
+
+      - name: Compose file is valid
+        run: docker compose -f compose.prod.yml config --quiet
+
+      - name: Build images
+        run: docker compose -f compose.prod.yml build api web
+
+      - name: Production refuses to start with the public development secrets
+        run: |
+          set +e
+          out=$(docker run --rm itqan-api 2>&1); code=$?
+          echo "$out" | head -8
+          test $code -ne 0
+          echo "$out" | grep -q "Refusing to start in production"
+
+      - name: Start the stack
+        run: docker compose -f compose.prod.yml up -d --wait --wait-timeout 180 api web
+
+      - name: Migrations ran, and the first institution can be created (twice, harmlessly)
+        run: |
+          for i in 1 2; do
+            docker compose -f compose.prod.yml run --rm --no-deps api node dist/bootstrap.mjs \
+              --slug ci-check --name "CI" --plan madrasa_pro \
+              --dean-email dean@example.test --dean-name "Dean" \
+              --teacher-email teacher@example.test --teacher-name "Teacher" --halaqa "Halaqa"
+          done
+
+      - name: API and web answer
+        run: |
+          api() { docker compose -f compose.prod.yml exec -T api node -e "fetch('http://127.0.0.1:4000$1').then(async r=>{console.log(r.status);process.exit(r.status===$2?0:1)}).catch(()=>process.exit(1))"; }
+          web() { docker compose -f compose.prod.yml exec -T web node -e "fetch('http://127.0.0.1:3000$1').then(async r=>{console.log(r.status, r.headers.get('content-type'));process.exit(r.status===200?0:1)}).catch(()=>process.exit(1))"; }
+          api /v1/health 200
+          api /docs 404            # the API documentation is off in production
+          web /auth/login
+          web /sw.js
+          web /manifest.json
+
+      - name: Only Caddy may be reachable from outside
+        run: |
+          docker compose -f compose.prod.yml config --format json | python3 -c "
+          import json,sys
+          cfg=json.load(sys.stdin)['services']
+          published={n:[p['published'] for p in s.get('ports',[])] for n,s in cfg.items() if s.get('ports')}
+          print(published)
+          assert set(published)=={'caddy'}, published
+          "
+
+      - name: Logs
+        if: failure()
+        run: docker compose -f compose.prod.yml logs --no-color --tail=80

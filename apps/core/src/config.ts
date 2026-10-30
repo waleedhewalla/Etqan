@@ -34,6 +34,13 @@ const envSchema = z.object({
   JWT_EXPIRY: z.string().default('30d'),
   JWT_REFRESH_EXPIRY: z.string().default('90d'),
   
+  // Behind a reverse proxy (Caddy, nginx, a load balancer) every request arrives from the proxy's address, so
+  // without this the per-IP rate limits (for example 5 login codes an hour) would be shared by every user.
+  // Set true ONLY when the API is reachable through the proxy alone: a client could otherwise forge X-Forwarded-For.
+  TRUST_PROXY: flag(false),
+  // The interactive API documentation at /docs. Off in production unless asked for.
+  ENABLE_DOCS: z.preprocess((v) => (v === undefined || v === '' ? process.env.NODE_ENV !== 'production' : v === true || v === 'true' || v === '1'), z.boolean()),
+
   // CORS
   CORS_ORIGIN: z.string().default('http://localhost:9050'),
   
@@ -88,6 +95,30 @@ const envSchema = z.object({
   ENABLE_FAMILY_PORTAL: flag(false),
 });
 
+export type Config = z.infer<typeof envSchema>;
+
+const DEV_JWT_SECRET = 'dev-secret-change-me-in-production-32chars';
+
+/**
+ * Settings that are fine on a laptop and dangerous in production. Returns what is wrong; the server refuses to
+ * start when the list is not empty. (Each default below is public: a deployment that forgot to set one would
+ * otherwise run happily with a secret everyone can read.)
+ */
+export function productionProblems(c: Pick<Config, 'NODE_ENV' | 'JWT_SECRET' | 'MINIO_ACCESS_KEY' | 'MINIO_SECRET_KEY' | 'STORAGE_DRIVER' | 'DATABASE_URL'>): string[] {
+  if (c.NODE_ENV !== 'production') return [];
+  const problems: string[] = [];
+  if (c.JWT_SECRET === DEV_JWT_SECRET) problems.push('JWT_SECRET is the public development default: anyone could forge login tokens. Set a long random value.');
+  if (c.STORAGE_DRIVER === 'memory') problems.push('STORAGE_DRIVER=memory loses every recording when the API restarts. Use s3.');
+  if (c.STORAGE_DRIVER === 's3' && (c.MINIO_ACCESS_KEY === 'minioadmin' || c.MINIO_SECRET_KEY === 'minioadmin')) {
+    problems.push('MINIO_ACCESS_KEY / MINIO_SECRET_KEY are the public MinIO defaults. Set your own.');
+  }
+  if (c.DATABASE_URL.includes('itqan_dev_password')) problems.push('DATABASE_URL uses the development database password.');
+  return problems;
+}
+
 export const config = envSchema.parse(process.env);
 
-export type Config = z.infer<typeof envSchema>;
+const problems = productionProblems(config);
+if (problems.length > 0) {
+  throw new Error(`Refusing to start in production:\n - ${problems.join('\n - ')}`);
+}

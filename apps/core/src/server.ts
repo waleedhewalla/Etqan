@@ -35,6 +35,7 @@ import { auditPlugin } from './modules/audit/plugin';
 
 async function buildApp() {
   const app = Fastify({
+    trustProxy: config.TRUST_PROXY,
     logger: {
       level: config.LOG_LEVEL,
     },
@@ -120,13 +121,15 @@ async function buildApp() {
     },
   });
 
-  await app.register(fastifySwaggerUi, {
-    routePrefix: '/docs',
-    uiConfig: {
-      docExpansion: 'list',
-      deepLinking: true,
-    },
-  });
+  if (config.ENABLE_DOCS) {
+    await app.register(fastifySwaggerUi, {
+      routePrefix: '/docs',
+      uiConfig: {
+        docExpansion: 'list',
+        deepLinking: true,
+      },
+    });
+  }
 
   // Audit plugin
   await app.register(auditPlugin);
