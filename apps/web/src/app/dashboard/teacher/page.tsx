@@ -38,7 +38,7 @@ function lastActiveLabel(s: StudentSummary) {
 function riskLabel(reasons: StudentSummary['riskReasons'], s: StudentSummary) {
   return reasons.map((r) => r === 'inactive'
     ? (s.inactiveDays === null ? 'لم تبدأ المراجعة' : `لا مراجعة منذ ${toArabicDigits(s.inactiveDays)} أيام`)
-    : `حضور ${toArabicDigits(Math.round((s.attendanceRate ?? 0) * 100))}% في آخر ٣٠ يوماً`).join(' • ');
+    : `حضور ${toArabicDigits(Math.round((s.attendanceRate ?? 0) * 100))}٪ في آخر ٣٠ يوماً`).join(' • ');
 }
 
 export default function TeacherDashboard() {
@@ -232,7 +232,7 @@ function OverviewTab({ summary, pendingReviews, atRisk, onOpenStudent, onGo }: {
         <MetricCard label="راجعن اليوم" value={toArabicDigits(summary.activeToday)} icon={<BookOpen className="w-5 h-5" />} />
         <MetricCard label="بحاجة متابعة" value={toArabicDigits(summary.atRisk)} icon={<AlertCircle className="w-5 h-5" />} />
         <MetricCard label="تسميع بانتظار التقييم" value={toArabicDigits(pendingReviews)} icon={<Mic className="w-5 h-5" />} />
-        <MetricCard label="متوسط الآيات المثبّتة" value={`${toArabicDigits(summary.avgMastery)}%`} icon={<TrendingUp className="w-5 h-5" />} />
+        <MetricCard label="متوسط الآيات المثبّتة" value={`${toArabicDigits(summary.avgMastery)}٪`} icon={<TrendingUp className="w-5 h-5" />} />
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
@@ -306,10 +306,10 @@ function StudentsTab({ students, onOpen }: { students: StudentSummary[]; onOpen:
                 {filtered.map((s) => (
                   <tr key={s.studentId} className="border-t border-divider">
                     <td className="py-2 px-3 font-medium text-text-primary whitespace-nowrap">{s.displayNameAr}</td>
-                    <td className="py-2 px-3 tabular-nums">{toArabicDigits(s.masteryPercent)}%</td>
+                    <td className="py-2 px-3 tabular-nums">{toArabicDigits(s.masteryPercent)}٪</td>
                     <td className="py-2 px-3 tabular-nums">{toArabicDigits(s.cardsDue)}</td>
                     <td className="py-2 px-3 whitespace-nowrap">{lastActiveLabel(s)}</td>
-                    <td className="py-2 px-3 tabular-nums">{s.attendanceRate === null ? '—' : `${toArabicDigits(Math.round(s.attendanceRate * 100))}%`}</td>
+                    <td className="py-2 px-3 tabular-nums">{s.attendanceRate === null ? '—' : `${toArabicDigits(Math.round(s.attendanceRate * 100))}٪`}</td>
                     <td className="py-2 px-3 tabular-nums">{toArabicDigits(s.currentStreak)}</td>
                     <td className="py-2 px-3">
                       {s.atRisk ? <Badge variant="red" size="sm">بحاجة متابعة</Badge> : <Badge variant="green" size="sm">منتظمة</Badge>}
@@ -371,8 +371,10 @@ function AttendanceTab({ sectionId }: { sectionId: string }) {
     if (!dayQuery.data) return;
     // Unmarked students default to present; the teacher only taps the absent ones.
     setMarks(Object.fromEntries(dayQuery.data.records.map((r) => [r.studentId, r.present ?? true])));
-    setStatus(null);
   }, [dayQuery.data]);
+
+  // A saved-confirmation belongs to the day it was saved for.
+  useEffect(() => setStatus(null), [date]);
 
   const save = useMutation({
     mutationFn: (day: AttendanceDay) => api.saveAttendance(
@@ -383,6 +385,7 @@ function AttendanceTab({ sectionId }: { sectionId: string }) {
       if (res.alerts.sent) parts.push(`أُرسل تنبيه غياب إلى ${toArabicDigits(res.alerts.sent)} من أولياء الأمور.`);
       if (res.alerts.noGuardian) parts.push(`${toArabicDigits(res.alerts.noGuardian)} غائبة بلا ولي أمر مسجّل.`);
       if (res.alerts.failed) parts.push(`تعذّر إرسال ${toArabicDigits(res.alerts.failed)} تنبيه عبر واتساب.`);
+      if (res.alerts.skipped) parts.push(`وصل ${toArabicDigits(res.alerts.skipped)} تنبيه إلى بوابة ولي الأمر فقط لأن إرسال واتساب غير مفعّل.`);
       setStatus({ kind: 'ok', text: parts.join(' ') });
       queryClient.invalidateQueries({ queryKey: ['sections', sectionId] });
     },

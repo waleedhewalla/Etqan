@@ -246,7 +246,9 @@ export async function sectionRoutes(app: FastifyInstance) {
       const reviews = reviewsBy.get(s.id);
       const att = attendanceBy.get(s.id);
       const lastActiveAt = reviews?.last ? new Date(reviews.last) : null;
-      const inactiveDays = lastActiveAt ? Math.floor((now.getTime() - lastActiveAt.getTime()) / 86_400_000) : null;
+      const inactiveDays = lastActiveAt
+        ? Math.max(0, Math.floor((now.getTime() - lastActiveAt.getTime()) / 86_400_000))
+        : null;
       const attendanceRate = att && att.marked > 0 ? att.present / att.marked : null;
       const reasons: string[] = [];
       if (inactiveDays === null || inactiveDays >= INACTIVE_DAYS_AT_RISK) reasons.push('inactive');

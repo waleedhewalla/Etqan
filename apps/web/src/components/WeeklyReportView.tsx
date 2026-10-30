@@ -21,7 +21,7 @@ export function WeeklyReportView({ report }: { report: WeeklyReport }) {
   const stats = [
     { label: 'الحضور', value: `${toArabicDigits(report.attendance.present)} / ${toArabicDigits(report.attendance.present + report.attendance.absent)}`, icon: CalendarCheck },
     { label: 'أيام المراجعة', value: `${toArabicDigits(report.revision.activeDays.length)} / ٧`, icon: BookOpen },
-    { label: 'الآيات المثبّتة', value: `${toArabicDigits(report.progress.masteryPercent)}%`, icon: Target },
+    { label: 'الآيات المثبّتة', value: `${toArabicDigits(report.progress.masteryPercent)}٪`, icon: Target },
     { label: 'السلسلة', value: `${toArabicDigits(report.streak.current)} يوم`, icon: Flame },
   ];
 
@@ -77,7 +77,7 @@ export function WeeklyReportView({ report }: { report: WeeklyReport }) {
             <p>
               <b className="tabular-nums">{toArabicDigits(report.revision.reviews)}</b> مراجعة هذا الأسبوع
               {report.revision.correctPercent !== null && (
-                <> — <b className="tabular-nums">{toArabicDigits(report.revision.correctPercent)}%</b> منها ثابتة</>
+                <> — <b className="tabular-nums">{toArabicDigits(report.revision.correctPercent)}٪</b> منها ثابتة</>
               )}
             </p>
             <p className="text-text-secondary">

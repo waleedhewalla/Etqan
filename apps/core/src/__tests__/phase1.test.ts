@@ -211,7 +211,8 @@ describe.skipIf(!hasDb)('phase 1 pilot loop', () => {
       expect(first.statusCode, first.body).toBe(200);
       expect(first.json().alerts.sent).toBe(1);
       const alert = whatsapp.find((m) => m.template === 'absence_alert' && m.to === phone(2));
-      expect(alert?.params).toEqual(['طالبة قائمة', 'حلقة الاختبار', date]);
+      expect(alert?.params?.slice(0, 2)).toEqual(['طالبة قائمة', 'حلقة الاختبار']);
+      expect(alert?.params?.[2]).toMatch(/\p{Script=Arabic}/u);
 
       const again = await app.inject({ method: 'PUT', url: `/v1/sections/${ids.section}/attendance`, headers: auth(access), payload });
       expect(again.json().alerts.sent).toBe(0);

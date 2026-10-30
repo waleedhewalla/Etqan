@@ -43,6 +43,10 @@ export async function notifyGuardiansOfAbsence(
     .where(inArray(users.id, input.studentIds));
   const nameOf = new Map(students.map((s) => [s.id, s.name]));
 
+  const dayAr = new Intl.DateTimeFormat('ar-EG', {
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
+  }).format(new Date(`${input.date}T12:00:00Z`));
+
   for (const studentId of input.studentIds) {
     const guardians = blocked.has(studentId) ? [] : links.filter((l) => l.studentId === studentId);
     if (guardians.length === 0) {
@@ -52,14 +56,14 @@ export async function notifyGuardiansOfAbsence(
 
     const studentName = nameOf.get(studentId) ?? '';
     const titleAr = 'تنبيه غياب';
-    const bodyAr = `تغيّبت ${studentName} عن ${input.section.nameAr} يوم ${input.date}.`;
+    const bodyAr = `تغيّبت ${studentName} عن ${input.section.nameAr} يوم ${dayAr}.`;
 
     for (const g of guardians) {
       const result = g.guardianWhatsapp
         ? await sendWhatsApp({
           to: g.guardianWhatsapp,
           template: 'absence_alert',
-          params: [studentName, input.section.nameAr, input.date],
+          params: [studentName, input.section.nameAr, dayAr],
         })
         : { status: 'skipped' as const };
       summary[result.status] += 1;

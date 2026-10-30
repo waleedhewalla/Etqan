@@ -118,9 +118,14 @@ export default function StudentDashboard() {
           </h1>
         </div>
         {streak && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-primary/10 text-brand-primary text-xs font-medium">
-            <Flame className="w-3.5 h-3.5" />
-            سلسلة {toArabicDigits(streak.currentStreak)} يوم • {toArabicDigits(streak.freezesRemaining)} أيام سماح متبقية
+          <div className="flex items-center gap-3 px-3 py-1.5 rounded-full bg-brand-primary/10 text-brand-primary text-xs font-medium">
+            <span className="flex items-center gap-1.5">
+              <Flame className="w-3.5 h-3.5" />
+              سلسلة {toArabicDigits(streak.currentStreak)} يوم
+            </span>
+            <span className="text-brand-primary/70" title="إن فاتكِ يوم واحد يُحتسب من أيام السماح ولا تنقطع السلسلة">
+              أيام السماح: {toArabicDigits(streak.freezesRemaining)}
+            </span>
           </div>
         )}
       </div>
@@ -152,8 +157,8 @@ export default function StudentDashboard() {
                         </div>
                         <p className="text-sm text-text-secondary mb-3">{queue.gatekeeper.message}</p>
                         <div className="flex items-center gap-4 mb-3 flex-wrap">
-                          <span className="text-sm text-text-secondary">إتقانك الحالي: <b className="text-state-danger text-lg">{Math.round(queue.gatekeeper.currentMastery * 100)}%</b></span>
-                          <span className="text-sm text-text-secondary">المطلوب: <b className="text-state-positive text-lg">{Math.round(queue.gatekeeper.threshold * 100)}%</b></span>
+                          <span className="text-sm text-text-secondary">إتقانك الحالي: <b className="text-state-danger text-lg">{Math.round(queue.gatekeeper.currentMastery * 100)}٪</b></span>
+                          <span className="text-sm text-text-secondary">المطلوب: <b className="text-state-positive text-lg">{Math.round(queue.gatekeeper.threshold * 100)}٪</b></span>
                           <span className="text-sm text-text-secondary">بطاقات تحتاج تحسين: <b className="text-state-attention">{queue.gatekeeper.deficitCards}</b></span>
                         </div>
                         <Button variant="primary" size="sm" onClick={() => setReviewing(true)} disabled={items.length === 0}>
@@ -198,7 +203,7 @@ export default function StudentDashboard() {
               />
               <ProgressCard
                 label="الآيات المثبّتة"
-                value={`${toArabicDigits(masteryPercent)}%`}
+                value={`${toArabicDigits(masteryPercent)}٪`}
                 icon={<Target className="w-5 h-5" />}
                 variant="neutral"
               />

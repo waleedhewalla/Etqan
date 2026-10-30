@@ -100,7 +100,11 @@ export async function seed() {
           cardId: card.id,
           rating: i % 6 === 0 ? 'hard' : 'good',
           wasCorrect: true,
-          reviewedAt: new Date(startOfLocalDay(addDays(today, -s.lastActiveDaysAgo)).getTime() + (9 + (i % 8)) * 3_600_000),
+            // Spread over the morning, never later than now.
+            reviewedAt: new Date(Math.min(
+              Date.now() - 60_000,
+              startOfLocalDay(addDays(today, -s.lastActiveDaysAgo)).getTime() + (9 + (i % 8)) * 3_600_000,
+            )),
         });
       }
     }
