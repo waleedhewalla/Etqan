@@ -3,6 +3,7 @@ import { compareRefs, countAyat, parseRef } from '@itqan/quran';
 import type { Database } from '../../db';
 import { quranAyat, tasmiSubmissions, tenants } from '../../db/schema';
 import { hasConsent } from '../consent';
+import { planIncludes } from '../plan';
 import { ayatInRange } from '../quran-range';
 import { getStorage } from '../storage';
 import { getAsrProvider } from './index';
@@ -11,8 +12,10 @@ import { evaluate } from './evaluate';
 /** Checking is on only when the deployment has a provider, the institution switched it on, and the student agreed. */
 export async function isCheckEnabled(db: Database, tenantId: string | undefined, studentId: string) {
   if (!tenantId || !getAsrProvider()) return false;
-  const [tenant] = await db.select({ settings: tenants.settings }).from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+  const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
   if (tenant?.settings?.aiChecking !== true) return false;
+  // AI checking costs money per recording, so it only runs for plans that include it.
+  if (!planIncludes(tenant, 'ai_checking')) return false;
   return hasConsent(db, studentId, 'ai_processing');
 }
 

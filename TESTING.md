@@ -155,8 +155,15 @@ and the early-warning list. A superadmin can switch institution; everyone else o
 - **Who is flagged** (`apps/core/src/lib/risk.ts`, shared with the teacher's roster): no review for 3 days or never started, or attendance below 70%
   over 30 days. **High** priority when both apply, when she has been away for 14 days, or when she never started; otherwise medium.
   It is a plain rule with stated reasons, not a prediction or score, and the page says so.
-- **Plan limits are shown, not enforced.** `plan_max_students`, `plan_max_halaqat`, `plan_features` and `plan_valid_until` are stored on the institution
-  and displayed, but joining a full institution or using an expired plan is not blocked yet (that needs product decisions: see the PR).
+- **Plan limits** (`plan_max_students`, `plan_max_halaqat`, `plan_valid_until`, plus the tier) are shown with their state: ok, near (90%+), full, over,
+  and expired. What they *do* is set by `PLAN_ENFORCEMENT` (default `warn`):
+  - `warn`: only reported. Nothing is refused.
+  - `block`: an institution that is full or expired cannot add a student (joining by code, including a brand-new account, which is refused *before* the
+    account is created) or a halaqa. A student who already has a seat can join a second halaqa. Students already learning are never locked out of revision.
+  - **AI checking is part of the plan in both modes**, because it costs money per recording: tiers `madrasa_pro` and `enterprise` include it, `free` and
+    `madrasa_basic` do not, `plan_features` can add `ai_checking` to any institution, and an expired plan includes nothing. Without it the institution
+    cannot switch AI checking on and no recording is sent to the checker. The tier table is in `apps/core/src/lib/plan.ts`: change it there.
+  There is no payment flow: plans are set directly on the institution (Fawry needs a merchant account and its API documentation).
 
 ## Try the pilot locally
 

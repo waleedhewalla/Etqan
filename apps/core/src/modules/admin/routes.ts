@@ -4,6 +4,7 @@ import { and, asc, count, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { getDb } from '../../db';
 import { reviewLogs, sectionEnrollments, sections, studentCards, tenants, users } from '../../db/schema';
 import { isTenantAdmin } from '../../lib/access';
+import { planFeatures, planStatus } from '../../lib/plan';
 import { loadStudentSignals, riskLevel, riskReasons } from '../../lib/risk';
 
 const overviewQuery = z.object({ tenantId: z.string().uuid().optional() });
@@ -88,10 +89,11 @@ export async function adminRoutes(app: FastifyInstance) {
     return {
       institution: {
         id: tenant.id, nameAr: tenant.nameAr, slug: tenant.slug, domain: tenant.domain, active: tenant.active,
-        // Stored on the institution. Nothing enforces these limits yet.
         plan: {
           tier: tenant.planTier, maxStudents: tenant.planMaxStudents, maxHalaqat: tenant.planMaxHalaqat,
-          features: tenant.planFeatures ?? [], validUntil: tenant.planValidUntil,
+          /** Features in effect: the tier's plus any added for this institution (none once the plan has expired). */
+          features: [...planFeatures(tenant)].sort(), validUntil: tenant.planValidUntil,
+          status: planStatus(tenant, { students: ids.length, halaqat: halaqat.filter((h) => h.active).length }),
         },
       },
       usage: { students: ids.length, halaqat: halaqat.filter((h) => h.active).length },

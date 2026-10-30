@@ -9,6 +9,7 @@ import {
 import { canManageSection, isStaff, isTenantAdmin, loadManagedSection, GUARDIAN_ROLE } from '../../lib/access';
 import { localDate } from '../../lib/dates';
 import { loadStudentSignals, riskReasons } from '../../lib/risk';
+import { assertCanAddHalaqa, assertCanAddStudent } from '../../lib/plan';
 import { enrollStudent } from '../auth/routes';
 import { auditLog } from '../audit/service';
 import { notifyGuardiansOfAbsence } from '../notification/service';
@@ -108,6 +109,7 @@ export async function sectionRoutes(app: FastifyInstance) {
     const user = request.user;
     if (!isStaff(user) || !user.facultyId) return request.server.httpErrors.forbidden('Staff only');
     const body = request.body as z.infer<typeof createSectionSchema>;
+    await assertCanAddHalaqa(db, user.facultyId);
 
     const [section] = await db.insert(sections).values({
       tenantId: user.facultyId,
@@ -139,6 +141,7 @@ export async function sectionRoutes(app: FastifyInstance) {
       .where(and(eq(sectionEnrollments.sectionId, section.id), isNull(sectionEnrollments.droppedAt)));
     if ((ct?.count ?? 0) >= section.maxStudents) return request.server.httpErrors.conflict('Section is full');
 
+    await assertCanAddStudent(db, section.tenantId, user.sub);
     await enrollStudent(db, section.id, user.sub);
     await auditLog({
       actorId: user.sub, actorRole: user.role, action: 'section.join',

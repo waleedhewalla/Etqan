@@ -10,6 +10,7 @@ import { generateToken, issueSessionTokens, verifyToken, TokenPayload } from '..
 import { STAFF_ROLES } from '../../lib/access';
 import { isWhatsAppConfigured, sendWhatsApp } from '../../lib/whatsapp';
 import { isEmailConfigured, sendEmail } from '../../lib/email';
+import { assertCanAddStudent } from '../../lib/plan';
 import { auditLog } from '../audit/service';
 import {
   otpRequestSchema, otpVerifySchema, magicLinkRequestSchema, magicLinkVerifySchema,
@@ -156,6 +157,8 @@ export async function authRoutes(app: FastifyInstance) {
 
     if (!user) {
       if (!section) throw new UnauthorizedError('No account uses this number');
+      // Checked before the account exists, so a refused join leaves nothing behind.
+      await assertCanAddStudent(db, section.tenantId);
       [user] = await db.insert(users).values({
         tenantId: section.tenantId,
         role: 'student',
@@ -169,6 +172,7 @@ export async function authRoutes(app: FastifyInstance) {
       if (user.role !== 'student' || section.tenantId !== user.tenantId) {
         throw new ValidationError('This join code is for another institution or role');
       }
+      if (!isNewUser) await assertCanAddStudent(db, section.tenantId, user.id);
       await enrollStudent(db, section.id, user.id);
     }
 

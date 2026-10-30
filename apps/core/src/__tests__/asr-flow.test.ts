@@ -58,8 +58,8 @@ describe.skipIf(!hasDb)('AI recitation checking', () => {
     }))).onConflictDoNothing().returning({ ref: quranAyat.ref });
     insertedRefs.push(...rows.map((r) => r.ref));
 
-    const [tenant] = await db.insert(tenants).values({ slug: `asr-${tag}`, nameAr: 'معهد', settings: { aiChecking: true } }).returning();
-    const [off] = await db.insert(tenants).values({ slug: `asr-off-${tag}`, nameAr: 'معهد بلا فحص' }).returning();
+    const [tenant] = await db.insert(tenants).values({ slug: `asr-${tag}`, nameAr: 'معهد', planTier: 'madrasa_pro', settings: { aiChecking: true } }).returning();
+    const [off] = await db.insert(tenants).values({ slug: `asr-off-${tag}`, nameAr: 'معهد بلا فحص', planTier: 'madrasa_pro' }).returning();
     const mk = async (tenantId: string, role: typeof users.$inferInsert['role'], name: string) =>
       (await db.insert(users).values({ tenantId, role, displayNameAr: name }).returning())[0];
     const teacher = await mk(tenant.id, 'lecturer', 'المعلمة');
@@ -277,12 +277,12 @@ describe.skipIf(!hasDb)('AI recitation checking', () => {
   describe('the institution switch', () => {
     it('reports availability and whether it is on for the caller\'s institution', async () => {
       const on = await app.inject({ method: 'GET', url: '/v1/voice/status', headers: auth('a') });
-      expect(on.json()).toEqual({ available: true, provider: 'test', enabled: true });
+      expect(on.json()).toEqual({ available: true, provider: 'test', included: true, enabled: true });
       const off = await app.inject({ method: 'GET', url: '/v1/voice/status', headers: auth('offStudent') });
-      expect(off.json()).toMatchObject({ available: true, enabled: false });
+      expect(off.json()).toMatchObject({ available: true, included: true, enabled: false });
       setAsrProvider(null);
       expect((await app.inject({ method: 'GET', url: '/v1/voice/status', headers: auth('a') })).json())
-        .toEqual({ available: false, provider: null, enabled: false });
+        .toEqual({ available: false, provider: null, included: true, enabled: false });
     });
 
     it('lets an administrator turn it off and on, and records it', async () => {
