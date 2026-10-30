@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@itqan/ui', '@itqan/types', '@itqan/fsrs'],
+  transpilePackages: ['@itqan/ui', '@itqan/types', '@itqan/fsrs', '@itqan/quran'],
   experimental: {
     optimizePackageImports: ['@itqan/ui', 'lucide-react'],
   },

@@ -25,6 +25,7 @@ import { reportingRoutes } from './modules/reporting/routes';
 import { notificationRoutes } from './modules/notification/routes';
 import { auditRoutes } from './modules/audit/routes';
 import { healthRoutes } from './modules/health/routes';
+import { quranRoutes } from './modules/quran/routes';
 import { errorHandler } from './lib/errors';
 import { auditPlugin } from './modules/audit/plugin';
 
@@ -141,6 +142,7 @@ async function buildApp() {
   await app.register(reportingRoutes, { prefix: '/v1' });
   await app.register(notificationRoutes, { prefix: '/v1' });
   await app.register(auditRoutes, { prefix: '/v1' });
+  await app.register(quranRoutes, { prefix: '/v1' });
 
   // Global error handler
   app.setErrorHandler(errorHandler as any);

@@ -30,6 +30,7 @@ export function SiteFooter() {
               <Link href="/terms" className="text-surface-canvas/80 hover:text-brand-accent transition-colors text-sm block cursor-pointer">شروط الاستخدام</Link>
               <Link href="/data-deletion" className="text-surface-canvas/80 hover:text-brand-accent transition-colors text-sm block cursor-pointer">حذف البيانات</Link>
               <Link href="/accessibility" className="text-surface-canvas/80 hover:text-brand-accent transition-colors text-sm block cursor-pointer">إتاحة الوصول</Link>
+              <Link href="/credits" className="text-surface-canvas/80 hover:text-brand-accent transition-colors text-sm block cursor-pointer">المصادر والشكر</Link>
             </nav>
           </div>
           <div>

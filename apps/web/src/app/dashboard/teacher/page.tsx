@@ -13,6 +13,7 @@ import { AccountPanel } from '@/components/AccountPanel';
 import { PreviewNotice } from '@/components/PreviewNotice';
 import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 import { WeeklyReportView } from '@/components/WeeklyReportView';
+import { VerseText } from '@/components/VerseText';
 import { useRequireRole } from '@/lib/auth-context';
 import {
   api, errorMessage, normalizePhone, queryKeys,
@@ -547,6 +548,10 @@ function ReviewForm({ submission, onDone }: { submission: TasmiSubmission; onDon
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
+        <div className="rounded-xl border border-divider bg-surface-canvas p-4 max-h-56 overflow-y-auto">
+          <VerseText start={submission.startRef} end={submission.endRef} />
+        </div>
+
         <audio controls preload="none" src={submission.audioUrl} className="w-full">
           متصفحك لا يدعم تشغيل الصوت.
         </audio>

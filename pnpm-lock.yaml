@@ -50,6 +50,9 @@ importers:
       '@itqan/fsrs':
         specifier: workspace:*
         version: link:../../packages/fsrs
+      '@itqan/quran':
+        specifier: workspace:*
+        version: link:../../packages/quran
       '@itqan/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -126,6 +129,9 @@ importers:
       '@itqan/fsrs':
         specifier: workspace:*
         version: link:../../packages/fsrs
+      '@itqan/quran':
+        specifier: workspace:*
+        version: link:../../packages/quran
       '@itqan/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -208,6 +214,18 @@ importers:
       '@itqan/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      eslint:
+        specifier: ^8.57.0
+        version: 8.57.1
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.3.0
+        version: 1.6.1(@types/node@20.19.43)
+
+  packages/quran:
     devDependencies:
       eslint:
         specifier: ^8.57.0

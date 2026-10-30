@@ -224,6 +224,22 @@ export const syllabusPassages = pgTable('syllabus_passages', {
   syllabusIdx: index('syllabus_passages_syllabus_idx').on(t.syllabusId),
 }));
 
+// ── Quran text ──
+
+// One row per ayah (Hafs). Words are derived by splitting on whitespace.
+// Loaded by `db:seed-quran`; the source and its licence are credited on /credits.
+export const quranAyat = pgTable('quran_ayat', {
+  ref: varchar('ref', { length: 12 }).primaryKey(),
+  sura: integer('sura').notNull(),
+  ayah: integer('ayah').notNull(),
+  suraNameAr: text('sura_name_ar').notNull(),
+  textUthmani: text('text_uthmani').notNull(),
+  textNormalized: text('text_normalized').notNull(),
+  wordCount: integer('word_count').notNull(),
+}, (t) => ({
+  suraAyahIdx: uniqueIndex('quran_ayat_sura_ayah_idx').on(t.sura, t.ayah),
+}));
+
 // ── SRS Cards (FSRS) ──
 
 export const studentCards = pgTable('student_cards', {

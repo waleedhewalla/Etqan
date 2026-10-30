@@ -16,6 +16,25 @@ pnpm db:migrate
 pnpm --filter @itqan/core db:seed   # demo pilot halaqa (safe to re-run)
 ```
 
+## Quran text
+
+The verse text is not stored in this repository. Load it into the database once:
+
+```bash
+pnpm --filter @itqan/core db:seed-quran            # downloads QURAN_TEXT_URL
+QURAN_TEXT_PATH=./quran.json pnpm --filter @itqan/core db:seed-quran   # or a local file
+```
+
+The loader checks the file against the standard Hafs verse counts (114 suras,
+6,236 ayat) and refuses a damaged or partial file without touching the table.
+Running it again does nothing unless you pass `--force`. Until it has run, the
+app shows "text not loaded yet" where verses would appear.
+
+The source is the `quran-json` dataset, which is published under **CC BY-SA 4.0**
+(its package metadata says CC-BY, but its README and LICENSE say BY-SA). The app
+credits it on `/credits`. Check that licence with whoever signs off on the
+content before a public launch.
+
 ## Try the pilot locally
 
 Start the API and the web app in two terminals:

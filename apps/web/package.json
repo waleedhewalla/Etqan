@@ -23,7 +23,8 @@
     "axios": "^1.6.0",
     "date-fns": "^3.3.0",
     "clsx": "^2.1.0",
-    "lucide-react": "^0.344.0"
+    "lucide-react": "^0.344.0",
+    "@itqan/quran": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

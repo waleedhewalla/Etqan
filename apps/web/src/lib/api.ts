@@ -201,6 +201,21 @@ export interface WeeklyReport {
   }[];
 }
 
+export interface AyahText {
+  ref: string;
+  sura: number;
+  ayah: number;
+  suraNameAr: string;
+  textUthmani: string;
+  wordCount: number;
+}
+
+export interface AyatResponse {
+  ayat: AyahText[];
+  /** False when some of the requested verses are not loaded on the server yet. */
+  complete: boolean;
+}
+
 export interface AppNotification {
   id: string;
   titleAr: string;
@@ -389,6 +404,15 @@ class ApiClient {
     return this.client.get<{ students: WeeklyReport[] }>('/guardian/students');
   }
 
+  // Quran text
+  getAyat(refs: string[]) {
+    return this.client.get<AyatResponse>('/ayat', { params: { refs: refs.join(',') } });
+  }
+
+  getAyatRange(start: string, end: string) {
+    return this.client.get<AyatResponse>('/ayat/range', { params: { start, end } });
+  }
+
   // Notifications
   getNotifications() {
     return this.client.get<AppNotification[]>('/notifications');
@@ -429,5 +453,6 @@ export const queryKeys = {
   guardians: (sectionId: string, studentId: string) => ['sections', sectionId, 'guardians', studentId] as const,
   pendingTasmi: (sectionId?: string) => ['tasmi', 'pending', sectionId] as const,
   guardianStudents: ['guardian', 'students'] as const,
+  ayat: (source: string) => ['ayat', source] as const,
   notifications: ['notifications'] as const,
 } as const;

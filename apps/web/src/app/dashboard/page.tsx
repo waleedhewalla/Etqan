@@ -32,6 +32,8 @@ import { CurriculumTracks } from '@/components/CurriculumTracks';
 import { SessionTypePicker } from '@/components/SessionTypePicker';
 import { IconTile } from '@/components/IconTile';
 import { PreviewNotice } from '@/components/PreviewNotice';
+import { MushafReader } from '@/components/MushafReader';
+import { VerseText } from '@/components/VerseText';
 import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 
 type StudentTab =
@@ -412,6 +414,8 @@ function ReviewSession({ items, onFinish }: { items: QueueItem[]; onFinish: () =
   const [streakAfter, setStreakAfter] = useState<number | null>(null);
   const shownAt = useRef(Date.now());
 
+  const [showVerse, setShowVerse] = useState(false);
+
   const current = items[index];
   const done = index >= items.length;
 
@@ -423,6 +427,7 @@ function ReviewSession({ items, onFinish }: { items: QueueItem[]; onFinish: () =
       const res = await api.rateCard(current.card.id, rating, Date.now() - shownAt.current);
       setStreakAfter(res.data.streak?.currentStreak ?? null);
       setCounts((c) => ({ ...c, [rating]: c[rating] + 1 }));
+      setShowVerse(false);
       setIndex((i) => i + 1);
       shownAt.current = Date.now();
     } catch (err) {
@@ -474,8 +479,15 @@ function ReviewSession({ items, onFinish }: { items: QueueItem[]; onFinish: () =
           </Badge>
           <p className="font-heading text-3xl font-bold text-text-primary">{formatAyahRef(current.card.ayahRef)}</p>
           <p className="text-text-secondary text-sm max-w-md mx-auto">
-            سمّعي الآية من حفظك، ثم تحققي منها في مصحفك، واختاري كيف كان تسميعك.
+            سمّعي الآية من حفظك أولاً، ثم أظهري نصها للتحقق، واختاري كيف كان تسميعك.
           </p>
+          {showVerse ? (
+            <div className="rounded-xl border border-divider bg-surface-canvas p-4 max-w-2xl mx-auto">
+              <VerseText refs={[current.card.ayahRef]} />
+            </div>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => setShowVerse(true)}>أظهري الآية للتحقق</Button>
+          )}
         </div>
 
         {error && (
@@ -540,27 +552,8 @@ function ProgressCard({ label, value, icon, trend, variant }: {
 function MushafTab({ onReview }: { onReview?: () => void }) {
   return (
     <div className="space-y-4">
-      <PreviewNotice>عرض المصحف قيد التطوير. لمراجعة ورد اليوم استخدمي «ابدئي المراجعة».</PreviewNotice>
       <SessionTypePicker onNew={() => undefined} onReview={onReview} />
-      <Card>
-        <CardHeader>
-          <CardTitle>المصحف الشريف</CardTitle>
-          <CardDescription>قراءة، استذكار، وتسميع مع وضع التلاوة العمياء</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-3">
-            <Button variant="primary"><BookOpen className="w-4 h-4 mr-2" /> قراءة المستحفظ</Button>
-            <Button variant="secondary"><Target className="w-4 h-4 mr-2" /> استذكار نشط</Button>
-            <Button variant="ghost"><BookOpen className="w-4 h-4 mr-2" /> وضع التلاوة العمياء</Button>
-          </div>
-          <div className="p-4 bg-surface-canvas rounded-lg border border-divider font-quran text-2xl text-center leading-loose text-text-primary min-h-[140px] flex items-center justify-center">
-            المصحف التفاعلي — اختر جزءاً أو صفحة للبدء
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <Button variant="outline" className="col-span-3">اختيار الجزء/الصفحة</Button>
-          </div>
-        </CardContent>
-      </Card>
+      <MushafReader />
     </div>
   );
 }

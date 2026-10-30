@@ -37,7 +37,7 @@ module.exports = {
         },
       },
       fontFamily: {
-        quran: ['Uthmanic Hafs', 'KFGQPC Uthmanic Script Hafs', 'serif'],
+        quran: ['Uthmanic Hafs', 'KFGQPC Uthmanic Script Hafs', 'var(--font-amiri)', 'Amiri', 'serif'],
         heading: ['var(--font-amiri)', 'Amiri', 'Noto Naskh Arabic', 'Traditional Arabic', 'serif'],
         body: ['var(--font-noto-naskh)', 'Noto Naskh Arabic', 'Amiri', 'Traditional Arabic', 'sans-serif'],
         admin: ['GE SS Two', 'Alexandria', 'system-ui', 'sans-serif'],

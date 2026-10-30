@@ -32,6 +32,10 @@ const envSchema = z.object({
   // API
   API_URL: z.string().url().default('http://localhost:4000'),
   
+  // Quran text loader (`pnpm db:seed-quran`): a local JSON file wins over the URL.
+  QURAN_TEXT_PATH: optional(z.string()),
+  QURAN_TEXT_URL: z.string().url().default('https://cdn.jsdelivr.net/npm/quran-json@3.1.2/dist/quran.json'),
+
   // Tarteel
   TARTEEL_API_KEY: optional(z.string()),
   TARTEEL_API_URL: z.string().url().default('https://api.tarteel.ai'),
