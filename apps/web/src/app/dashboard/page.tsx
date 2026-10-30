@@ -23,7 +23,7 @@ import {
   Mic,
 } from 'lucide-react';
 import { useRequireRole } from '@/lib/auth-context';
-import { api, errorMessage, queryKeys, type QueueItem, type QueueResponse, type Rating } from '@/lib/api';
+import { api, errorMessage, queryKeys, type BadgeProgress, type EarnedBadge, type QueueItem, type QueueResponse, type Rating } from '@/lib/api';
 import { formatAyahRange, formatAyahRef, toArabicDigits } from '@/lib/quran';
 import { AppShell } from '@/components/AppShell';
 import { EmptyState } from '@/components/EmptyState';
@@ -229,7 +229,7 @@ export default function StudentDashboard() {
       {activeTab === 'mushaf' && <MushafTab onReview={() => { setActiveTab('today'); setReviewing(true); }} />}
       {activeTab === 'recite' && <ReciteTab />}
       {activeTab === 'mutashabihat' && <MutashabihatTab />}
-      {activeTab === 'progress' && <ProgressTab badges={EXAMPLE_BADGES} />}
+      {activeTab === 'progress' && <ProgressTab />}
       {activeTab === 'curriculum' && (
         <>
           <PreviewNotice />
@@ -412,11 +412,13 @@ function QueueTable({ queue }: { queue: QueueResponse }) {
 
 /** Steps through the day's cards; each rating reschedules the card with FSRS. */
 function ReviewSession({ items, onFinish }: { items: QueueItem[]; onFinish: () => void }) {
+  const queryClient = useQueryClient();
   const [index, setIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<Rating, number>>({ again: 0, hard: 0, good: 0, easy: 0 });
   const [streakAfter, setStreakAfter] = useState<number | null>(null);
+  const [earned, setEarned] = useState<EarnedBadge[]>([]);
   const shownAt = useRef(Date.now());
 
   const [showVerse, setShowVerse] = useState(false);
@@ -431,6 +433,10 @@ function ReviewSession({ items, onFinish }: { items: QueueItem[]; onFinish: () =
     try {
       const res = await api.rateCard(current.card.id, rating, Date.now() - shownAt.current);
       setStreakAfter(res.data.streak?.currentStreak ?? null);
+      if (res.data.newBadges?.length) {
+        setEarned((e) => [...e, ...res.data.newBadges!]);
+        queryClient.invalidateQueries({ queryKey: queryKeys.badges });
+      }
       setCounts((c) => ({ ...c, [rating]: c[rating] + 1 }));
       setShowVerse(false);
       setIndex((i) => i + 1);
@@ -457,6 +463,12 @@ function ReviewSession({ items, onFinish }: { items: QueueItem[]; onFinish: () =
             <p className="flex items-center justify-center gap-1.5 text-brand-primary font-medium">
               <Flame className="w-4 h-4" /> سلسلتك الآن {toArabicDigits(streakAfter)} يوم
             </p>
+          )}
+          {earned.length > 0 && (
+            <div role="status" className="rounded-xl bg-brand-accent/10 border border-brand-accent/30 p-3 space-y-1" data-testid="new-badges">
+              <p className="text-sm font-medium text-text-primary">وسام جديد!</p>
+              {earned.map((b) => <p key={b.id} className="text-sm"><span className="text-xl align-middle">{b.icon}</span> {b.nameAr}</p>)}
+            </div>
           )}
           <Button onClick={onFinish}>العودة إلى اليوم</Button>
         </CardContent>
@@ -519,12 +531,6 @@ function ReviewSession({ items, onFinish }: { items: QueueItem[]; onFinish: () =
   );
 }
 
-const EXAMPLE_BADGES = [
-  { id: 'streak-7', nameAr: 'سلسلة ٧ أيام', icon: '🔥', earned: true, earnedAt: '2026-09-10' },
-  { id: 'surah-fatiha', nameAr: 'إتقان الفاتحة', icon: '📜', earned: true, earnedAt: '2026-08-20' },
-  { id: 'streak-30', nameAr: 'سلسلة ٣٠ يوم', icon: '💎', earned: false, earnedAt: null },
-  { id: 'juz-30', nameAr: 'إتمام جزء عمّ', icon: '🏆', earned: false, earnedAt: null },
-];
 
 function ProgressCard({ label, value, icon, trend, variant }: {
   label: string;
@@ -588,13 +594,15 @@ function MutashabihatTab() {
   );
 }
 
-function ProgressTab({ badges }: { badges: Array<{ id: string; nameAr: string; icon: string; earned: boolean; earnedAt: string | null }> }) {
+function ProgressTab() {
+  const badgesQuery = useQuery({ queryKey: queryKeys.badges, queryFn: () => api.getBadges().then((r) => r.data) });
+  const badges: BadgeProgress[] = badgesQuery.data ?? [];
   const earned = badges.filter(b => b.earned);
-  const locked = badges.filter(b => !b.earned);
+  const locked = badges.filter(b => !b.earned).sort((a, b) => b.progress.current / b.progress.target - a.progress.current / a.progress.target);
 
   return (
     <div className="space-y-4">
-      <PreviewNotice>الأوسمة وخريطة الإتقان أمثلة توضيحية؛ تُفعَّل في مرحلة قادمة.</PreviewNotice>
+      <PreviewNotice>خريطة الإتقان أدناه مثال توضيحي؛ تُفعَّل في مرحلة قادمة. أما الأوسمة فحقيقية.</PreviewNotice>
       <Card>
         <CardHeader>
           <CardTitle>خريطة الحرارة - الإتقان حسب الجزء</CardTitle>
@@ -629,25 +637,30 @@ function ProgressTab({ badges }: { badges: Array<{ id: string; nameAr: string; i
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {badgesQuery.isLoading && <Spinner />}
+          {badgesQuery.isError && <LoadError message="تعذّر تحميل الأوسمة." onRetry={() => badgesQuery.refetch()} />}
           <div className="mb-4">
-            <h4 className="text-sm font-medium text-text-secondary mb-3">مكتسبة ({earned.length})</h4>
+            <h4 className="text-sm font-medium text-text-secondary mb-3">مكتسبة ({toArabicDigits(earned.length)})</h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
               {earned.map(b => (
                 <div key={b.id} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-brand-accent/5 border border-brand-accent/20">
                   <span className="text-3xl">{b.icon}</span>
                   <span className="text-xs font-medium text-text-primary text-center">{b.nameAr}</span>
-                  <span className="text-[10px] text-text-muted">{b.earnedAt}</span>
+                  <span className="text-[10px] text-text-muted">{b.earnedAt ? new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium' }).format(new Date(b.earnedAt)) : ''}</span>
                 </div>
               ))}
             </div>
           </div>
           <div>
-            <h4 className="text-sm font-medium text-text-secondary mb-3">قادمة ({locked.length})</h4>
+            <h4 className="text-sm font-medium text-text-secondary mb-3">قادمة ({toArabicDigits(locked.length)})</h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
               {locked.map(b => (
                 <div key={b.id} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-surface-canvas border border-divider opacity-50">
                   <span className="text-3xl grayscale">{b.icon}</span>
                   <span className="text-xs font-medium text-text-muted text-center">{b.nameAr}</span>
+                  <span className="text-[10px] text-text-muted tabular-nums" title={b.descriptionAr}>
+                    {toArabicDigits(b.progress.current)} / {toArabicDigits(b.progress.target)}
+                  </span>
                   <Lock className="w-3 h-3 text-text-muted" />
                 </div>
               ))}

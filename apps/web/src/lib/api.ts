@@ -93,9 +93,21 @@ export interface QueueResponse {
   assignments: Assignment[];
 }
 
+export interface EarnedBadge { id: string; nameAr: string; icon: string; tier: 'bronze' | 'silver' | 'gold' | 'diamond' }
+
 export interface RateResponse {
   card: { id: string; dueAt: string; state: string };
   streak: Streak;
+  /** Badges this rating just earned. */
+  newBadges?: EarnedBadge[];
+}
+
+export interface BadgeProgress extends EarnedBadge {
+  descriptionAr: string;
+  category: string;
+  earned: boolean;
+  earnedAt: string | null;
+  progress: { current: number; target: number };
 }
 
 export interface StatsResponse {
@@ -411,6 +423,10 @@ class ApiClient {
     return this.client.post<RateResponse>('/scheduler/rate', { cardId, rating, timeTakenMs });
   }
 
+  getBadges() {
+    return this.client.get<BadgeProgress[]>('/badges');
+  }
+
   getStats() {
     return this.client.get<StatsResponse>('/scheduler/stats');
   }
@@ -512,6 +528,7 @@ export const queryKeys = {
   guardians: (sectionId: string, studentId: string) => ['sections', sectionId, 'guardians', studentId] as const,
   myTasmi: ['tasmi', 'mine'] as const,
   voiceStatus: ['voice', 'status'] as const,
+  badges: ['badges'] as const,
   pendingTasmi: (sectionId?: string) => ['tasmi', 'pending', sectionId] as const,
   guardianStudents: ['guardian', 'students'] as const,
   ayat: (source: string) => ['ayat', source] as const,

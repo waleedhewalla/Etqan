@@ -104,6 +104,14 @@ own students' voices before relying on it.
 - Recordings are deleted `AUDIO_RETENTION_HOURS` (24) after review, or `AUDIO_UNREVIEWED_MAX_DAYS` (30) after submission if never reviewed.
   The job runs when the API starts and then hourly. Scores, notes and flags stay.
 
+## Badges
+
+Students earn badges automatically after a rating or a teacher's review (`apps/core/src/lib/badges.ts` holds the catalog):
+streak length, number of reviews, ayat mastered, approved recitations, and mastering a whole sura (Al-Fatiha, the last three suras,
+Ya-Sin, Al-Baqarah). The **خطتي والكفايات** tab shows earned badges and progress toward the rest; a banner appears at the end of a
+review session when one is earned, and an in-app notification is left. An earned badge is kept even if progress later dips.
+Add a badge by adding a line to the catalog: its definition is copied to the database on first use.
+
 ## Try the pilot locally
 
 Start the API and the web app in two terminals:

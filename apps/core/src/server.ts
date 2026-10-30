@@ -20,6 +20,7 @@ import { sessionRoutes } from './modules/session/routes';
 import { schedulerRoutes } from './modules/scheduler/routes';
 import { mutashabihatRoutes } from './modules/mutashabihat/routes';
 import { voiceProxyRoutes } from './modules/voice-proxy/routes';
+import { badgeRoutes } from './modules/badges/routes';
 import { sweepPendingChecks } from './lib/asr/runner';
 import { purgeExpiredAudio } from './lib/retention';
 import { assessmentRoutes } from './modules/assessment/routes';
@@ -140,6 +141,7 @@ async function buildApp() {
   await app.register(schedulerRoutes, { prefix: '/v1' });
   await app.register(mutashabihatRoutes, { prefix: '/v1' });
   await app.register(voiceProxyRoutes, { prefix: '/v1' });
+  await app.register(badgeRoutes, { prefix: '/v1' });
   await app.register(assessmentRoutes, { prefix: '/v1' });
   await app.register(reportingRoutes, { prefix: '/v1' });
   await app.register(notificationRoutes, { prefix: '/v1' });
