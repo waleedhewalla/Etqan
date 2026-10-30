@@ -89,8 +89,6 @@ jobs:
             echo "ACME_EMAIL=ci@example.test"
             echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
             echo "JWT_SECRET=$(openssl rand -base64 36 | tr -d '\n')"
-            echo "MINIO_ACCESS_KEY=ci$(openssl rand -hex 6)"
-            echo "MINIO_SECRET_KEY=$(openssl rand -hex 16)"
           } > .env
 
       - name: Compose file is valid
@@ -140,6 +138,13 @@ jobs:
           web /auth/login
           web /sw.js
           web /manifest.json
+
+      - name: The API can write recordings to its volume (as its non-root user)
+        run: |
+          docker compose -f compose.prod.yml exec -T api node -e "
+            const fs=require('fs'); const f='/data/audio/.probe';
+            fs.writeFileSync(f,'x'); fs.unlinkSync(f); console.log('audio volume writable as uid', process.getuid());
+          "
 
       - name: Only Caddy may be reachable from outside
         run: |

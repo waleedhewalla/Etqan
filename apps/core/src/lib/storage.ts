@@ -1,3 +1,7 @@
+import { createReadStream } from 'node:fs';
+import { mkdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { dirname, extname, resolve, sep } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type { Readable } from 'node:stream';
 import { Readable as NodeReadable } from 'node:stream';
 import {
@@ -84,6 +88,64 @@ export class MemoryStorage implements AudioStorage {
   }
 }
 
+const TYPE_BY_EXTENSION: Record<string, string> = {
+  '.webm': 'audio/webm', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.mp3': 'audio/mpeg',
+};
+
+/**
+ * Recordings as plain files in one directory (a Docker volume in the compose stack). Needs no extra service,
+ * which suits a single server; use S3 when the API must run on more than one machine.
+ */
+export class FileStorage implements AudioStorage {
+  private readonly root: string;
+
+  constructor(dir: string) {
+    this.root = resolve(dir);
+  }
+
+  /** The file for a key. A key that would leave the directory is refused. */
+  private path(key: string) {
+    const full = resolve(this.root, key);
+    if (!full.startsWith(this.root + sep)) throw new Error('Invalid storage key');
+    return full;
+  }
+
+  async put(key: string, body: Buffer, _contentType: string) {
+    const file = this.path(key);
+    await mkdir(dirname(file), { recursive: true });
+    // Written beside the target and renamed into place, so a reader never sees half a recording.
+    const temp = `${file}.${randomUUID()}.tmp`;
+    await writeFile(temp, body, { mode: 0o600 });
+    await rename(temp, file);
+  }
+
+  async get(key: string, range?: string): Promise<StoredObject | null> {
+    const file = this.path(key);
+    let size: number;
+    try {
+      size = (await stat(file)).size;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw err;
+    }
+    const r = resolveByteRange(range, size);
+    return {
+      body: createReadStream(file, r ? { start: r.start, end: r.end } : undefined),
+      contentType: TYPE_BY_EXTENSION[extname(file).toLowerCase()] ?? 'application/octet-stream',
+      contentLength: r ? r.end - r.start + 1 : size,
+      contentRange: r ? `bytes ${r.start}-${r.end}/${size}` : undefined,
+    };
+  }
+
+  async delete(key: string) {
+    try {
+      await unlink(this.path(key));
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+    }
+  }
+}
+
 const httpStatus = (err: unknown) => (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
 
 export class S3Storage implements AudioStorage {
@@ -151,13 +213,15 @@ let storage: AudioStorage | null = null;
 export function getStorage(): AudioStorage {
   storage ??= config.STORAGE_DRIVER === 'memory'
     ? new MemoryStorage()
-    : createS3Storage({
-      endpoint: `${config.MINIO_USE_SSL ? 'https' : 'http'}://${config.MINIO_ENDPOINT}`,
-      accessKeyId: config.MINIO_ACCESS_KEY,
-      secretAccessKey: config.MINIO_SECRET_KEY,
-      bucket: config.MINIO_BUCKET,
-      region: config.MINIO_REGION,
-    });
+    : config.STORAGE_DRIVER === 'file'
+      ? new FileStorage(config.AUDIO_DIR)
+      : createS3Storage({
+        endpoint: `${config.MINIO_USE_SSL ? 'https' : 'http'}://${config.MINIO_ENDPOINT}`,
+        accessKeyId: config.MINIO_ACCESS_KEY,
+        secretAccessKey: config.MINIO_SECRET_KEY,
+        bucket: config.MINIO_BUCKET,
+        region: config.MINIO_REGION,
+      });
   return storage;
 }
 

@@ -6,10 +6,10 @@ One server, Docker Compose, automatic HTTPS. Good for a staging environment and 
 ```
  internet ──443──▶ Caddy ──▶ web   (Next.js, app.example.org)
                       └────▶ api   (Fastify,  api.example.org) ──▶ Postgres
-                                                              └──▶ MinIO (private audio storage)
+                                                              └──▶ recordings on a private volume
 ```
 
-Only Caddy listens on the internet. Postgres and MinIO are not published at all.
+Only Caddy listens on the internet. Postgres is not published at all, and recordings are never served directly: only the API can read them.
 
 ## Before you start
 
@@ -32,7 +32,7 @@ cp .env.production.example .env
 chmod 600 .env
 ```
 
-1. **Fill in `.env`.** The file explains each value. Generate secrets with `openssl rand -hex 16` (database password, MinIO)
+1. **Fill in `.env`.** The file explains each value. Generate secrets with `openssl rand -hex 16` (database password)
    and `openssl rand -base64 36` (JWT secret). If a required value is missing, the next step stops and tells you which.
 2. **Start it** (the first build takes several minutes):
    ```bash
@@ -62,13 +62,17 @@ chmod 600 .env
 
 ## Audio storage
 
-Recordings are stored in an S3-compatible bucket that only the API can reach (browsers never see it). By default that is a
-MinIO container in this stack. Know the trade-off: MinIO **no longer publishes images on Docker Hub and no longer maintains its
-community edition**, so the pinned image will not receive security fixes. For a pilot that holds recordings for at most a day or
-a month, that may be acceptable; for anything longer-lived, use a managed S3 service (AWS S3, Wasabi, Cloudflare R2, or a
-provider in your region): set `MINIO_ENDPOINT`, `MINIO_USE_SSL`, `MINIO_REGION`, `MINIO_BUCKET` and the key pair in `.env`,
-then start with `docker compose -f compose.prod.yml up -d --build --scale minio=0`. The S3 driver has only been tested against a
-local S3 emulator and MinIO's protocol, not against those services: try a recording end to end before relying on it.
+Recordings are private files on a Docker volume (`audio_data`) attached to the API. Nothing else to run, and browsers never reach
+the files: the API checks who may listen and streams the audio itself. They are short-lived by design (24 hours after a teacher
+reviews them, 30 days if nobody does), so the volume stays small.
+
+The trade-off: files on one server's disk mean **one API server**. To run the API on several machines, or to keep recordings off this
+server, use a managed S3-compatible service (AWS S3, Wasabi, Cloudflare R2, a provider in your region): set `STORAGE_DRIVER=s3`,
+`MINIO_ENDPOINT`, `MINIO_REGION`, `MINIO_BUCKET` and the key pair in `.env`. The S3 driver has only been tested against a local S3
+emulator, not against those services: try a recording end to end before relying on it.
+
+(An earlier version of this stack ran MinIO. MinIO no longer publishes images and no longer maintains its community edition, so it
+was removed rather than pinned to an image that cannot be pulled.)
 
 ## Settings you may change later
 
@@ -101,7 +105,7 @@ docker compose -f compose.prod.yml exec -T postgres pg_restore -U itqan -d itqan
 ```
 
 **Try a restore before you need one**, on a spare machine. A backup you have never restored is a hope.
-Optional audio volume: `docker run --rm -v itqan_minio_data:/data -v "$PWD":/out alpine tar czf /out/minio-$(date +%F).tgz /data`.
+Optional recordings volume: `docker run --rm -v itqan_audio_data:/data -v "$PWD":/out alpine tar czf /out/audio-$(date +%F).tgz /data`.
 
 ## Day to day
 
@@ -119,7 +123,7 @@ database: change it with `ALTER USER` first.
 
 | Symptom | Likely cause |
 |---|---|
-| The API container keeps restarting with **"Refusing to start in production"** | a secret is still a public development default (JWT secret, MinIO keys, database password) or `STORAGE_DRIVER=memory`. The message names which. |
+| The API container keeps restarting with **"Refusing to start in production"** | a secret is still a public development default (JWT secret, database password, or S3 keys) or `STORAGE_DRIVER=memory`. The message names which. |
 | Browser shows CORS errors | `APP_DOMAIN` in `.env` doesn't match the address in the browser (including `https://` and no trailing slash) |
 | Pages load but nothing works | the web app was built for a different `API_DOMAIN`. Fix `.env`, then `up -d --build`. |
 | Nobody can sign in | missing SendGrid or WhatsApp credentials, or the WhatsApp templates are not approved yet (see the API log) |
