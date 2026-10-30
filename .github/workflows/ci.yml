@@ -108,7 +108,19 @@ jobs:
           echo "$out" | grep -q "Refusing to start in production"
 
       - name: Start the stack
-        run: docker compose -f compose.prod.yml up -d --wait --wait-timeout 180 api web
+        run: |
+          # (not `up --wait`: it fails on one-shot containers such as `migrate`, which exit by design)
+          docker compose -f compose.prod.yml up -d api web
+          for svc in api web; do
+            id=$(docker compose -f compose.prod.yml ps -q "$svc")
+            for i in $(seq 1 60); do
+              status=$(docker inspect -f '{{.State.Health.Status}}' "$id")
+              [ "$status" = healthy ] && break
+              if [ "$i" -eq 60 ]; then echo "$svc is $status after 3 minutes"; exit 1; fi
+              sleep 3
+            done
+            echo "$svc healthy"
+          done
 
       - name: Migrations ran, and the first institution can be created (twice, harmlessly)
         run: |
