@@ -23,6 +23,7 @@ export async function syllabusRoutes(app: FastifyInstance) {
     preHandler: [app.authenticate],
   }, async (request) => {
     const tenantId = request.user.facultyId;
+    if (!tenantId) return request.server.httpErrors.forbidden('No faculty assigned to this account');
     return db.select().from(syllabi).where(eq(syllabi.tenantId, tenantId));
   });
 
@@ -33,6 +34,7 @@ export async function syllabusRoutes(app: FastifyInstance) {
   }, async (request) => {
     const userId = request.user.sub;
     const tenantId = request.user.facultyId;
+    if (!tenantId) return request.server.httpErrors.forbidden('No faculty assigned to this account');
     const body = request.body as z.infer<typeof createSyllabusSchema>;
 
     const [syllabus] = await db.insert(syllabi).values({

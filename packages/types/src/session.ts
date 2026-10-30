@@ -2,6 +2,9 @@
  * Session and practice types
  */
 
+import type { Ref } from './ayah';
+import type { Rating, QueueItem } from './srs';
+
 export type SessionMode = 'read' | 'first-letter' | 'blanks' | 'hidden' | 'type-it' | 'verse-between' | 'order-scramble';
 export type SessionStatus = 'active' | 'paused' | 'completed' | 'abandoned';
 export type ItemStatus = 'pending' | 'current' | 'completed' | 'skipped';

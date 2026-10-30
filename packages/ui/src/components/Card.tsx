@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { ctv, formatRelativeTime } from '../lib/utils';
+import { ctv, formatRelativeTime, cva } from '../lib/utils';
 
 /**
  * Card Component
@@ -17,7 +17,7 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   empty?: boolean;
 }
 
-const cardVariants = ctv(
+const cardVariants = cva(
   'rounded-2xl bg-surface-elevated border border-divider shadow-sm transition-colors duration-200',
   {
     variants: {
@@ -43,9 +43,9 @@ const cardVariants = ctv(
       state: 'default',
     },
     compoundVariants: [
-      { variant: 'action', hoverable: true, state: 'hover', className: 'shadow-elevated -translate-y-0.5' },
-      { variant: 'student', hoverable: true, state: 'hover', className: 'shadow-elevated' },
-      { variant: 'case', hoverable: true, state: 'hover', className: 'shadow-elevated' },
+      { variant: 'action', state: 'hover', className: 'shadow-elevated -translate-y-0.5' },
+      { variant: 'student', state: 'hover', className: 'shadow-elevated' },
+      { variant: 'case', state: 'hover', className: 'shadow-elevated' },
     ],
   }
 );

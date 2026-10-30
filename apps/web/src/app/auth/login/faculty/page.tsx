@@ -42,7 +42,7 @@ export default function FacultyLoginPage() {
     }
   };
 
-  const handleMagicLinkVerify = async (e: React.FormEvent) => {
+  const handleMagicLinkVerify = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
     // In real app, this would verify the token from URL params
     // For demo, we'll simulate

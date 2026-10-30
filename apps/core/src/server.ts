@@ -7,6 +7,8 @@ import { fastifyCookie } from '@fastify/cookie';
 import { fastifyMultipart } from '@fastify/multipart';
 import { fastifySwagger } from '@fastify/swagger';
 import { fastifySwaggerUi } from '@fastify/swagger-ui';
+import fastifySensible from '@fastify/sensible';
+import type { ZodTypeAny } from 'zod';
 
 import { config } from './config';
 import { getDb, closeDb } from './db';
@@ -34,6 +36,12 @@ async function buildApp() {
     ajv: {
       customOptions: { coerceTypes: 'array' },
     },
+  });
+
+  // Route schemas are Zod objects, so validate with Zod instead of Ajv.
+  app.setValidatorCompiler(({ schema }) => (data) => {
+    const result = (schema as ZodTypeAny).safeParse(data);
+    return result.success ? { value: result.data } : { error: result.error };
   });
 
   // Security headers
@@ -70,6 +78,7 @@ async function buildApp() {
 
   // Cookies (for refresh tokens)
   await app.register(fastifyCookie);
+  await app.register(fastifySensible);
 
   // JWT authentication
   await app.register(jwtPlugin);
