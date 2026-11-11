@@ -69,6 +69,7 @@ export async function applyRating(
       recognitionStability: scheduled.recognitionStability ?? card.recognitionStability,
       dueAt: scheduled.dueAt ? new Date(scheduled.dueAt as unknown as string) : null,
       lastReviewedAt: at,
+      ...(card.state === 'new' ? { learnedAt: at } : {}),
       reps: scheduled.reps,
       lapses: scheduled.lapses,
       updatedAt: new Date(),

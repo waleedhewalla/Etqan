@@ -1,11 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { eq, and, lte, isNull, asc, desc, sql, count } from 'drizzle-orm';
+import { eq, and, lte, isNull, asc, desc, sql, count, gte } from 'drizzle-orm';
 import { getDb } from '../../db';
 import { studentCards, reviewLogs, streaks, assignments } from '../../db/schema';
 import { localDate, startOfLocalDay } from '../../lib/dates';
 import { applyRating, cardRowToState, recordStudentActivity } from '../../lib/cards';
 import { awardBadges } from '../../lib/badges';
+import { newPerDay } from '../../lib/hifz-plan';
 import {
   computeIntervals,
   checkGatekeeper,
@@ -64,16 +65,27 @@ export async function schedulerRoutes(app: FastifyInstance) {
       .orderBy(asc(studentCards.dueAt))
       .limit(limit);
 
-    // 2. Get new cards (never reviewed)
-    const newCards = await db.select()
+    // 2. Get new cards (never reviewed), up to what is left of today's new-memorization allowance
+    const perDay = await newPerDay(db, userId);
+    const [learned] = await db.select({ count: count() }).from(studentCards)
+      .where(and(eq(studentCards.studentId, userId), gte(studentCards.learnedAt, startOfLocalDay(localDate(targetDate)))));
+    const learnedToday = learned?.count ?? 0;
+    // A limit of zero would mean no limit at all, so skip the query instead.
+    const newAllowance = Math.max(0, Math.min(limit - dueCards.length, perDay - learnedToday));
+    const newCards = newAllowance === 0 ? [] : await db.select()
       .from(studentCards)
       .where(and(
         eq(studentCards.studentId, userId),
         eq(studentCards.state, 'new'),
         isNull(studentCards.dueAt),
       ))
-      .orderBy(asc(studentCards.createdAt))
-      .limit(Math.max(0, limit - dueCards.length));
+      // In the order the teacher added them, and in mushaf order within one addition.
+      .orderBy(
+        sql`date_trunc('second', ${studentCards.createdAt})`,
+        sql`split_part(${studentCards.ayahRef}, ':', 1)::int`,
+        sql`split_part(${studentCards.ayahRef}, ':', 2)::int`,
+      )
+      .limit(newAllowance);
 
     // 3. Check gatekeeper
     const recentReviewCards = await db.select()
@@ -154,7 +166,7 @@ export async function schedulerRoutes(app: FastifyInstance) {
       queue: {
         manzil: { count: manzilItems.length, items: manzilItems },
         sabqi: { count: sabqiItems.length, items: sabqiItems },
-        sabaq: { count: sabaqItems.length, items: sabaqItems, locked: gatekeeperState.locked },
+        sabaq: { count: sabaqItems.length, items: sabaqItems, locked: gatekeeperState.locked, perDay, learnedToday },
       },
       totalItems: items.length,
       estimatedMinutes: items.reduce((sum, i) => sum + i.estimatedMinutes, 0),

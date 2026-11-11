@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { useRequireRole } from '@/lib/auth-context';
 import { api, errorMessage, queryKeys, type BadgeProgress, type EarnedBadge, type QueueItem, type QueueResponse, type Rating } from '@/lib/api';
-import { formatAyahRange, formatAyahRef, toArabicDigits } from '@/lib/quran';
+import { formatAyahRange, formatAyahRef, toArabicDigits, ayatCount } from '@/lib/quran';
 import { AppShell } from '@/components/AppShell';
 import { EmptyState } from '@/components/EmptyState';
 import { AccountPanel } from '@/components/AccountPanel';
@@ -297,11 +297,11 @@ function NextActionCard({ queue, onStart }: { queue: QueueResponse; onStart: () 
   const { manzil, sabqi, sabaq } = queue.queue;
   const nothingDue = queue.totalItems === 0;
   const title = manzil.count > 0
-    ? `مراجعة متأخرة: ${toArabicDigits(manzil.count)} آيات`
+    ? `مراجعة متأخرة: ${ayatCount(manzil.count)}`
     : sabqi.count > 0
-      ? `مراجعة اليوم: ${toArabicDigits(sabqi.count)} آيات`
+      ? `مراجعة اليوم: ${ayatCount(sabqi.count)}`
       : sabaq.count > 0
-        ? `حفظ جديد: ${toArabicDigits(sabaq.count)} آيات`
+        ? `حفظ جديد: ${ayatCount(sabaq.count)}`
         : 'أتممتِ ورد اليوم';
   const rationale = manzil.count > 0
     ? 'نبدأ بالآيات المتأخرة حتى لا تضعف، ثم مراجعة اليوم، ثم الجديد.'
@@ -309,7 +309,9 @@ function NextActionCard({ queue, onStart }: { queue: QueueResponse; onStart: () 
       ? 'هذه الآيات حان موعد مراجعتها حسب جدول التكرار المتباعد.'
       : sabaq.count > 0
         ? 'لا مراجعات مستحقة، فهذا وقت مناسب لحفظ جديد.'
-        : 'لا توجد آيات مستحقة الآن. عودي غداً لموعد المراجعة التالي.';
+        : (sabaq.learnedToday ?? 0) > 0
+          ? `حفظتِ اليوم ${ayatCount(sabaq.learnedToday ?? 0)} جديدة. يأتي الحفظ التالي غداً.`
+          : 'لا توجد آيات مستحقة الآن. عودي غداً لموعد المراجعة التالي.';
 
   return (
     <section className="mb-5">

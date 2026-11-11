@@ -12,7 +12,7 @@ import { loadStudentSignals, riskReasons } from '../../lib/risk';
 import { assertCanAddHalaqa, assertCanAddStudent } from '../../lib/plan';
 import { enrollStudent } from '../auth/routes';
 import { auditLog } from '../audit/service';
-import { addToPlan, loadPlan, planAyat, removeFromPlan, PlanRangeError, MAX_PLAN_AYAT } from '../../lib/hifz-plan';
+import { addToPlan, loadPlan, planAyat, removeFromPlan, setNewPerDay, PlanRangeError, MAX_PLAN_AYAT, MAX_NEW_PER_DAY } from '../../lib/hifz-plan';
 import { notifyGuardiansOfAbsence } from '../notification/service';
 
 const createSectionSchema = z.object({
@@ -416,6 +416,23 @@ export async function sectionRoutes(app: FastifyInstance) {
       metadata: { startRef: body.startRef, endRef: body.endRef, status: body.status, added: result.added },
     });
     return { ...result, plan: await loadPlan(db, target.studentId) };
+  });
+
+  const paceSchema = z.object({ newPerDay: z.number().int().min(1).max(MAX_NEW_PER_DAY) });
+
+  app.put('/sections/:id/students/:studentId/plan/pace', {
+    schema: { body: paceSchema },
+    preHandler: [app.authenticate],
+  }, async (request) => {
+    const target = await planTarget(request);
+    if ('error' in target) return target.error;
+    const { newPerDay } = request.body as z.infer<typeof paceSchema>;
+    await setNewPerDay(db, target.studentId, newPerDay);
+    await auditLog({
+      actorId: request.user.sub, actorRole: request.user.role, action: 'plan.pace',
+      targetType: 'user', targetId: target.studentId, metadata: { newPerDay },
+    });
+    return loadPlan(db, target.studentId);
   });
 
   app.delete('/sections/:id/students/:studentId/plan', {

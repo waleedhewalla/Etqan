@@ -85,7 +85,7 @@ export interface QueueResponse {
   queue: {
     manzil: { count: number; items: QueueItem[] };
     sabqi: { count: number; items: QueueItem[] };
-    sabaq: { count: number; items: QueueItem[]; locked: boolean };
+    sabaq: { count: number; items: QueueItem[]; locked: boolean; perDay?: number; learnedToday?: number };
   };
   totalItems: number;
   estimatedMinutes: number;
@@ -303,7 +303,7 @@ export interface TasmiReviewInput {
 
 export type PlanStatus = 'memorized' | 'new';
 export interface PlanRange { startRef: string; endRef: string; count: number; status: PlanStatus }
-export interface HifzPlan { total: number; memorized: number; new: number; ranges: PlanRange[] }
+export interface HifzPlan { total: number; memorized: number; new: number; newPerDay: number; ranges: PlanRange[] }
 
 export interface Guardian {
   id: string;
@@ -504,6 +504,10 @@ class ApiClient {
 
   addToPlan(sectionId: string, studentId: string, data: { startRef: string; endRef: string; status: PlanStatus }) {
     return this.client.post<{ added: number; skipped: number; plan: HifzPlan }>(`/sections/${sectionId}/students/${studentId}/plan`, data);
+  }
+
+  setPlanPace(sectionId: string, studentId: string, newPerDay: number) {
+    return this.client.put<HifzPlan>(`/sections/${sectionId}/students/${studentId}/plan/pace`, { newPerDay });
   }
 
   removeFromPlan(sectionId: string, studentId: string, data: { startRef: string; endRef: string }) {
