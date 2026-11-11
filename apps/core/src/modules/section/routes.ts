@@ -89,16 +89,17 @@ export async function sectionRoutes(app: FastifyInstance) {
     const user = request.user;
 
     if (isStaff(user)) {
+      // Closed halaqat leave everyone's lists; the dean reopens them from the admin console.
       const where = isTenantAdmin(user)
-        ? eq(sections.tenantId, user.facultyId!)
-        : and(eq(sections.teacherId, user.sub), eq(sections.tenantId, user.facultyId!));
+        ? and(eq(sections.tenantId, user.facultyId!), eq(sections.active, true))
+        : and(eq(sections.teacherId, user.sub), eq(sections.tenantId, user.facultyId!), eq(sections.active, true));
       return db.select().from(sections).where(where).orderBy(sections.nameAr);
     }
 
     const enrolled = await db.select({ section: sections })
       .from(sectionEnrollments)
       .innerJoin(sections, eq(sectionEnrollments.sectionId, sections.id))
-      .where(and(eq(sectionEnrollments.studentId, user.sub), isNull(sectionEnrollments.droppedAt)));
+      .where(and(eq(sectionEnrollments.studentId, user.sub), isNull(sectionEnrollments.droppedAt), eq(sections.active, true)));
     return enrolled.map((e) => ({ ...e.section, joinCode: undefined }));
   });
 

@@ -109,6 +109,30 @@ describe.skipIf(!process.env.DATABASE_URL)('institution setup by its dean', () =
     expect((await roster('teacher')).statusCode).toBe(200);
   });
 
+  it('closes a halaqa without deleting anything, and reopens it', async () => {
+    const mine = async (who: string) => (await app.inject({ method: 'GET', url: '/v1/sections', headers: { authorization: `Bearer ${tokens[who]}` } }))
+      .json().map((x: { id: string }) => x.id);
+    const code = (await call('dean', 'GET', 'setup')).json().halaqat[0].joinCode;
+    const lookup = () => app.inject({ method: 'GET', url: `/v1/sections/lookup/${code}`, remoteAddress: '10.9.8.5' });
+    expect(await mine('teacher')).toContain(ids.halaqa);
+    expect(await mine('student')).toContain(ids.halaqa);
+    expect((await lookup()).statusCode).toBe(200);
+
+    expect((await call('otherDean', 'PATCH', `halaqat/${ids.halaqa}`, { active: false })).statusCode).toBe(404);
+    const closed = await call('dean', 'PATCH', `halaqat/${ids.halaqa}`, { active: false });
+    expect(closed.json()).toMatchObject({ id: ids.halaqa, active: false, students: 1 });
+    expect(await mine('teacher')).not.toContain(ids.halaqa);
+    expect(await mine('student')).not.toContain(ids.halaqa);
+    expect((await lookup()).statusCode).toBe(404);
+    const setup = (await call('dean', 'GET', 'setup')).json();
+    expect(setup.halaqat.find((h: { id: string }) => h.id === ids.halaqa).active).toBe(false);
+    expect(setup.staff.find((x: { id: string }) => x.id === ids.teacher).halaqat).toBe(0);
+    expect(await getDb().select().from(sectionEnrollments).where(eq(sectionEnrollments.sectionId, ids.halaqa))).toHaveLength(1);
+
+    expect((await call('dean', 'PATCH', `halaqat/${ids.halaqa}`, { active: true })).json()).toMatchObject({ active: true });
+    expect(await mine('teacher')).toContain(ids.halaqa);
+  });
+
   it('stops and restores a teacher\'s access, but not the dean\'s own or another dean\'s', async () => {
     expect((await call('dean', 'PATCH', `staff/${ids.dean}`, { active: false })).statusCode).toBe(400);
     expect((await call('dean', 'PATCH', `staff/${ids.dean2}`, { active: false })).statusCode).toBe(403);
