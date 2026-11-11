@@ -1,13 +1,16 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { AYAH_COUNTS, parseRef, compareRefs } from '@itqan/quran';
 import type { Database } from '../db';
-import { studentCards } from '../db/schema';
+import { studentCards, users } from '../db/schema';
 import { ayatBetween } from './grading';
 
 /** The most ayat a teacher can add in one step: about a juz and a half. */
 export const MAX_PLAN_AYAT = 300;
 /** How many already-memorized ayat come up for first revision per day, unless the teacher says otherwise. */
 export const DEFAULT_REVISION_PER_DAY = 20;
+/** New ayat a student is offered per day unless her teacher sets another pace. */
+export const DEFAULT_NEW_PER_DAY = 10;
+export const MAX_NEW_PER_DAY = 50;
 /** Starting memory strength, in days, for an ayah the student memorized before joining. */
 const MEMORIZED_STABILITY = 3;
 
@@ -98,5 +101,15 @@ export async function loadPlan(db: Database, studentId: string) {
     prev = c;
   }
   const memorized = parsed.filter((c) => c.status === 'memorized').length;
-  return { total: parsed.length, memorized, new: parsed.length - memorized, ranges };
+  return { total: parsed.length, memorized, new: parsed.length - memorized, newPerDay: await newPerDay(db, studentId), ranges };
+}
+
+/** How many new ayat the student is offered per day. */
+export async function newPerDay(db: Database, studentId: string): Promise<number> {
+  const [row] = await db.select({ pace: users.newAyatPerDay }).from(users).where(eq(users.id, studentId)).limit(1);
+  return row?.pace ?? DEFAULT_NEW_PER_DAY;
+}
+
+export async function setNewPerDay(db: Database, studentId: string, pace: number): Promise<void> {
+  await db.update(users).set({ newAyatPerDay: pace, updatedAt: new Date() }).where(eq(users.id, studentId));
 }

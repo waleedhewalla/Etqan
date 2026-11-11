@@ -60,7 +60,7 @@ describe.skipIf(!process.env.DATABASE_URL)('memorization plan', () => {
 
   it('starts empty, and a new student has nothing to revise', async () => {
     const plan = await app.inject({ method: 'GET', url: url(), headers: auth('teacher') });
-    expect(plan.json()).toEqual({ total: 0, memorized: 0, new: 0, ranges: [] });
+    expect(plan.json()).toEqual({ total: 0, memorized: 0, new: 0, newPerDay: 10, ranges: [] });
     const queue = await app.inject({ method: 'GET', url: '/v1/scheduler/queue', headers: auth('student') });
     expect(queue.json().totalItems).toBe(0);
   });
@@ -126,21 +126,50 @@ describe.skipIf(!process.env.DATABASE_URL)('memorization plan', () => {
     expect(again.json()).toMatchObject({ added: 0, skipped: 5 });
   });
 
+  it('offers only the day\'s allowance of new ayat, and counts what she already started today', async () => {
+    const pace = (who: string, newPerDay: unknown) =>
+      app.inject({ method: 'PUT', url: `${url()}/pace`, headers: auth(who), payload: { newPerDay } });
+    expect((await pace('student', 2)).statusCode).toBe(404);
+    expect((await pace('teacher', 0)).statusCode).toBe(400);
+    expect((await pace('teacher', 51)).statusCode).toBe(400);
+    expect((await pace('teacher', 2)).json()).toMatchObject({ newPerDay: 2, new: 5 });
+
+    const queue = async () => (await app.inject({ method: 'GET', url: '/v1/scheduler/queue', headers: auth('student') })).json().queue.sabaq;
+    let sabaq = await queue();
+    expect(sabaq).toMatchObject({ count: 2, perDay: 2, learnedToday: 0 });
+    expect(sabaq.items.map((i: { card: { ayahRef: string } }) => i.card.ayahRef)).toEqual(['79:1', '79:2']);
+
+    const rate = (cardId: string) => app.inject({
+      method: 'POST', url: '/v1/scheduler/rate', headers: auth('student'), payload: { cardId, rating: 'good', timeTakenMs: 3000 },
+    });
+    expect((await rate(sabaq.items[0].card.id)).statusCode).toBe(200);
+    sabaq = await queue();
+    expect(sabaq).toMatchObject({ count: 1, learnedToday: 1 });
+    await rate(sabaq.items[0].card.id);
+    expect(await queue()).toMatchObject({ count: 0, learnedToday: 2 });
+
+    // Yesterday's new ayat do not count against today.
+    await getDb().update(studentCards).set({ learnedAt: new Date(Date.now() - 2 * 86_400_000) })
+      .where(and(eq(studentCards.studentId, ids.student), eq(studentCards.ayahRef, '79:1')));
+    expect(await queue()).toMatchObject({ count: 1, learnedToday: 1 });
+    expect((await pace('teacher', 10)).json().newPerDay).toBe(10);
+  });
+
   it('shows separate runs when the ayat are not adjacent', async () => {
     await add('teacher', { startRef: '112:1', endRef: '112:4', status: 'memorized' });
     const plan = (await app.inject({ method: 'GET', url: url(), headers: auth('teacher') })).json();
     expect(plan.ranges.map((r: { startRef: string; endRef: string }) => `${r.startRef}-${r.endRef}`))
-      .toEqual(['78:1-78:40', '79:1-79:5', '112:1-112:4']);
+      .toEqual(['78:1-79:2', '79:3-79:5', '112:1-112:4']);
   });
 
   it('removes only cards that were never reviewed', async () => {
     const del = (payload: object, who = 'teacher') => app.inject({ method: 'DELETE', url: url(), headers: auth(who), payload });
     expect((await del({ startRef: '78:1', endRef: '78:40' }, 'otherTeacher')).statusCode).toBe(404);
     const res = await del({ startRef: '78:1', endRef: '78:40' });
-    expect(res.json()).toMatchObject({ removed: 39, kept: 1, plan: { total: 10 } });
+    expect(res.json()).toMatchObject({ removed: 39, kept: 1 });
     const left = await getDb().select().from(studentCards)
       .where(and(eq(studentCards.studentId, ids.student), eq(studentCards.reps, 1)));
-    expect(left).toHaveLength(1);
-    expect((await del({ startRef: '79:1', endRef: '79:5' })).json()).toMatchObject({ removed: 5, kept: 0 });
+    expect(left.map((c) => c.ayahRef).filter((r) => r.startsWith('78:'))).toHaveLength(1);
+    expect((await del({ startRef: '79:1', endRef: '79:5' })).json()).toMatchObject({ removed: 3, kept: 2 });
   });
 });

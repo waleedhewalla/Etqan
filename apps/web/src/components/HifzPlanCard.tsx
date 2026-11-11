@@ -11,6 +11,7 @@ import { LoadError, Spinner } from '@/components/LoadState';
 
 /** The most ayat the server takes in one step. */
 const MAX_AYAT = 300;
+const MAX_NEW_PER_DAY = 50;
 const field = 'rounded-xl border border-divider bg-surface-elevated px-3 py-2';
 
 /** Where a teacher says what a student has memorized and what she memorizes next. Without it her revision queue is empty. */
@@ -37,6 +38,11 @@ export function HifzPlanCard({ sectionId, studentId }: { sectionId: string; stud
     onSuccess: ({ added, skipped, plan }) => settle(plan, added === 0
       ? 'هذه الآيات موجودة في خطتها من قبل.'
       : `أُضيفت ${ayatCount(added)}${skipped ? `، و${ayatCount(skipped)} كانت موجودة من قبل` : ''}.`),
+  });
+  const [pace, setPace] = useState<number | null>(null);
+  const savePace = useMutation({
+    mutationFn: (n: number) => api.setPlanPace(sectionId, studentId, n).then((r) => r.data),
+    onSuccess: (plan) => { setPace(null); settle(plan, `ستُعرض عليها ${ayatCount(plan.newPerDay)} جديدة في اليوم على الأكثر.`); },
   });
   const remove = useMutation({
     mutationFn: (range: PlanRange) => api.removeFromPlan(sectionId, studentId, { startRef: range.startRef, endRef: range.endRef }).then((r) => r.data),
@@ -121,9 +127,22 @@ export function HifzPlanCard({ sectionId, studentId }: { sectionId: string; stud
             <p className="text-xs text-text-secondary">تُوزَّع الآيات المحفوظة على الأيام القادمة، نحو عشرين آية في اليوم، حتى لا تتراكم كلها في يوم واحد.</p>
           )}
         </form>
+        {plan && (
+          <form className="flex flex-wrap items-end gap-2 border-t border-divider pt-4"
+            onSubmit={(e) => { e.preventDefault(); if (pace !== null && pace >= 1 && pace <= MAX_NEW_PER_DAY) savePace.mutate(pace); }}>
+            <label className="text-sm">
+              <span className="block text-text-secondary mb-1">الحفظ الجديد في اليوم (آيات)</span>
+              <input id="plan-pace" type="number" min={1} max={MAX_NEW_PER_DAY} value={pace ?? plan.newPerDay}
+                onChange={(e) => { setPace(Number(e.target.value)); setNotice(''); }} className={`${field} w-24`} />
+            </label>
+            <Button type="submit" variant="secondary" loading={savePace.isPending}
+              disabled={pace === null || pace === plan.newPerDay || pace < 1 || pace > MAX_NEW_PER_DAY}>حفظ</Button>
+            <p className="basis-full text-xs text-text-secondary">ما زاد على هذا العدد من الآيات الجديدة ينتظر إلى اليوم التالي، بترتيب المصحف.</p>
+          </form>
+        )}
         {notice && <p role="status" className="text-sm text-text-primary">{notice}</p>}
-        {(add.isError || remove.isError) && (
-          <p role="alert" className="text-sm text-red-800">{errorMessage(add.error ?? remove.error, 'تعذّر تحديث الخطة. حاولي مرة أخرى.')}</p>
+        {(add.isError || remove.isError || savePace.isError) && (
+          <p role="alert" className="text-sm text-red-800">{errorMessage(add.error ?? remove.error ?? savePace.error, 'تعذّر تحديث الخطة. حاولي مرة أخرى.')}</p>
         )}
       </CardContent>
     </Card>

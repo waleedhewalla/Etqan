@@ -119,6 +119,8 @@ export const users = pgTable('users', {
   nationalIdHash: varchar('national_id_hash', { length: 128 }),
   avatarUrl: text('avatar_url'),
   active: boolean('active').default(true).notNull(),
+  /** New ayat a student is offered per day; null means the default. Set by her teacher. */
+  newAyatPerDay: integer('new_ayat_per_day'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({
@@ -257,6 +259,8 @@ export const studentCards = pgTable('student_cards', {
   recognitionStability: real('recognition_stability').default(0).notNull(),
   dueAt: timestamp('due_at', { withTimezone: true }),
   lastReviewedAt: timestamp('last_reviewed_at', { withTimezone: true }),
+  /** When a new ayah was first recited; counts against the day's new-memorization allowance. */
+  learnedAt: timestamp('learned_at', { withTimezone: true }),
   reps: integer('reps').default(0).notNull(),
   lapses: integer('lapses').default(0).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

@@ -113,9 +113,11 @@ dashboard, قائمة الطالبات → «الخطة والتقرير» opens
   first morning.
 - **حفظ جديد** queues them as new memorization in the student's daily list.
 - Up to 300 ayat per step; ayat she already has are skipped, never reset.
+- **الحفظ الجديد في اليوم** caps how many new ayat she is offered a day (default 10, 1–50). The rest wait for the
+  next day, in the order the teacher added them and in mushaf order within one addition.
 - The bin removes a range, but only ayat she has never reviewed — her history stays.
 
-API: `GET|POST|DELETE /v1/sections/:id/students/:studentId/plan`, for whoever manages the halaqa.
+API: `GET|POST|DELETE /v1/sections/:id/students/:studentId/plan` and `PUT …/plan/pace`, for whoever manages the halaqa.
 
 ## Badges
 
