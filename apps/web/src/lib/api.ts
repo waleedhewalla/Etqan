@@ -301,6 +301,13 @@ export interface TasmiReviewInput {
   flagDecisions?: Record<string, 'confirmed' | 'dismissed'>;
 }
 
+export interface SetupStaff { id: string; displayNameAr: string; email: string | null; role: string; active: boolean; halaqat: number }
+export interface SetupHalaqa {
+  id: string; nameAr: string; joinCode: string; maxStudents: number; students: number;
+  teacherId: string | null; teacherName: string | null; teacherActive: boolean | null;
+}
+export interface InstitutionSetup { staff: SetupStaff[]; halaqat: SetupHalaqa[] }
+
 export type PlanStatus = 'memorized' | 'new';
 export interface PlanRange { startRef: string; endRef: string; count: number; status: PlanStatus }
 export interface HifzPlan { total: number; memorized: number; new: number; newPerDay: number; ranges: PlanRange[] }
@@ -570,6 +577,26 @@ class ApiClient {
     return this.client.get<AdminOverview>('/admin/overview', { params: { tenantId } });
   }
 
+  getSetup() {
+    return this.client.get<InstitutionSetup>('/admin/setup');
+  }
+
+  addStaff(data: { displayNameAr: string; email: string }) {
+    return this.client.post<SetupStaff & { invitation: 'sent' | 'skipped' | 'failed' }>('/admin/staff', data);
+  }
+
+  editStaff(id: string, data: { displayNameAr?: string; active?: boolean }) {
+    return this.client.patch<SetupStaff>(`/admin/staff/${id}`, data);
+  }
+
+  addHalaqa(data: { nameAr: string; teacherId: string }) {
+    return this.client.post<SetupHalaqa>('/admin/halaqat', data);
+  }
+
+  editHalaqa(id: string, data: { nameAr?: string; teacherId?: string; maxStudents?: number }) {
+    return this.client.patch<SetupHalaqa>(`/admin/halaqat/${id}`, data);
+  }
+
   getPilotReport(tenantId?: string, weeks = 4) {
     return this.client.get<PilotReport>('/admin/pilot', { params: { tenantId, weeks } });
   }
@@ -686,6 +713,7 @@ export const queryKeys = {
   badges: ['badges'] as const,
   adminOverview: (tenantId?: string) => ['admin', 'overview', tenantId ?? 'own'] as const,
   adminTenants: ['admin', 'tenants'] as const,
+  adminSetup: ['admin', 'setup'] as const,
   pilot: (tenantId?: string) => ['admin', 'pilot', tenantId ?? 'own'] as const,
   myClusters: ['mutashabihat', 'mine'] as const,
   clusters: (status: string) => ['mutashabihat', 'clusters', status] as const,

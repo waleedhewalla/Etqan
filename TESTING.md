@@ -180,6 +180,20 @@ and the early-warning list. A superadmin can switch institution; everyone else o
     cannot switch AI checking on and no recording is sent to the checker. The tier table is in `apps/core/src/lib/plan.ts`: change it there.
   There is no payment flow: plans are set directly on the institution (Fawry needs a merchant account and its API documentation).
 
+## Setting up an institution
+
+The first dean is created with the bootstrap command ([DEPLOY.md](docs/DEPLOY.md)). After that she needs no one:
+the admin console (**/admin**) has two cards under the institution's name.
+
+- **المعلمات** — add a teacher by name and email. She signs in from «دخول هيئة التدريس» with a link sent to that
+  email; an invitation is emailed when email sending is configured. «إيقاف الدخول» stops new sign-ins for a teacher
+  (a session she already has ends when it next refreshes); her halaqat stay hers until they are handed over.
+- **الحلقات** — open a halaqa for a teacher, hand an existing one to another teacher, and copy its join code.
+
+For deans, operators and superadmins only (advisors see the console but not these cards), and only for their own
+institution. An email address belongs to one account across all institutions. A dean cannot stop her own access
+or another dean's. API: `GET /v1/admin/setup`, `POST|PATCH /v1/admin/staff`, `POST|PATCH /v1/admin/halaqat`.
+
 ## Pilot metrics
 
 The admin console (**/admin**) shows the pilot's four questions week by week (`GET /v1/admin/pilot?weeks=4`, weeks start on Saturday):
