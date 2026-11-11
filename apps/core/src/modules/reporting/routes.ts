@@ -8,6 +8,7 @@ import {
 } from '../../db/schema';
 import { canViewStudent, loadManagedSection, GUARDIAN_ROLE } from '../../lib/access';
 import { addDays, localDate, startOfLocalDay, weekStart } from '../../lib/dates';
+import { auditLog } from '../audit/service';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const weeklyQuerySchema = z.object({ week: isoDate.optional() });
@@ -171,6 +172,13 @@ export async function reportingRoutes(app: FastifyInstance) {
     }
     const report = await buildWeeklyReport(db, studentId, week ?? localDate());
     if (!report) return request.server.httpErrors.notFound('Student not found');
+    // Recorded so the institution can see whether guardians actually open the report (who and when, not what).
+    if (request.user.role === GUARDIAN_ROLE) {
+      await auditLog({
+        actorId: request.user.sub, actorRole: request.user.role, action: 'report.weekly.view',
+        targetType: 'student', targetId: studentId,
+      });
+    }
     return report;
   });
 

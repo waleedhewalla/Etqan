@@ -171,6 +171,23 @@ export interface AdminOverview {
   atRisk: { high: number; medium: number; students: AtRiskStudent[]; truncated: boolean };
 }
 
+export interface PilotWeek {
+  start: string; end: string;
+  /** The week is still running. */
+  partial: boolean;
+  enrolled: number; active: number;
+  /** Revised on `regularDays` or more days. */
+  regular: number; reviews: number;
+  recitations: { submitted: number; reviewed: number; medianHoursToReview: number | null };
+  guardians: { linked: number; opened: number };
+}
+
+export interface PilotReport {
+  regularDays: number;
+  weeks: PilotWeek[];
+  retention: { cohort: number; retained: number; fromWeek: string; toWeek: string } | null;
+}
+
 export interface BadgeProgress extends EarnedBadge {
   descriptionAr: string;
   category: string;
@@ -533,6 +550,10 @@ class ApiClient {
     return this.client.get<AdminOverview>('/admin/overview', { params: { tenantId } });
   }
 
+  getPilotReport(tenantId?: string, weeks = 4) {
+    return this.client.get<PilotReport>('/admin/pilot', { params: { tenantId, weeks } });
+  }
+
   getAdminTenants() {
     return this.client.get<{ id: string; nameAr: string; slug: string; planTier: string; active: boolean }[]>('/admin/tenants');
   }
@@ -644,6 +665,7 @@ export const queryKeys = {
   badges: ['badges'] as const,
   adminOverview: (tenantId?: string) => ['admin', 'overview', tenantId ?? 'own'] as const,
   adminTenants: ['admin', 'tenants'] as const,
+  pilot: (tenantId?: string) => ['admin', 'pilot', tenantId ?? 'own'] as const,
   myClusters: ['mutashabihat', 'mine'] as const,
   clusters: (status: string) => ['mutashabihat', 'clusters', status] as const,
   pendingTasmi: (sectionId?: string) => ['tasmi', 'pending', sectionId] as const,

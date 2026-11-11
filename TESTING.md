@@ -165,6 +165,13 @@ and the early-warning list. A superadmin can switch institution; everyone else o
     cannot switch AI checking on and no recording is sent to the checker. The tier table is in `apps/core/src/lib/plan.ts`: change it there.
   There is no payment flow: plans are set directly on the institution (Fawry needs a merchant account and its API documentation).
 
+## Pilot metrics
+
+The admin console (**/admin**) shows the pilot's four questions week by week (`GET /v1/admin/pilot?weeks=4`, weeks start on Saturday):
+students revising on 4+ days ("regular") out of those enrolled, recitations reviewed and the median time to review them,
+guardians who opened the weekly report (recorded from now on as a `report.weekly.view` audit entry: who and when, nothing else),
+and how many of the first week's active students are still active in the last. Only students currently in a halaqa are counted.
+
 ## Try the pilot locally
 
 Start the API and the web app in two terminals:
