@@ -194,7 +194,7 @@ function SectionCard({ name, joinCode }: { name: string; joinCode?: string }) {
       <p className="font-medium text-brand-primary">{name}</p>
       {joinCode && (
         <button type="button" onClick={copy} className="flex items-center gap-1.5 text-text-secondary hover:text-brand-primary" title="نسخ كود الانضمام">
-          كود الانضمام: <span className="font-mono font-bold" dir="ltr">{joinCode}</span>
+          رمز الحلقة: <span className="font-mono font-bold" dir="ltr">{joinCode}</span>
           {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-state-positive" /> : <Copy className="w-3.5 h-3.5" />}
         </button>
       )}
@@ -247,7 +247,7 @@ function OverviewTab({ summary, pendingReviews, atRisk, onOpenStudent, onGo }: {
                       <p className="font-medium text-text-primary">{s.displayNameAr}</p>
                       <p className="text-sm text-text-secondary">{riskLabel(s.riskReasons, s)}</p>
                     </div>
-                    <Button size="sm" variant="secondary" onClick={() => onOpenStudent(s.studentId)}>التقرير</Button>
+                    <Button size="sm" variant="secondary" onClick={() => onOpenStudent(s.studentId)}>الخطة والتقرير</Button>
                   </div>
                 ))}
               </div>
@@ -289,9 +289,27 @@ function StudentsTab({ students, onOpen }: { students: StudentSummary[]; onOpen:
       </CardHeader>
       <CardContent>
         {students.length === 0 ? (
-          <p className="text-sm text-text-secondary">لم تنضم أي طالبة بعد. شاركي كود الانضمام الظاهر في القائمة الجانبية.</p>
+          <p className="text-sm text-text-secondary">لم تنضم أي طالبة بعد. أعطي طالباتك رمز الحلقة الظاهر أعلى الصفحة لينضممن به.</p>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-divider">
+          <>
+          <ul className="md:hidden space-y-2" data-testid="student-cards">
+            {filtered.map((s) => (
+              <li key={s.studentId}>
+                <button type="button" onClick={() => onOpen(s.studentId)}
+                  className="w-full text-right rounded-xl border border-divider bg-surface-canvas p-3 hover:border-brand-primary/40">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-text-primary">{s.displayNameAr}</span>
+                    {s.atRisk ? <Badge variant="red" size="sm">بحاجة متابعة</Badge> : <Badge variant="green" size="sm">منتظمة</Badge>}
+                  </span>
+                  <span className="mt-1.5 block text-sm text-text-secondary">
+                    مثبّت {toArabicDigits(s.masteryPercent)}٪ · مستحق {toArabicDigits(s.cardsDue)} · آخر مراجعة: {lastActiveLabel(s)}
+                  </span>
+                  <span className="mt-2 block text-sm font-medium text-brand-primary">الخطة والتقرير ‹</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden md:block overflow-x-auto rounded-xl border border-divider">
             <table className="w-full text-sm">
               <thead className="bg-surface-canvas">
                 <tr>
@@ -320,6 +338,7 @@ function StudentsTab({ students, onOpen }: { students: StudentSummary[]; onOpen:
               </tbody>
             </table>
           </div>
+          </>
         )}
       </CardContent>
     </Card>

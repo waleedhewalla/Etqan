@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { useRequireRole } from '@/lib/auth-context';
 import { api, errorMessage, queryKeys, type BadgeProgress, type EarnedBadge, type QueueItem, type QueueResponse, type Rating } from '@/lib/api';
-import { formatAyahRange, formatAyahRef, toArabicDigits, ayatCount } from '@/lib/quran';
+import { formatAyahRange, formatAyahRef, toArabicDigits, ayatCount, SURAH_NAMES } from '@/lib/quran';
 import { AppShell } from '@/components/AppShell';
 import { EmptyState } from '@/components/EmptyState';
 import { AccountPanel } from '@/components/AccountPanel';
@@ -216,7 +216,7 @@ export default function StudentDashboard() {
               </section>
             )}
 
-            <section className="mb-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <section className="mb-5 grid grid-cols-2 sm:grid-cols-3 gap-3 [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1">
               <ProgressCard
                 label="أيام المراجعة هذا الأسبوع"
                 value={`${toArabicDigits(activeDays)} / ٧`}
@@ -269,10 +269,31 @@ export default function StudentDashboard() {
   );
 }
 
+/** The verse before this one in the same sura, or null for a sura's first verse. */
+function previousRef(ref: string): string | null {
+  const [sura, ayah] = ref.split(':').map(Number);
+  return ayah > 1 ? `${sura}:${ayah - 1}` : null;
+}
+
+/** Verses as readable runs in mushaf order, one entry per sura: "البقرة ١، ٥–٧", "الناس ١–٦". */
+function groupRanges(refs: string[]): string[] {
+  const sorted = refs.map((r) => r.split(':').map(Number) as [number, number]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const bySura = new Map<number, [number, number][]>();
+  for (const [sura, ayah] of sorted) {
+    const runs = bySura.get(sura) ?? [];
+    const last = runs[runs.length - 1];
+    if (last && ayah === last[1] + 1) last[1] = ayah;
+    else runs.push([ayah, ayah]);
+    bySura.set(sura, runs);
+  }
+  return [...bySura].map(([sura, runs]) =>
+    `${SURAH_NAMES[sura - 1] ?? sura} ${runs.map(([from, to]) => (from === to ? toArabicDigits(from) : `${toArabicDigits(from)}–${toArabicDigits(to)}`)).join('، ')}`);
+}
+
 const REASON_LABELS: Record<QueueItem['reason'], string> = {
-  manzil: 'منزل',
-  sabqi: 'سبقي',
-  sabaq: 'سبق جديد',
+  manzil: 'مراجعة متأخرة',
+  sabqi: 'مراجعة اليوم',
+  sabaq: 'حفظ جديد',
 };
 
 const RATINGS: { value: Rating; label: string; hint: string; variant: 'danger' | 'secondary' | 'primary' | 'outline' }[] = [
@@ -369,30 +390,17 @@ function QueueTable({ queue }: { queue: QueueResponse }) {
           {items.length === 0 ? (
             <p className="text-text-secondary text-sm">لا توجد آيات مستحقة الآن.</p>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-divider">
-              <table className="w-full text-sm">
-                <thead className="bg-surface-canvas">
-                  <tr>
-                    {['النوع', 'الآية', 'السبب'].map((h) => (
-                      <th key={h} className="text-right py-2 px-3 font-medium text-text-secondary">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => (
-                    <tr key={item.card.id} className="border-t border-divider">
-                      <td className="py-2 px-3">
-                        <Badge variant={item.reason === 'sabaq' ? 'green' : item.reason === 'manzil' ? 'amber' : 'info'} size="sm">
-                          {REASON_LABELS[item.reason]}
-                        </Badge>
-                      </td>
-                      <td className="py-2 px-3 font-medium text-text-primary">{formatAyahRef(item.card.ayahRef)}</td>
-                      <td className="py-2 px-3 text-text-secondary">{item.rationale}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ul className="divide-y divide-divider text-sm" data-testid="queue-groups">
+              {(['manzil', 'sabqi', 'sabaq'] as const).filter((k) => queue.queue[k].count > 0).map((k) => (
+                <li key={k} className="py-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Badge variant={k === 'sabaq' ? 'green' : k === 'manzil' ? 'amber' : 'info'} size="sm">{REASON_LABELS[k]}</Badge>
+                    <p className="mt-1.5 text-text-primary leading-relaxed">{groupRanges(queue.queue[k].items.map((it) => it.card.ayahRef)).join(' · ')}</p>
+                  </div>
+                  <span className="text-text-secondary whitespace-nowrap">{ayatCount(queue.queue[k].count)}</span>
+                </li>
+              ))}
+            </ul>
           )}
         </CardContent>
       </Card>
@@ -424,7 +432,10 @@ function QueueTable({ queue }: { queue: QueueResponse }) {
 /** Steps through the day's cards; each rating reschedules the card with FSRS. */
 /** Saves the text of today's verses so "show the verse" still works offline. Best effort. */
 async function cacheVerses(store: NonNullable<ReturnType<typeof getOfflineStore>>, queue: QueueResponse) {
-  const refs = [...new Set([queue.queue.manzil, queue.queue.sabqi, queue.queue.sabaq].flatMap((p) => p.items.map((i) => i.card.ayahRef)))];
+  // Each verse and the one before it: the session shows the previous verse as the cue to recite from.
+  const refs = [...new Set([queue.queue.manzil, queue.queue.sabqi, queue.queue.sabaq]
+    .flatMap((p) => p.items.flatMap((i) => [previousRef(i.card.ayahRef), i.card.ayahRef]))
+    .filter((r): r is string => r !== null))];
   for (let i = 0; i < refs.length; i += 60) {
     try { await store.saveAyat((await api.getAyat(refs.slice(i, i + 60))).data.ayat); } catch { return; }
   }
@@ -512,6 +523,9 @@ function ReviewSession({ items, onFinish }: { items: QueueItem[]; onFinish: () =
     );
   }
 
+  const isNew = current.reason === 'sabaq';
+  const cueRef = previousRef(current.card.ayahRef);
+
   return (
     <Card className="mb-5">
       <CardHeader>
@@ -531,15 +545,25 @@ function ReviewSession({ items, onFinish }: { items: QueueItem[]; onFinish: () =
             {REASON_LABELS[current.reason]}
           </Badge>
           <p className="font-heading text-3xl font-bold text-text-primary">{formatAyahRef(current.card.ayahRef)}</p>
-          <p className="text-text-secondary text-sm max-w-md mx-auto">
-            سمّعي الآية من حفظك أولاً، ثم أظهري نصها للتحقق، واختاري كيف كان تسميعك.
-          </p>
-          {showVerse ? (
-            <div className="rounded-xl border border-divider bg-surface-canvas p-4 max-w-2xl mx-auto">
+          {isNew ? (
+            <p className="text-text-secondary text-sm max-w-md mx-auto">آية جديدة: اقرئيها وكرّريها حتى تحفظيها، ثم اختاري كيف صار حفظك لها.</p>
+          ) : (
+            <>
+              <div className="rounded-xl bg-surface-canvas p-3 max-w-2xl mx-auto text-right" data-testid="verse-cue">
+                <p className="text-xs text-text-secondary mb-1">{cueRef ? 'الآية التي قبلها' : 'بداية السورة'}</p>
+                {cueRef
+                  ? <VerseText refs={[cueRef]} size="sm" className="opacity-80" />
+                  : <p className="text-sm text-text-primary">هذه أول آية في السورة.</p>}
+              </div>
+              <p className="text-text-secondary text-sm max-w-md mx-auto">أكملي من حفظك، ثم أظهري الآية للتحقق واختاري كيف كان تسميعك.</p>
+            </>
+          )}
+          {showVerse || isNew ? (
+            <div className="rounded-xl border border-divider bg-surface-elevated p-4 max-w-2xl mx-auto">
               <VerseText refs={[current.card.ayahRef]} />
             </div>
           ) : (
-            <Button variant="outline" size="sm" onClick={() => setShowVerse(true)}>أظهري الآية للتحقق</Button>
+            <Button variant="outline" onClick={() => setShowVerse(true)}>أظهري الآية للتحقق</Button>
           )}
         </div>
 

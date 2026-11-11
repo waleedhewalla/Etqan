@@ -12,7 +12,7 @@ const MARK_CLOSE = '\u{FD3E}';
 type Source = { refs: string[] } | { start: string; end: string };
 
 /** Verse text in Uthmani script, with a numbered end-of-ayah marker after each verse. */
-export function VerseText(props: Source & { className?: string }) {
+export function VerseText(props: Source & { className?: string; /** `sm` for a verse shown as context, not as the one being read. */ size?: 'sm' }) {
   const key = 'refs' in props ? props.refs.join(',') : `${props.start}-${props.end}`;
   const query = useQuery({
     queryKey: queryKeys.ayat(key),
@@ -40,11 +40,11 @@ export function VerseText(props: Source & { className?: string }) {
   return (
     <div className={props.className}>
       {ayat.length > 0 && (
-        <p lang="ar" dir="rtl" className="font-quran text-mushaf text-text-primary">
+        <p lang="ar" dir="rtl" className={`font-quran text-text-primary ${props.size === 'sm' ? 'text-xl leading-loose' : 'text-mushaf'}`}>
           {ayat.map((a) => (
             <span key={a.ref}>
               {a.textUthmani}{' '}
-              <span className="text-brand-accent text-xl" aria-label={`آية ${a.ayah}`}>
+              <span className={`text-brand-accent ${props.size === 'sm' ? 'text-base' : 'text-xl'}`} aria-label={`آية ${a.ayah}`}>
                 {MARK_OPEN}{toArabicDigits(a.ayah)}{MARK_CLOSE}
               </span>{' '}
             </span>

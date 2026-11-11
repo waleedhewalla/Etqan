@@ -368,7 +368,7 @@ export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاول�
   if (e?.response?.status === 415) return 'تعذّر قبول هذا التسجيل. جرّبي متصفحاً آخر.';
   if (code === 'PLAN_LIMIT_REACHED') return 'بلغت المؤسسة حدّ ترخيصها (الطالبات أو الحلقات) أو انتهى ترخيصها. تواصلي مع إدارة المؤسسة.';
   if (code === 'PLAN_FEATURE_NOT_INCLUDED') return 'هذه الميزة غير مشمولة في ترخيص مؤسستكم.';
-  if (code === 'ACCOUNT_NOT_FOUND') return 'لا يوجد حساب بهذا الرقم. اطلبي كود الشعبة من معلمتك.';
+  if (code === 'ACCOUNT_NOT_FOUND') return 'لا يوجد حساب بهذا الرقم. اطلبي رمز الحلقة من معلمتك.';
   if (e?.response?.status === 429) return 'محاولات كثيرة. انتظري قليلاً ثم حاولي مرة أخرى.';
   if (!e?.response) return 'تعذّر الاتصال بالخادم. تحققي من الإنترنت.';
   return fallback;
