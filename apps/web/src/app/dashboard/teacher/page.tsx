@@ -5,13 +5,11 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Input } from '@itqan/ui';
 import {
-  Users, AlertCircle, TrendingUp, BookOpen, Trophy, LifeBuoy, UserRound, Mic, CheckCircle2,
+  Users, AlertCircle, TrendingUp, BookOpen, UserRound, Mic, CheckCircle2,
   CalendarCheck, Copy, UserPlus, X, Target,
 } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
-import { HelpTickets } from '@/components/HelpTickets';
 import { AccountPanel } from '@/components/AccountPanel';
-import { PreviewNotice } from '@/components/PreviewNotice';
 import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 import { WeeklyReportView } from '@/components/WeeklyReportView';
 import { VerseText } from '@/components/VerseText';
@@ -26,7 +24,7 @@ import {
 } from '@/lib/api';
 import { formatAyahRange, toArabicDigits } from '@/lib/quran';
 
-type TeacherTab = 'overview' | 'students' | 'attendance' | 'speedgrader' | 'mutashabihat' | 'cases' | 'assessments' | 'reports' | 'account' | 'help';
+type TeacherTab = 'overview' | 'students' | 'attendance' | 'speedgrader' | 'mutashabihat' | 'cases' | 'account';
 
 const TEACHER_ROLES = ['lecturer', 'muhaffiza', 'sheikh_reviewer', 'advisor', 'dean', 'operator', 'superadmin'] as const;
 
@@ -85,10 +83,7 @@ export default function TeacherDashboard() {
     { id: 'speedgrader', label: 'التسميع والتقييم', icon: Mic },
     { id: 'mutashabihat', label: 'المتشابهات', icon: Target },
     { id: 'cases', label: 'بحاجة متابعة', icon: AlertCircle },
-    { id: 'assessments', label: 'التقييمات', icon: BookOpen },
-    { id: 'reports', label: 'تقارير الجودة', icon: Trophy },
     { id: 'account', label: 'حسابي', icon: UserRound },
-    { id: 'help', label: 'الدعم الفني', icon: LifeBuoy },
   ];
 
   const students = studentsQuery.data?.students ?? [];
@@ -135,23 +130,8 @@ export default function TeacherDashboard() {
         return <MutashabihatAuthoring role={user?.role ?? ''} />;
       case 'cases':
         return <CasesTab students={students.filter((s) => s.atRisk)} onOpen={(id) => { setOpenStudent(id); setActiveTab('students'); }} />;
-      case 'assessments':
-        return (
-          <>
-            <PreviewNotice>جدولة التقييمات تصل في مرحلة قادمة.</PreviewNotice>
-            <Card><CardContent className="py-8 text-center text-text-secondary">لا توجد تقييمات مجدولة.</CardContent></Card>
-          </>
-        );
-      case 'reports':
-        return (
-          <>
-            <PreviewNotice>تقارير الجودة على مستوى الكلية تصل في مرحلة قادمة. التقرير الأسبوعي لكل طالبة متاح من «قائمة الطالبات».</PreviewNotice>
-          </>
-        );
       case 'account':
         return <AccountPanel />;
-      case 'help':
-        return <HelpTickets />;
     }
   };
 

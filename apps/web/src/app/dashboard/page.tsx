@@ -13,8 +13,6 @@ import {
   Flame,
   BarChart3,
   UserRound,
-  LifeBuoy,
-  GraduationCap,
   Lock,
   Shield,
   CheckCircle2,
@@ -27,12 +25,8 @@ import { api, errorMessage, queryKeys, type BadgeProgress, type EarnedBadge, typ
 import { formatAyahRange, formatAyahRef, toArabicDigits } from '@/lib/quran';
 import { AppShell } from '@/components/AppShell';
 import { EmptyState } from '@/components/EmptyState';
-import { HelpTickets } from '@/components/HelpTickets';
 import { AccountPanel } from '@/components/AccountPanel';
-import { CurriculumTracks } from '@/components/CurriculumTracks';
-import { SessionTypePicker } from '@/components/SessionTypePicker';
 import { IconTile } from '@/components/IconTile';
-import { PreviewNotice } from '@/components/PreviewNotice';
 import { MushafReader } from '@/components/MushafReader';
 import { VerseText } from '@/components/VerseText';
 import { ReciteTab } from '@/components/ReciteTab';
@@ -48,10 +42,8 @@ type StudentTab =
   | 'mushaf'
   | 'recite'
   | 'mutashabihat'
-  | 'curriculum'
   | 'account'
-  | 'stats'
-  | 'help';
+  | 'stats';
 
 export default function StudentDashboard() {
   const { user, ready } = useRequireRole(['student', 'alumna']);
@@ -109,10 +101,8 @@ export default function StudentDashboard() {
     { id: 'recite', label: 'التسميع', icon: Mic },
     { id: 'mutashabihat', label: 'المتشابهات', icon: Target },
     { id: 'progress', label: 'خطتي والكفايات', icon: TrendingUp },
-    { id: 'curriculum', label: 'المناهج التعليمية', icon: GraduationCap },
     { id: 'stats', label: 'الاحصائيات', icon: BarChart3 },
     { id: 'account', label: 'حسابي', icon: UserRound },
-    { id: 'help', label: 'الدعم الفني', icon: LifeBuoy },
   ];
 
   const stats = statsQuery.data;
@@ -252,16 +242,10 @@ export default function StudentDashboard() {
         )
       )}
 
-      {activeTab === 'mushaf' && <MushafTab onReview={() => { setActiveTab('today'); setReviewing(true); }} />}
+      {activeTab === 'mushaf' && <MushafTab />}
       {activeTab === 'recite' && <ReciteTab />}
       {activeTab === 'mutashabihat' && <MutashabihatTrainer />}
       {activeTab === 'progress' && <ProgressTab />}
-      {activeTab === 'curriculum' && (
-        <>
-          <PreviewNotice />
-          <CurriculumTracks onOpenMushaf={() => setActiveTab('mushaf')} />
-        </>
-      )}
       {activeTab === 'account' && <AccountPanel />}
       {activeTab === 'stats' && (
         statsQuery.isLoading ? <Spinner /> : !stats || stats.total === 0 ? (
@@ -281,7 +265,6 @@ export default function StudentDashboard() {
           </div>
         )
       )}
-      {activeTab === 'help' && <HelpTickets />}
     </AppShell>
   );
 }
@@ -611,13 +594,8 @@ function ProgressCard({ label, value, icon, trend, variant }: {
   );
 }
 
-function MushafTab({ onReview }: { onReview?: () => void }) {
-  return (
-    <div className="space-y-4">
-      <SessionTypePicker onNew={() => undefined} onReview={onReview} />
-      <MushafReader />
-    </div>
-  );
+function MushafTab() {
+  return <MushafReader />;
 }
 
 function ProgressTab() {
@@ -628,32 +606,6 @@ function ProgressTab() {
 
   return (
     <div className="space-y-4">
-      <PreviewNotice>خريطة الإتقان أدناه مثال توضيحي؛ تُفعَّل في مرحلة قادمة. أما الأوسمة فحقيقية.</PreviewNotice>
-      <Card>
-        <CardHeader>
-          <CardTitle>خريطة الحرارة - الإتقان حسب الجزء</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-15 gap-1 max-w-full overflow-x-auto pb-4">
-            {Array.from({ length: 30 }).map((_, i) => (
-              <div key={i} className="w-8 h-8 rounded flex items-center justify-center text-xs font-medium select-none"
-                style={{
-                  backgroundColor: i % 7 === 0 ? '#1B4332' : i % 3 === 0 ? '#86A380' : '#E8E4DA',
-                  color: i % 7 === 0 ? 'white' : 'inherit',
-                }}
-              >
-                {i + 1}
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center justify-center gap-4 mt-4 text-sm text-text-secondary">
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{background:'#E8E4DA'}}></span> لم يبدأ</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{background:'#86A380'}}></span> قيد التقدم</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{background:'#1B4332'}}></span> مُتقن</span>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Gamification Badges */}
       <Card>
         <CardHeader>

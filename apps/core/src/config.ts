@@ -27,7 +27,9 @@ const envSchema = z.object({
   MINIO_USE_SSL: z.preprocess((v) => v === 'true' || v === '1', z.boolean()).default(false),
   MINIO_REGION: z.string().default('us-east-1'),
   // 'memory' keeps recordings in process memory (tests, quick local runs); anything else uses MinIO/S3.
-  STORAGE_DRIVER: z.enum(['s3', 'memory']).default('s3'),
+  STORAGE_DRIVER: z.enum(['file', 's3', 'memory']).default('file'),
+  // Where the 'file' driver keeps recordings (a mounted volume in the container).
+  AUDIO_DIR: z.string().default('./data/audio'),
 
   // JWT
   JWT_SECRET: z.string().min(32).default('dev-secret-change-me-in-production-32chars'),
@@ -108,7 +110,7 @@ export function productionProblems(c: Pick<Config, 'NODE_ENV' | 'JWT_SECRET' | '
   if (c.NODE_ENV !== 'production') return [];
   const problems: string[] = [];
   if (c.JWT_SECRET === DEV_JWT_SECRET) problems.push('JWT_SECRET is the public development default: anyone could forge login tokens. Set a long random value.');
-  if (c.STORAGE_DRIVER === 'memory') problems.push('STORAGE_DRIVER=memory loses every recording when the API restarts. Use s3.');
+  if (c.STORAGE_DRIVER === 'memory') problems.push('STORAGE_DRIVER=memory loses every recording when the API restarts. Use file (a volume) or s3.');
   if (c.STORAGE_DRIVER === 's3' && (c.MINIO_ACCESS_KEY === 'minioadmin' || c.MINIO_SECRET_KEY === 'minioadmin')) {
     problems.push('MINIO_ACCESS_KEY / MINIO_SECRET_KEY are the public MinIO defaults. Set your own.');
   }

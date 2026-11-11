@@ -30,6 +30,11 @@ describe('productionProblems', () => {
     expect(productionProblems({ ...good, STORAGE_DRIVER: 'memory', MINIO_SECRET_KEY: 'minioadmin' })).toHaveLength(1);
   });
 
+  it('accepts the file driver without S3 keys, and checks the keys only for s3', () => {
+    expect(productionProblems({ ...good, STORAGE_DRIVER: 'file', MINIO_ACCESS_KEY: 'minioadmin', MINIO_SECRET_KEY: 'minioadmin' })).toEqual([]);
+    expect(productionProblems({ ...good, STORAGE_DRIVER: 's3', MINIO_ACCESS_KEY: 'minioadmin' })).toHaveLength(1);
+  });
+
   it('refuses the development database password', () => {
     expect(productionProblems({ ...good, DATABASE_URL: 'postgresql://itqan:itqan_dev_password@db:5432/itqan' })[0]).toMatch(/DATABASE_URL/);
   });

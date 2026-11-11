@@ -39,26 +39,11 @@ export function AccountPanel() {
                 </p>
               </div>
             </div>
-            <Button variant="primary" size="sm" disabled>
-              تعديل
-            </Button>
           </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="text-sm text-text-secondary">
-            <p className="font-medium text-text-primary">مصر</p>
-            <p>Egypt</p>
-            <p>Africa / Cairo</p>
-          </div>
-          <Button variant="primary" size="sm" disabled>
-            تعديل
-          </Button>
         </CardContent>
       </Card>
       <div>
-        <p className="text-sm text-text-muted mb-2 text-left md:text-right">التعديل على حسابي</p>
+        <p className="text-sm text-text-muted mb-2 text-left md:text-right">بيانات حسابي</p>
         <Card>
           <CardContent className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-3">
@@ -77,6 +62,9 @@ export function AccountPanel() {
                 تسجيل الخروج
               </Button>
             </div>
+            <p className="text-sm text-text-secondary">
+              لتعديل بياناتك أو لأي مساعدة راسلينا على <a className="text-brand-primary underline" href="mailto:support@itqan.link">support@itqan.link</a>.
+            </p>
           </CardContent>
         </Card>
       </div>

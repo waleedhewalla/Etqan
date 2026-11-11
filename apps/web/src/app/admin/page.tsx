@@ -10,6 +10,7 @@ import { api, queryKeys, type AtRiskStudent } from '@/lib/api';
 import { toArabicDigits } from '@/lib/quran';
 import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 import { EmptyState } from '@/components/EmptyState';
+import { PilotMetrics } from '@/components/PilotMetrics';
 
 const ADMIN_ROLES = ['dean', 'advisor', 'operator', 'superadmin'] as const;
 
@@ -165,6 +166,8 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            <PilotMetrics tenantId={tenantId} />
 
             <Card>
               <CardHeader><CardTitle className="flex items-center gap-2"><Mic className="w-5 h-5 text-brand-primary" />الفحص الآلي للتسميع</CardTitle></CardHeader>

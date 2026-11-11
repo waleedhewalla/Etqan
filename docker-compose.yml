@@ -38,31 +38,9 @@ services:
     networks:
       - itqan-network
 
-  # MinIO for S3-compatible object storage (audio files)
-  minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    container_name: itqan-minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-itqan_admin}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-itqan_secret_key}
-    volumes:
-      - minio_data:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-    networks:
-      - itqan-network
-
 volumes:
   postgres_data:
   redis_data:
-  minio_data:
 
 networks:
   itqan-network:

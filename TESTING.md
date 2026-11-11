@@ -4,14 +4,14 @@
 
 - Node.js 20+
 - pnpm 9 (`corepack enable`)
-- Docker (for Postgres, Redis and MinIO)
+- Docker (for Postgres and Redis)
 
 ## Setup
 
 ```bash
 pnpm install
 cp .env.example .env        # then fill in real values; .env is git-ignored
-docker compose up -d        # postgres, redis, minio
+docker compose up -d        # postgres, redis
 pnpm db:migrate
 pnpm --filter @itqan/core db:seed   # demo pilot halaqa (safe to re-run)
 ```
@@ -39,9 +39,9 @@ content before a public launch.
 
 Students record from the **التسميع** tab; the teacher listens in **التسميع والتقييم**.
 
-- Recordings are stored in MinIO (`docker compose up -d minio`) and are only reachable through the API,
-  which checks who may listen and hands out five-minute links. For a quick trial without MinIO set
-  `STORAGE_DRIVER=memory` (recordings vanish when the API restarts).
+- Recordings are stored as private files under `AUDIO_DIR` (`STORAGE_DRIVER=file`, the default; nothing extra to run) and are only
+  reachable through the API, which checks who may listen and hands out five-minute links. `STORAGE_DRIVER=s3` uses a managed
+  S3-compatible bucket instead; `memory` keeps them in the API process only (lost on restart, refused in production).
 - A student must first agree to voice recording (a prompt appears on the tab; the join flow also asks).
 - The browser only allows the microphone on **HTTPS or `localhost`**. A production deployment needs HTTPS.
 - Automated browser runs can use Chromium's fake microphone:
@@ -164,6 +164,13 @@ and the early-warning list. A superadmin can switch institution; everyone else o
     `madrasa_basic` do not, `plan_features` can add `ai_checking` to any institution, and an expired plan includes nothing. Without it the institution
     cannot switch AI checking on and no recording is sent to the checker. The tier table is in `apps/core/src/lib/plan.ts`: change it there.
   There is no payment flow: plans are set directly on the institution (Fawry needs a merchant account and its API documentation).
+
+## Pilot metrics
+
+The admin console (**/admin**) shows the pilot's four questions week by week (`GET /v1/admin/pilot?weeks=4`, weeks start on Saturday):
+students revising on 4+ days ("regular") out of those enrolled, recitations reviewed and the median time to review them,
+guardians who opened the weekly report (recorded from now on as a `report.weekly.view` audit entry: who and when, nothing else),
+and how many of the first week's active students are still active in the last. Only students currently in a halaqa are counted.
 
 ## Try the pilot locally
 

@@ -37,6 +37,9 @@ FROM node:${NODE_VERSION}-slim AS api
 ENV NODE_ENV=production PORT=4000
 WORKDIR /app
 COPY --from=api-build --chown=node:node /out/api ./
+# Where recordings are kept. Created here, owned by the non-root user, so a volume mounted on it is writable.
+RUN mkdir -p /data/audio && chown -R node:node /data
+VOLUME /data/audio
 USER node
 EXPOSE 4000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \

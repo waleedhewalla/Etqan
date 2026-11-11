@@ -51,37 +51,37 @@ const features = [
   {
     icon: BookOpen,
     title: 'المصحف التفاعلي',
-    description: 'خط عثماني حفص مع وضع الاستذكار النشط والتلاوة العمياء',
+    description: 'خط عثماني برواية حفص، مع إظهار الآية للتحقق بعد التسميع من الحفظ',
     gradient: 'from-emerald-500/10 to-teal-500/10',
   },
   {
     icon: Mic,
-    title: 'تسميع ذكي',
-    description: 'تسجيل صوتي مع تحليل فوري للأخطاء الخفية والجلية',
+    title: 'تسميع مسجَّل',
+    description: 'سجّلي تلاوتكِ لتستمع إليها معلمتكِ وتقيّمها وتكتب لكِ ملاحظاتها',
     gradient: 'from-amber-500/10 to-orange-500/10',
   },
   {
     icon: BarChart3,
-    title: 'متابعة بأربعة أبعاد',
-    description: 'إتقان صوتي، دلالي، موضعي، واستقرار — رؤية شاملة لتقدمك',
+    title: 'مراجعة متباعدة',
+    description: 'ورد يومي يُجدول تلقائياً: الجديد والقريب والبعيد، مع سلسلة أيام وأوسمة',
     gradient: 'from-blue-500/10 to-indigo-500/10',
   },
   {
     icon: Users,
     title: 'متابعة المعلمة',
-    description: 'طابور تسميع، ملاحظات منظمة، تدخلات موجهة، وتقارير أسبوعية',
+    description: 'طابور تسميع، حضور، تنبيه مبكر لمن تحتاج متابعة، وتقرير أسبوعي لولي الأمر',
     gradient: 'from-purple-500/10 to-pink-500/10',
   },
   {
     icon: Shield,
-    title: 'حوكمة علمية صارمة',
-    description: 'محتوى معتمد من شيخ مراجع — لا محتوى مولد بالذكاء الاصطناعي',
+    title: 'القرار للمعلمة',
+    description: 'لا درجة آلية: التقييم للمعلمة وحدها، والمتشابهات تعتمدها معلمة مراجِعة',
     gradient: 'from-emerald-500/10 to-green-500/10',
   },
   {
     icon: Award,
-    title: 'شهادات معتمدة',
-    description: 'شهادات إتمام قابلة للتحقق ومعتمدة من المؤسسة',
+    title: 'المتشابهات',
+    description: 'مقارنة الآيات المتشابهة مع إبراز موضع الفرق، وتمارين قصيرة للتمييز بينها',
     gradient: 'from-amber-500/10 to-yellow-500/10',
   },
 ];
@@ -89,15 +89,15 @@ const features = [
 const stats = [
   { value: '٦٢٣٦', label: 'آية قرآنية', icon: BookOpen },
   { value: '١١٤', label: 'سورة كريمة', icon: Star },
-  { value: '٤', label: 'أبعاد إتقان', icon: Sparkles },
-  { value: '١٢', label: 'دورًا في المنصة', icon: GraduationCap },
+  { value: '٢٠', label: 'وساماً للإنجاز', icon: Sparkles },
+  { value: '٣', label: 'واجهات: طالبة ومعلمة وولي أمر', icon: GraduationCap },
 ];
 
 const steps = [
   { num: '١', title: 'انضمي بدعوة', desc: 'أدخلي كود الشعبة من معلمتك ورقم الواتساب', icon: Users },
   { num: '٢', title: 'ابدئي خطة اليوم', desc: 'جديد، ترسيخ، ومراجعة طويلة المدى — مخصصة لك', icon: BookOpen },
-  { num: '٣', title: 'تسميع ومتابعة', desc: 'سجّلي تلاوتك واحصلي على تغذية راجعة فورية', icon: Mic },
-  { num: '٤', title: 'تقدّمي بثقة', desc: 'شهادات معتمدة وتقارير جاهزة عند الإتمام', icon: Award },
+  { num: '٣', title: 'تسميع ومتابعة', desc: 'سجّلي تلاوتك وتصلك ملاحظات معلمتك وتقييمها', icon: Mic },
+  { num: '٤', title: 'تقدّمي بثقة', desc: 'أوسمة للإنجاز وتقرير أسبوعي يصل ولي أمرك', icon: Award },
 ];
 
 const trustBadges = [
@@ -216,7 +216,7 @@ export default function LandingPage() {
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <CheckCircle className="w-4 h-4 text-brand-accent/70" />
-                    تعمل دون إنترنت
+                    المراجعة تعمل دون إنترنت
                   </span>
                 </div>
               </div>
@@ -403,9 +403,9 @@ export default function LandingPage() {
                   <div className="space-y-3">
                     {[
                       { title: 'خطة يومية واضحة', desc: '"اليوم: ٣ آيات جديدة + ١٢ مراجعة"' },
-                      { title: 'استذكار نشط', desc: 'إخفاء أواخر الآيات للتسميع الذاتي' },
-                      { title: 'تغذية راجعة فورية', desc: 'علامات على الأخطاء مع تلاوة مرجعية' },
-                      { title: 'تعافٍ رحيم', desc: '"فاتتك جلسة؟ استأنفي بخطة ٧ دقائق"' },
+                      { title: 'استذكار نشط', desc: 'سمّعي من حفظك ثم أظهري الآية للتحقق' },
+                      { title: 'ملاحظات معلمتك', desc: 'تقييمها وملاحظاتها على كل تسميع' },
+                      { title: 'تعافٍ رحيم', desc: 'يوم سماح يحفظ سلسلتك إن فاتك يوم' },
                     ].map((item) => (
                       <div key={item.title} className="flex items-start gap-3">
                         <div className="w-6 h-6 rounded-full bg-state-positive/10 flex items-center justify-center shrink-0 mt-0.5">
@@ -431,10 +431,10 @@ export default function LandingPage() {
                   </div>
                   <div className="space-y-3">
                     {[
-                      { title: 'لوحة صحة الشعبة', desc: 'توزيع ARI، أول ٥ حالات، متشابهات ضعيفة' },
-                      { title: 'تفتيش طالبة', desc: 'إتقان ٤ أبعاد، تاريخ طلاقة، حالات' },
-                      { title: 'تدخل بنقرة', desc: 'قوالب رسائل معدة، حجز موعد، إحالة' },
-                      { title: 'تقارير جاهزة', desc: 'PDF للاجتماعات، مقارنة مع شعبة ضابطة' },
+                      { title: 'لوحة الحلقة', desc: 'نشاط اليوم، متوسط الإتقان، ومن تحتاج متابعة' },
+                      { title: 'ملف الطالبة', desc: 'تقدّمها، حضورها، وتقريرها الأسبوعي' },
+                      { title: 'الحضور وولي الأمر', desc: 'تسجيل الحضور وإشعار واتساب عند الغياب' },
+                      { title: 'مراجعة التسميع', desc: 'استماع، تقييم بثلاثة محاور، وملاحظات للطالبة' },
                     ].map((item) => (
                       <div key={item.title} className="flex items-start gap-3">
                         <div className="w-6 h-6 rounded-full bg-brand-accent/10 flex items-center justify-center shrink-0 mt-0.5">
@@ -506,55 +506,18 @@ export default function LandingPage() {
                 <div className="grid sm:grid-cols-3 gap-4 text-center">
                   <div className="p-4">
                     <div className="font-heading text-lg font-bold text-state-positive mb-1">خطة مخصصة</div>
-                    <p className="text-sm text-text-secondary">متابعة إتقان بأربعة أبعاد</p>
+                    <p className="text-sm text-text-secondary">ورد يومي يُجدول لكل طالبة</p>
                   </div>
                   <div className="p-4">
-                    <div className="font-heading text-lg font-bold text-state-positive mb-1">تغذية فورية</div>
-                    <p className="text-sm text-text-secondary">تلاوة مرجعية على الأخطاء</p>
+                    <div className="font-heading text-lg font-bold text-state-positive mb-1">متابعة المعلمة</div>
+                    <p className="text-sm text-text-secondary">ملاحظات المعلمة على كل تسميع</p>
                   </div>
                   <div className="p-4">
                     <div className="font-heading text-lg font-bold text-state-positive mb-1">تعافٍ رحيم</div>
-                    <p className="text-sm text-text-secondary">بدون سلسلة مكسورة</p>
+                    <p className="text-sm text-text-secondary">أيام سماح تحفظ السلسلة</p>
                   </div>
                 </div>
               </div>
-            </RevealSection>
-          </div>
-        </section>
-
-        {/* ===== TESTIMONIALS ===== */}
-        <section className="py-10 md:py-14 bg-brand-primary relative overflow-hidden">
-          <GeometricPattern className="absolute top-0 right-0 w-40 h-40 text-brand-accent opacity-[0.05]" />
-          <div className="container-main relative z-10">
-            <RevealSection>
-              <h2 className="font-heading text-3xl font-bold text-center text-white mb-6">آراء من داخل المسار</h2>
-              <div className="grid md:grid-cols-2 gap-4 mb-6">
-                <blockquote className="glass-card rounded-2xl p-5">
-                  <p className="font-heading text-lg text-white mb-3 leading-relaxed">
-                    &quot;لأول مرة أحس إن عندي خطة واضحة كل يوم — ٣ آيات جديدة و١٢ مراجعة، ومش محتاجة أفكر في إيه اللي بعد كده.&quot;
-                  </p>
-                  <footer className="text-brand-accent text-sm flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-brand-accent/20 flex items-center justify-center">
-                      <GraduationCap className="w-4 h-4" />
-                    </div>
-                    طالبة في الفرقة الثانية
-                  </footer>
-                </blockquote>
-                <blockquote className="glass-card rounded-2xl p-5">
-                  <p className="font-heading text-lg text-white mb-3 leading-relaxed">
-                    &quot;لوحة الشعبة وفّرت عليّا ساعات — بشوف أول ٥ حالات محتاجة تدخل ومش محتاجة أقلب كشوف.&quot;
-                  </p>
-                  <footer className="text-brand-accent text-sm flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-brand-accent/20 flex items-center justify-center">
-                      <Users className="w-4 h-4" />
-                    </div>
-                    محفّظة — هيئة تدريس
-                  </footer>
-                </blockquote>
-              </div>
-            </RevealSection>
-            <RevealSection>
-              <FeedbackForm />
             </RevealSection>
           </div>
         </section>
