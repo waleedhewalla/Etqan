@@ -296,11 +296,12 @@ const REASON_LABELS: Record<QueueItem['reason'], string> = {
   sabaq: 'حفظ جديد',
 };
 
-const RATINGS: { value: Rating; label: string; hint: string; variant: 'danger' | 'secondary' | 'primary' | 'outline' }[] = [
-  { value: 'again', label: 'نسيتُها', hint: 'تعود قريباً', variant: 'danger' },
-  { value: 'hard', label: 'بصعوبة', hint: 'فترة أقصر', variant: 'secondary' },
-  { value: 'good', label: 'جيدة', hint: 'الموعد المعتاد', variant: 'primary' },
-  { value: 'easy', label: 'متقنة', hint: 'فترة أطول', variant: 'outline' },
+/** One scale from "forgot" to "mastered": outlined in the colour of the outcome, with the usual answer filled. */
+const RATINGS: { value: Rating; label: string; hint: string; className: string }[] = [
+  { value: 'again', label: 'نسيتُها', hint: 'تعود قريباً', className: 'border-2 border-state-danger text-state-danger bg-transparent hover:bg-state-danger/5' },
+  { value: 'hard', label: 'بصعوبة', hint: 'فترة أقصر', className: 'border-2 border-state-attention text-amber-900 bg-transparent hover:bg-state-attention/5' },
+  { value: 'good', label: 'جيدة', hint: 'الموعد المعتاد', className: 'border-2 border-brand-primary bg-brand-primary text-white hover:bg-brand-primary/90' },
+  { value: 'easy', label: 'متقنة', hint: 'فترة أطول', className: 'border-2 border-brand-primary text-brand-primary bg-transparent hover:bg-brand-primary/5' },
 ];
 
 /** Overdue (manzil) first, then today's revision (sabqi), then new memorization (sabaq). */
@@ -576,7 +577,7 @@ function ReviewSession({ items, onFinish }: { items: QueueItem[]; onFinish: () =
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {RATINGS.map((r) => (
-            <Button key={r.value} variant={r.variant} disabled={saving} onClick={() => rate(r.value)} className="flex-col h-auto py-3">
+            <Button key={r.value} variant="ghost" disabled={saving} onClick={() => rate(r.value)} className={`flex-col h-auto py-3 ${r.className}`}>
               <span className="font-bold">{r.label}</span>
               <span className="text-xs opacity-80">{r.hint}</span>
             </Button>

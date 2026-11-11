@@ -29,7 +29,28 @@ export function PilotMetrics({ tenantId }: { tenantId?: string }) {
       <CardContent>
         {q.isLoading ? <Spinner /> : q.isError || !q.data ? <LoadError onRetry={() => q.refetch()} /> : (
           <>
-            <div className="overflow-x-auto">
+            {/* On a phone: one card per week, newest first, instead of a table that scrolls sideways. */}
+            <ul className="md:hidden space-y-3" data-testid="pilot-cards">
+              {[...q.data.weeks].reverse().map((w: PilotWeek) => (
+                <li key={w.start} className="rounded-xl border border-divider bg-surface-canvas p-3 text-sm">
+                  <p className="font-medium text-text-primary">
+                    {day(w.start)} – {day(w.end)}{w.partial && <span className="text-xs text-state-attention"> (جارٍ)</span>}
+                  </p>
+                  <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 tabular-nums">
+                    <dt className="text-text-secondary">منتظمات</dt>
+                    <dd><b>{share(w.regular, w.enrolled)}</b> ({toArabicDigits(w.regular)}/{toArabicDigits(w.enrolled)})</dd>
+                    <dt className="text-text-secondary">نشيطات</dt><dd>{toArabicDigits(w.active)}</dd>
+                    <dt className="text-text-secondary">المراجعات</dt><dd>{toArabicDigits(w.reviews)}</dd>
+                    <dt className="text-text-secondary">تسميعات روجعت</dt>
+                    <dd>{toArabicDigits(w.recitations.reviewed)}/{toArabicDigits(w.recitations.submitted)}</dd>
+                    <dt className="text-text-secondary">وسيط زمن المراجعة</dt><dd>{hours(w.recitations.medianHoursToReview)}</dd>
+                    <dt className="text-text-secondary">أولياء فتحوا التقرير</dt>
+                    <dd>{toArabicDigits(w.guardians.opened)}/{toArabicDigits(w.guardians.linked)}</dd>
+                  </dl>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm" data-testid="pilot-table">
                 <thead>
                   <tr className="text-text-secondary text-right border-b border-divider">
