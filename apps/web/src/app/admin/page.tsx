@@ -11,6 +11,9 @@ import { toArabicDigits } from '@/lib/quran';
 import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 import { EmptyState } from '@/components/EmptyState';
 import { PilotMetrics } from '@/components/PilotMetrics';
+import { InstitutionSetup } from '@/components/InstitutionSetup';
+
+const SETUP_ROLES = ['dean', 'operator', 'superadmin'];
 
 const ADMIN_ROLES = ['dean', 'advisor', 'operator', 'superadmin'] as const;
 
@@ -85,6 +88,8 @@ export default function AdminDashboard() {
               </div>
               <Badge variant={data.institution.active ? 'green' : 'gold'} size="sm">{data.institution.active ? 'مفعّلة' : 'متوقفة'}</Badge>
             </section>
+
+            {user && SETUP_ROLES.includes(user.role) && (!tenantId || tenantId === user.tenantId) && <InstitutionSetup />}
 
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" aria-label="مؤشرات">
               <Stat icon={<Users className="w-5 h-5" />} label="الطالبات في الحلقات" value={toArabicDigits(data.usage.students)} note={`في ${toArabicDigits(data.usage.halaqat)} حلقة نشطة`} />
