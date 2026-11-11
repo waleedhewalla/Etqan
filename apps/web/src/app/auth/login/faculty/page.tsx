@@ -63,7 +63,7 @@ export default function FacultyLoginPage() {
             <BrandMark size="lg" />
           </Link>
           <h1 className="font-heading text-2xl font-bold text-text-primary">دخول هيئة التدريس</h1>
-          <p className="text-text-secondary mt-2">لوحة متابعة الشعبة، مراجعة التسميع، والتدخلات الموجهة</p>
+          <p className="text-text-secondary mt-2">لوحة متابعة الحلقة، مراجعة التسميع، والتدخلات الموجهة</p>
         </div>
 
         <div className="mb-4 flex items-center justify-center gap-2 text-xs text-text-secondary">

@@ -94,7 +94,7 @@ const stats = [
 ];
 
 const steps = [
-  { num: '١', title: 'انضمي بدعوة', desc: 'أدخلي كود الشعبة من معلمتك ورقم الواتساب', icon: Users },
+  { num: '١', title: 'انضمي بدعوة', desc: 'أدخلي رمز الحلقة من معلمتك ورقم الواتساب', icon: Users },
   { num: '٢', title: 'ابدئي خطة اليوم', desc: 'جديد، ترسيخ، ومراجعة طويلة المدى — مخصصة لك', icon: BookOpen },
   { num: '٣', title: 'تسميع ومتابعة', desc: 'سجّلي تلاوتك وتصلك ملاحظات معلمتك وتقييمها', icon: Mic },
   { num: '٤', title: 'تقدّمي بثقة', desc: 'أوسمة للإنجاز وتقرير أسبوعي يصل ولي أمرك', icon: Award },
@@ -289,11 +289,11 @@ export default function LandingPage() {
                   </div>
                   <h3 className="font-heading text-2xl font-bold text-brand-primary mb-2">انضمي كطالبة</h3>
                   <p className="text-text-secondary mb-4 leading-relaxed">
-                    كود الدعوة من معلمتك هو كل ما تحتاجينه.<br />
+                    رمز الحلقة من معلمتك هو كل ما تحتاجينه.<br />
                     لا تسجيل عام، ولا اشتراك مدفوع.
                   </p>
                   <Link href="/auth/join">
-                    <Button variant="outline" size="lg">الدخول بكود الشعبة</Button>
+                    <Button variant="outline" size="lg">الانضمام برمز الحلقة</Button>
                   </Link>
                 </article>
               </RevealSection>
@@ -304,7 +304,7 @@ export default function LandingPage() {
                   </div>
                   <h3 className="font-heading text-2xl font-bold text-brand-primary mb-2">دخول هيئة التدريس</h3>
                   <p className="text-text-secondary mb-4 leading-relaxed">
-                    لوحة متابعة الشعبة، مراجعة التسميع،<br />
+                    لوحة متابعة الحلقة، مراجعة التسميع،<br />
                     والتدخلات الموجهة — للأستاذات المعتمدات.
                   </p>
                   <Link href="/auth/login/faculty">
@@ -536,11 +536,11 @@ export default function LandingPage() {
                   </h2>
                   <p className="text-white/80 text-lg mb-5 max-w-lg mx-auto leading-relaxed">
                     انضمي لبرنامج تجريبي في كلية الأزهر للبنات بالعاشر من رمضان.
-                    كود الدعوة من معلمتك هو كل ما تحتاجينه.
+                    رمز الحلقة من معلمتك هو كل ما تحتاجينه.
                   </p>
                   <Link href="/auth/join">
                     <Button size="xl" className="bg-brand-accent text-brand-primary hover:bg-brand-accent/90 font-bold px-8 py-4 text-lg shadow-lg">
-                      ادخلي كود الدعوة
+                      انضمي برمز الحلقة
                     </Button>
                   </Link>
                 </div>

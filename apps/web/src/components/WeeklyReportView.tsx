@@ -9,7 +9,7 @@ const VERDICTS: Record<string, { label: string; variant: 'green' | 'amber' | 're
   flagged: { label: 'بحاجة مراجعة', variant: 'red' },
 };
 
-const ASSIGNMENT_TYPES = { sabaq: 'سبق', sabqi: 'سبقي', manzil: 'منزل' } as const;
+const ASSIGNMENT_TYPES = { sabaq: 'حفظ جديد', sabqi: 'مراجعة اليوم', manzil: 'مراجعة متأخرة' } as const;
 
 export function formatDateAr(date: string) {
   return new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' })

@@ -139,7 +139,7 @@ export default function LoginPage() {
         <div className="mt-4 text-center text-sm text-text-secondary space-y-1">
           <p>
             طالبة جديدة؟{' '}
-            <Link href="/auth/join" className="text-brand-primary hover:underline font-medium">انضمّي بكود الشعبة</Link>
+            <Link href="/auth/join" className="text-brand-primary hover:underline font-medium">انضمّي برمز الحلقة</Link>
           </p>
           <p>
             من هيئة التدريس؟{' '}

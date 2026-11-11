@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { toArabicDigits } from '@/lib/quran';
 import { Button, Input, OTPInput, Card, CardContent, CardHeader, CardTitle, CardDescription } from '@itqan/ui';
 import { ArrowRight, CheckCircle, AlertCircle, Loader2, Mail, Phone, Eye, EyeOff, Shield, User } from 'lucide-react';
 import { api, errorMessage, normalizePhone, type ConsentPurpose } from '@/lib/api';
@@ -45,7 +46,7 @@ export default function JoinPage() {
       setSectionName(res.data.nameAr);
     } catch (err) {
       const status = (err as { response?: { status?: number } })?.response?.status;
-      setError(status === 404 ? 'كود الشعبة غير صحيح' : errorMessage(err));
+      setError(status === 404 ? 'رمز الحلقة غير صحيح. تأكدي منه مع معلمتك.' : errorMessage(err));
       setLoading(false);
       return;
     }
@@ -150,8 +151,8 @@ export default function JoinPage() {
   }, [resendTimer]);
 
   const steps = [
-    { num: 1, label: 'كود الشعبة', desc: 'الهاتف + الكود' },
-    { num: 2, label: 'التحقق', desc: 'رمز OTP' },
+    { num: 1, label: 'رمز الحلقة', desc: 'ورقم الواتساب' },
+    { num: 2, label: 'التحقق', desc: 'رمز من الواتساب' },
     { num: 3, label: 'الملف الشخصي', desc: 'الاسم والصورة' },
     { num: 4, label: 'الموافقة', desc: 'الخصوصية' },
     { num: 5, label: 'انتهيت', desc: 'أول جلسة' },
@@ -180,7 +181,7 @@ export default function JoinPage() {
                     {i + 1 < step ? (
                       <CheckCircle className="w-5 h-5 mx-auto" />
                     ) : (
-                      <span className="font-bold">{s.num}</span>
+                      <span className="font-bold">{toArabicDigits(s.num)}</span>
                     )}
                   </div>
                   <p className={`text-xs font-medium ${i + 1 <= step ? 'text-text-primary' : 'text-text-muted'}`}>
@@ -204,7 +205,7 @@ export default function JoinPage() {
           <CardHeader className="text-center pb-2">
             <CardTitle className="font-heading text-2xl">مرحباً بك في إتقان</CardTitle>
             <CardDescription className="text-text-secondary">
-              {step === 1 && 'أدخلي كود الشعبة ورقم الهاتف للبدء'}
+              {step === 1 && 'أدخلي رمز الحلقة ورقم الواتساب للبدء'}
               {step === 2 && (sectionName ? `الانضمام إلى ${sectionName} — أدخلي الرمز المرسل لواتساب` : 'أدخلي رمز التحقق المرسل لواتساب')}
               {step === 3 && 'أكملي بياناتك الشخصية'}
               {step === 4 && 'راجعي الموافقات وابدئي'}
@@ -223,8 +224,9 @@ export default function JoinPage() {
             {step === 1 && (
               <form onSubmit={handleStep1Submit} className="space-y-4">
                 <Input
-                  label="كود الشعبة"
-                  placeholder="مثال: AZH-2026-001"
+                  label="رمز الحلقة"
+                  placeholder="AB12CD"
+                  dir="ltr"
                   value={sectionCode}
                   onChange={(e) => setSectionCode(e.target.value.toUpperCase())}
                   leftIcon={<User className="w-5 h-5" />}
