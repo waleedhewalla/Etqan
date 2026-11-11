@@ -33,6 +33,8 @@ const editHalaqaSchema = z.object({
   nameAr: name.optional(),
   teacherId: z.string().uuid().optional(),
   maxStudents: z.number().int().min(1).max(100).optional(),
+  /** false closes the halaqa: no one can join it and it leaves its teacher's and students' lists. Nothing is deleted. */
+  active: z.boolean().optional(),
 }).refine((b) => Object.values(b).some((v) => v !== undefined), 'Nothing to change');
 const idParam = z.object({ id: z.string().uuid() });
 
@@ -65,10 +67,10 @@ export async function adminSetupRoutes(app: FastifyInstance) {
 
   const listHalaqat = async (tenantId: string) => {
     const rows = await db.select({
-      id: sections.id, nameAr: sections.nameAr, joinCode: sections.joinCode, maxStudents: sections.maxStudents,
+      id: sections.id, nameAr: sections.nameAr, joinCode: sections.joinCode, maxStudents: sections.maxStudents, active: sections.active,
       teacherId: sections.teacherId, teacherName: users.displayNameAr, teacherActive: users.active,
     }).from(sections).leftJoin(users, eq(sections.teacherId, users.id))
-      .where(and(eq(sections.tenantId, tenantId), eq(sections.active, true))).orderBy(asc(sections.nameAr));
+      .where(eq(sections.tenantId, tenantId)).orderBy(asc(sections.nameAr));
     const enrolled = await db.select({ sectionId: sectionEnrollments.sectionId, n: count() }).from(sectionEnrollments)
       .innerJoin(sections, eq(sectionEnrollments.sectionId, sections.id))
       .where(and(eq(sections.tenantId, tenantId), isNull(sectionEnrollments.droppedAt))).groupBy(sectionEnrollments.sectionId);
@@ -157,7 +159,7 @@ export async function adminSetupRoutes(app: FastifyInstance) {
     return reply.code(201).send((await listHalaqat(tenantId)).find((h) => h.id === section.id));
   });
 
-  // PATCH /v1/admin/halaqat/:id — rename a halaqa, resize it, or hand it to another teacher
+  // PATCH /v1/admin/halaqat/:id — rename a halaqa, resize it, hand it to another teacher, or close or reopen it
   app.patch('/admin/halaqat/:id', { schema: { params: idParam, body: editHalaqaSchema }, preHandler: [app.authenticate] }, async (request) => {
     const tenantId = tenantOf(request.user);
     if (!tenantId) return forbidden(request);
@@ -169,17 +171,26 @@ export async function adminSetupRoutes(app: FastifyInstance) {
     if (body.teacherId && !(await activeTeacher(tenantId, body.teacherId))) {
       return request.server.httpErrors.badRequest('Choose a teacher of this institution');
     }
+    // Reopening takes a place in the plan again, like opening a new halaqa.
+    if (body.active === true && !section.active) await assertCanAddHalaqa(db, tenantId);
 
     await db.update(sections).set({
       ...(body.nameAr !== undefined ? { nameAr: body.nameAr } : {}),
       ...(body.teacherId !== undefined ? { teacherId: body.teacherId } : {}),
       ...(body.maxStudents !== undefined ? { maxStudents: body.maxStudents } : {}),
+      ...(body.active !== undefined ? { active: body.active } : {}),
       updatedAt: new Date(),
     }).where(eq(sections.id, id));
     if (body.teacherId && body.teacherId !== section.teacherId) {
       await auditLog({
         actorId: request.user.sub, actorRole: request.user.role, action: 'halaqa.reassigned',
         targetType: 'section', targetId: id, metadata: { from: section.teacherId, to: body.teacherId },
+      });
+    }
+    if (body.active !== undefined && body.active !== section.active) {
+      await auditLog({
+        actorId: request.user.sub, actorRole: request.user.role, action: body.active ? 'halaqa.reopened' : 'halaqa.closed',
+        targetType: 'section', targetId: id,
       });
     }
     return (await listHalaqat(tenantId)).find((h) => h.id === id);

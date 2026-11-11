@@ -303,7 +303,7 @@ export interface TasmiReviewInput {
 
 export interface SetupStaff { id: string; displayNameAr: string; email: string | null; role: string; active: boolean; halaqat: number }
 export interface SetupHalaqa {
-  id: string; nameAr: string; joinCode: string; maxStudents: number; students: number;
+  id: string; nameAr: string; joinCode: string; maxStudents: number; students: number; active: boolean;
   teacherId: string | null; teacherName: string | null; teacherActive: boolean | null;
 }
 export interface InstitutionSetup { staff: SetupStaff[]; halaqat: SetupHalaqa[] }
@@ -593,7 +593,7 @@ class ApiClient {
     return this.client.post<SetupHalaqa>('/admin/halaqat', data);
   }
 
-  editHalaqa(id: string, data: { nameAr?: string; teacherId?: string; maxStudents?: number }) {
+  editHalaqa(id: string, data: { nameAr?: string; teacherId?: string; maxStudents?: number; active?: boolean }) {
     return this.client.patch<SetupHalaqa>(`/admin/halaqat/${id}`, data);
   }
 

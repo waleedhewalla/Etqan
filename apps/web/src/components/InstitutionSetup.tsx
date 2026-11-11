@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input } from '@itqan/ui';
-import { Copy, GraduationCap, UserPlus, UsersRound } from 'lucide-react';
+import { Copy, GraduationCap, Pencil, UserPlus, UsersRound } from 'lucide-react';
 import { api, errorMessage, queryKeys, type SetupHalaqa, type SetupStaff } from '@/lib/api';
 import { toArabicDigits } from '@/lib/quran';
 import { LoadError, Spinner } from '@/components/LoadState';
@@ -108,6 +108,21 @@ function Halaqat({ halaqat, teachers, onChange }: { halaqat: SetupHalaqa[]; teac
     mutationFn: ({ id, to }: { id: string; to: string }) => api.editHalaqa(id, { teacherId: to }).then((r) => r.data),
     onSuccess: (h) => { add.reset(); setNotice(`أُسندت «${h.nameAr}» إلى ${h.teacherName}.`); onChange(); },
   });
+  const [editing, setEditing] = useState<{ id: string; nameAr: string; maxStudents: number } | null>(null);
+  const save = useMutation({
+    mutationFn: (e: { id: string; nameAr: string; maxStudents: number }) =>
+      api.editHalaqa(e.id, { nameAr: e.nameAr.trim(), maxStudents: e.maxStudents }).then((r) => r.data),
+    onSuccess: (h) => { setEditing(null); setNotice(`حُفظت «${h.nameAr}».`); onChange(); },
+  });
+  const setActive = useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) => api.editHalaqa(id, { active }).then((r) => r.data),
+    onSuccess: (h) => { setEditing(null); setNotice(h.active ? `أُعيد فتح «${h.nameAr}».` : `أُغلقت «${h.nameAr}». لم يُحذف شيء، ويمكن إعادة فتحها.`); onChange(); },
+  });
+  const close = (h: SetupHalaqa) => {
+    const warn = h.students ? ` فيها ${toArabicDigits(h.students)} طالبة: لن تظهر الحلقة لهن ولا لمعلمتهن، ويبقى وردهن وسجلّهن.` : '';
+    if (window.confirm(`إغلاق «${h.nameAr}»؟${warn} لن يستطيع أحد الانضمام برمزها.`)) setActive.mutate({ id: h.id, active: false });
+  };
+  const busy = reassign.isPending || save.isPending || setActive.isPending;
   const copy = async (code: string) => {
     try { await navigator.clipboard.writeText(code); setNotice(`نُسخ الرمز ${code}.`); } catch { setNotice(`الرمز: ${code}`); }
   };
@@ -121,22 +136,52 @@ function Halaqat({ halaqat, teachers, onChange }: { halaqat: SetupHalaqa[]; teac
         ) : (
           <ul id="setup-halaqat" className="divide-y divide-divider text-sm">
             {halaqat.map((h) => (
-              <li key={h.id} className="py-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-                <div className="min-w-0">
-                  <p className="font-medium text-text-primary truncate">{h.nameAr}</p>
-                  <p className="text-xs text-text-secondary">{toArabicDigits(h.students)} من {toArabicDigits(h.maxStudents)} طالبة</p>
+              <li key={h.id} className={`py-2.5 space-y-2 ${h.active ? '' : 'opacity-70'}`}>
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-text-primary truncate">
+                      {h.nameAr} {!h.active && <Badge variant="neutral" size="sm">مغلقة</Badge>}
+                    </p>
+                    <p className="text-xs text-text-secondary">{toArabicDigits(h.students)} من {toArabicDigits(h.maxStudents)} طالبة</p>
+                  </div>
+                  {h.active ? (
+                    <div className="flex items-center gap-2">
+                      <select aria-label={`معلمة ${h.nameAr}`} className={field} disabled={busy}
+                        value={h.teacherId ?? ''} onChange={(e) => reassign.mutate({ id: h.id, to: e.target.value })}>
+                        {!teachers.some((t) => t.id === h.teacherId) && <option value={h.teacherId ?? ''}>{h.teacherName ?? 'بلا معلمة'} (موقوفة)</option>}
+                        {teachers.map((t) => <option key={t.id} value={t.id}>{t.displayNameAr}</option>)}
+                      </select>
+                      <button type="button" onClick={() => copy(h.joinCode)} title="نسخ رمز الانضمام"
+                        className="flex items-center gap-1.5 rounded-xl border border-divider px-3 py-2 font-mono tracking-wider hover:border-brand-primary/40">
+                        <span dir="ltr">{h.joinCode}</span><Copy className="w-3.5 h-3.5" />
+                      </button>
+                      <button type="button" aria-label={`تعديل ${h.nameAr}`} aria-expanded={editing?.id === h.id}
+                        onClick={() => setEditing(editing?.id === h.id ? null : { id: h.id, nameAr: h.nameAr, maxStudents: h.maxStudents })}
+                        className="p-2 rounded-xl border border-divider text-text-secondary hover:border-brand-primary/40">
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => setActive.mutate({ id: h.id, active: true })}>إعادة فتح</Button>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <select aria-label={`معلمة ${h.nameAr}`} className={field} disabled={reassign.isPending}
-                    value={h.teacherId ?? ''} onChange={(e) => reassign.mutate({ id: h.id, to: e.target.value })}>
-                    {!teachers.some((t) => t.id === h.teacherId) && <option value={h.teacherId ?? ''}>{h.teacherName ?? 'بلا معلمة'} (موقوفة)</option>}
-                    {teachers.map((t) => <option key={t.id} value={t.id}>{t.displayNameAr}</option>)}
-                  </select>
-                  <button type="button" onClick={() => copy(h.joinCode)} title="نسخ رمز الانضمام"
-                    className="flex items-center gap-1.5 rounded-xl border border-divider px-3 py-2 font-mono tracking-wider hover:border-brand-primary/40">
-                    <span dir="ltr">{h.joinCode}</span><Copy className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                {editing?.id === h.id && (
+                  <form className="flex flex-wrap items-end gap-2 rounded-xl bg-surface-canvas p-3"
+                    onSubmit={(e) => { e.preventDefault(); save.mutate(editing); }}>
+                    <label className="text-sm grow">
+                      <span className="block text-text-secondary mb-1">اسم الحلقة</span>
+                      <input className={`${field} w-full`} value={editing.nameAr} required minLength={2}
+                        onChange={(e) => setEditing({ ...editing, nameAr: e.target.value })} />
+                    </label>
+                    <label className="text-sm">
+                      <span className="block text-text-secondary mb-1">أقصى عدد</span>
+                      <input type="number" min={1} max={100} className={`${field} w-24`} value={editing.maxStudents}
+                        onChange={(e) => setEditing({ ...editing, maxStudents: Number(e.target.value) })} />
+                    </label>
+                    <Button type="submit" size="sm" loading={save.isPending}>حفظ</Button>
+                    <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => close(h)}>إغلاق الحلقة</Button>
+                  </form>
+                )}
               </li>
             ))}
           </ul>
@@ -153,8 +198,8 @@ function Halaqat({ halaqat, teachers, onChange }: { halaqat: SetupHalaqa[]; teac
           <Button type="submit" loading={add.isPending} disabled={!chosen}>فتح حلقة</Button>
         </form>
         {notice && <p role="status" className="text-sm text-text-primary">{notice}</p>}
-        {(add.isError || reassign.isError) && (
-          <p role="alert" className="text-sm text-red-800">{errorMessage(add.error ?? reassign.error, 'تعذّر الحفظ. حاولي مرة أخرى.')}</p>
+        {(add.isError || reassign.isError || save.isError || setActive.isError) && (
+          <p role="alert" className="text-sm text-red-800">{errorMessage(add.error ?? reassign.error ?? save.error ?? setActive.error, 'تعذّر الحفظ. حاولي مرة أخرى.')}</p>
         )}
       </CardContent>
     </Card>

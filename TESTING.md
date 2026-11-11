@@ -189,6 +189,8 @@ the admin console (**/admin**) has two cards under the institution's name.
   email; an invitation is emailed when email sending is configured. «إيقاف الدخول» stops new sign-ins for a teacher
   (a session she already has ends when it next refreshes); her halaqat stay hers until they are handed over.
 - **الحلقات** — open a halaqa for a teacher, hand an existing one to another teacher, and copy its join code.
+  The pencil renames a halaqa, changes its size, or closes it. A closed halaqa accepts no one and leaves its
+  teacher's and students' lists; nothing is deleted, and «إعادة فتح» brings it back.
 
 For deans, operators and superadmins only (advisors see the console but not these cards), and only for their own
 institution. An email address belongs to one account across all institutions. A dean cannot stop her own access
