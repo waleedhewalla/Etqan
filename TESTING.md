@@ -107,7 +107,7 @@ own students' voices before relying on it.
 ## Memorization plan
 
 A student who has just joined has nothing to revise until her teacher says what she knows. In the teacher's
-dashboard, الطالبات → «الخطة والتقرير» opens the student's panel; «خطة الحفظ» is at the top.
+dashboard, قائمة الطالبات → «الخطة والتقرير» opens the student's panel; «خطة الحفظ» is at the top.
 
 - **محفوظة من قبل** puts the ayat straight into revision, about twenty a day so a whole juz is not due on the
   first morning.
