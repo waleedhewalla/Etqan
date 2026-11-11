@@ -104,6 +104,19 @@ own students' voices before relying on it.
 - Recordings are deleted `AUDIO_RETENTION_HOURS` (24) after review, or `AUDIO_UNREVIEWED_MAX_DAYS` (30) after submission if never reviewed.
   The job runs when the API starts and then hourly. Scores, notes and flags stay.
 
+## Memorization plan
+
+A student who has just joined has nothing to revise until her teacher says what she knows. In the teacher's
+dashboard, قائمة الطالبات → «الخطة والتقرير» opens the student's panel; «خطة الحفظ» is at the top.
+
+- **محفوظة من قبل** puts the ayat straight into revision, about twenty a day so a whole juz is not due on the
+  first morning.
+- **حفظ جديد** queues them as new memorization in the student's daily list.
+- Up to 300 ayat per step; ayat she already has are skipped, never reset.
+- The bin removes a range, but only ayat she has never reviewed — her history stays.
+
+API: `GET|POST|DELETE /v1/sections/:id/students/:studentId/plan`, for whoever manages the halaqa.
+
 ## Badges
 
 Students earn badges automatically after a rating or a teacher's review (`apps/core/src/lib/badges.ts` holds the catalog):

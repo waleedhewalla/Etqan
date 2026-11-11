@@ -12,6 +12,7 @@ import { loadStudentSignals, riskReasons } from '../../lib/risk';
 import { assertCanAddHalaqa, assertCanAddStudent } from '../../lib/plan';
 import { enrollStudent } from '../auth/routes';
 import { auditLog } from '../audit/service';
+import { addToPlan, loadPlan, planAyat, removeFromPlan, PlanRangeError, MAX_PLAN_AYAT } from '../../lib/hifz-plan';
 import { notifyGuardiansOfAbsence } from '../notification/service';
 
 const createSectionSchema = z.object({
@@ -365,6 +366,81 @@ export async function sectionRoutes(app: FastifyInstance) {
   });
 
   // POST /v1/sections/:id/assign — teacher assigns sabaq / sabqi / manzil.
+  // ── Memorization plan: which ayat a student revises and which she is about to memorize ──
+  const planRangeSchema = z.object({
+    startRef: z.string().regex(/^\d{1,3}:\d{1,3}$/),
+    endRef: z.string().regex(/^\d{1,3}:\d{1,3}$/),
+  });
+  const addPlanSchema = planRangeSchema.extend({
+    status: z.enum(['memorized', 'new']),
+    perDay: z.number().int().min(1).max(MAX_PLAN_AYAT).optional(),
+  });
+
+  /** The section and student of a plan request, or the reply to send when the caller may not act on them. */
+  const planTarget = async (request: any) => {
+    const { id, studentId } = request.params as { id: string; studentId: string };
+    const section = await loadManagedSection(db, request.user, id);
+    if (!section) return { error: request.server.httpErrors.notFound('Section not found') };
+    if (!(await activeRoster(id)).some((r) => r.studentId === studentId)) {
+      return { error: request.server.httpErrors.notFound('Student not found in this halaqa') };
+    }
+    return { section, studentId };
+  };
+
+  app.get('/sections/:id/students/:studentId/plan', {
+    preHandler: [app.authenticate],
+  }, async (request) => {
+    const target = await planTarget(request);
+    if ('error' in target) return target.error;
+    return loadPlan(db, target.studentId);
+  });
+
+  app.post('/sections/:id/students/:studentId/plan', {
+    schema: { body: addPlanSchema },
+    preHandler: [app.authenticate],
+  }, async (request) => {
+    const target = await planTarget(request);
+    if ('error' in target) return target.error;
+    const body = request.body as z.infer<typeof addPlanSchema>;
+    let ayat: string[];
+    try {
+      ayat = planAyat(body.startRef, body.endRef);
+    } catch (err) {
+      if (err instanceof PlanRangeError) return request.server.httpErrors.badRequest(err.message);
+      throw err;
+    }
+    const result = await addToPlan(db, target.studentId, ayat, body.status, { perDay: body.perDay });
+    await auditLog({
+      actorId: request.user.sub, actorRole: request.user.role, action: 'plan.added',
+      targetType: 'user', targetId: target.studentId,
+      metadata: { startRef: body.startRef, endRef: body.endRef, status: body.status, added: result.added },
+    });
+    return { ...result, plan: await loadPlan(db, target.studentId) };
+  });
+
+  app.delete('/sections/:id/students/:studentId/plan', {
+    schema: { body: planRangeSchema },
+    preHandler: [app.authenticate],
+  }, async (request) => {
+    const target = await planTarget(request);
+    if ('error' in target) return target.error;
+    const body = request.body as z.infer<typeof planRangeSchema>;
+    let ayat: string[];
+    try {
+      ayat = planAyat(body.startRef, body.endRef);
+    } catch (err) {
+      if (err instanceof PlanRangeError) return request.server.httpErrors.badRequest(err.message);
+      throw err;
+    }
+    const result = await removeFromPlan(db, target.studentId, ayat);
+    await auditLog({
+      actorId: request.user.sub, actorRole: request.user.role, action: 'plan.removed',
+      targetType: 'user', targetId: target.studentId,
+      metadata: { startRef: body.startRef, endRef: body.endRef, removed: result.removed },
+    });
+    return { ...result, plan: await loadPlan(db, target.studentId) };
+  });
+
   app.post('/sections/:id/assign', {
     schema: { body: assignSchema },
     preHandler: [app.authenticate],

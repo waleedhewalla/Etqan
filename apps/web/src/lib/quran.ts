@@ -35,3 +35,11 @@ export function formatAyahRange(start: string, end: string): string {
   if (s1 === s2) return a1 === a2 ? formatAyahRef(start) : `${SURAH_NAMES[s1 - 1] ?? s1} ${toArabicDigits(a1)}–${toArabicDigits(a2)}`;
   return `${formatAyahRef(start)} – ${formatAyahRef(end)}`;
 }
+
+/** A count of ayat in correct Arabic: آية واحدة، آيتان، ٥ آيات، ١٨ آية. */
+export function ayatCount(n: number): string {
+  if (n === 1) return 'آية واحدة';
+  if (n === 2) return 'آيتان';
+  const tail = n % 100;
+  return `${toArabicDigits(n)} ${tail >= 3 && tail <= 10 ? 'آيات' : 'آية'}`;
+}

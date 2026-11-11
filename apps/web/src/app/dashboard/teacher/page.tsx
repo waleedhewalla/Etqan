@@ -17,6 +17,7 @@ import { TasmiAudio } from '@/components/TasmiAudio';
 import { FlaggedVerse } from '@/components/FlaggedVerse';
 import { AiCheckingSwitch } from '@/components/AiCheckingSwitch';
 import { MutashabihatAuthoring } from '@/components/MutashabihatAuthoring';
+import { HifzPlanCard } from '@/components/HifzPlanCard';
 import { useRequireRole } from '@/lib/auth-context';
 import {
   api, errorMessage, normalizePhone, queryKeys,
@@ -312,7 +313,7 @@ function StudentsTab({ students, onOpen }: { students: StudentSummary[]; onOpen:
                       {s.atRisk ? <Badge variant="red" size="sm">بحاجة متابعة</Badge> : <Badge variant="green" size="sm">منتظمة</Badge>}
                     </td>
                     <td className="py-2 px-3">
-                      <Button size="sm" variant="ghost" onClick={() => onOpen(s.studentId)}>التقرير</Button>
+                      <Button size="sm" variant="ghost" onClick={() => onOpen(s.studentId)}>الخطة والتقرير</Button>
                     </td>
                   </tr>
                 ))}
@@ -343,7 +344,7 @@ function CasesTab({ students, onOpen }: { students: StudentSummary[]; onOpen: (i
                   <p className="font-medium text-text-primary">{s.displayNameAr}</p>
                   <p className="text-sm text-text-secondary">{riskLabel(s.riskReasons, s)}</p>
                 </div>
-                <Button size="sm" variant="secondary" onClick={() => onOpen(s.studentId)}>التقرير وولي الأمر</Button>
+                <Button size="sm" variant="secondary" onClick={() => onOpen(s.studentId)}>الخطة والتقرير وولي الأمر</Button>
               </div>
             ))}
           </div>
@@ -674,17 +675,19 @@ function StudentDrawer({ sectionId, student, onClose }: { sectionId: string; stu
   });
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-start bg-black/30" role="dialog" aria-modal="true" aria-label={`تقرير ${student.displayNameAr}`} onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex justify-start bg-black/30" role="dialog" aria-modal="true" aria-label={`ملف ${student.displayNameAr}`} onClick={onClose}>
       <div
         className="h-full w-full max-w-2xl overflow-y-auto bg-surface-canvas p-4 sm:p-6 shadow-xl space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <h2 className="font-heading text-lg font-bold text-text-primary">التقرير الأسبوعي</h2>
+          <h2 className="font-heading text-lg font-bold text-text-primary">{student.displayNameAr}</h2>
           <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-surface-elevated" aria-label="إغلاق">
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        <HifzPlanCard sectionId={sectionId} studentId={student.studentId} />
 
         {reportQuery.isLoading ? <Spinner /> : reportQuery.data ? <WeeklyReportView report={reportQuery.data} /> : <LoadError onRetry={() => reportQuery.refetch()} />}
 
