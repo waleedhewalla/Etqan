@@ -60,9 +60,10 @@ export function scheduleReview(
   // Calculate new stability
   let stability = card.stability;
   
-  if (card.state === 'new' || newState.state === 'learning' || newState.state === 'relearning') {
+  if (card.state === 'new' || !(card.stability > 0) || newState.state === 'learning' || newState.state === 'relearning') {
     // First review and learning/relearning steps use the initial stability
-    // for the rating (FSRS-4.5: S0(G) = w[G-1]).
+    // for the rating (FSRS-4.5: S0(G) = w[G-1]). A card with no stability yet is treated as a
+    // first review whatever its state: the recall formula below divides by stability.
     if (rating === 'again') {
       stability = w[0];
     } else if (rating === 'hard') {

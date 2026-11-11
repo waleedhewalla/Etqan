@@ -38,6 +38,17 @@ describe('scheduleReview', () => {
   });
 });
 
+describe('a review card with no stability yet', () => {
+  it('is scheduled as a first review instead of producing an invalid date', () => {
+    for (const rating of ['again', 'hard', 'good', 'easy'] as const) {
+      const next = scheduleReview({ ...newCard(), state: 'review', stability: 0 }, rating);
+      expect(Number.isFinite(next.stability)).toBe(true);
+      expect(next.stability).toBeGreaterThan(0);
+      expect(Number.isNaN(next.dueAt.getTime())).toBe(false);
+    }
+  });
+});
+
 describe('computeIntervals', () => {
   it('never gives an easier rating a shorter interval', () => {
     const i = computeIntervals(newCard(), { ...FSRS_DEFAULTS, enableFuzz: false });

@@ -301,6 +301,10 @@ export interface TasmiReviewInput {
   flagDecisions?: Record<string, 'confirmed' | 'dismissed'>;
 }
 
+export type PlanStatus = 'memorized' | 'new';
+export interface PlanRange { startRef: string; endRef: string; count: number; status: PlanStatus }
+export interface HifzPlan { total: number; memorized: number; new: number; ranges: PlanRange[] }
+
 export interface Guardian {
   id: string;
   displayNameAr: string;
@@ -494,6 +498,18 @@ class ApiClient {
     return this.client.put<AttendanceSaveResponse>(`/sections/${sectionId}/attendance`, { date, records });
   }
 
+  getPlan(sectionId: string, studentId: string) {
+    return this.client.get<HifzPlan>(`/sections/${sectionId}/students/${studentId}/plan`);
+  }
+
+  addToPlan(sectionId: string, studentId: string, data: { startRef: string; endRef: string; status: PlanStatus }) {
+    return this.client.post<{ added: number; skipped: number; plan: HifzPlan }>(`/sections/${sectionId}/students/${studentId}/plan`, data);
+  }
+
+  removeFromPlan(sectionId: string, studentId: string, data: { startRef: string; endRef: string }) {
+    return this.client.delete<{ removed: number; kept: number; plan: HifzPlan }>(`/sections/${sectionId}/students/${studentId}/plan`, { data });
+  }
+
   getGuardians(sectionId: string, studentId: string) {
     return this.client.get<Guardian[]>(`/sections/${sectionId}/students/${studentId}/guardians`);
   }
@@ -660,6 +676,7 @@ export const queryKeys = {
   sectionReport: (id: string) => ['sections', id, 'report'] as const,
   attendance: (id: string, date: string) => ['sections', id, 'attendance', date] as const,
   guardians: (sectionId: string, studentId: string) => ['sections', sectionId, 'guardians', studentId] as const,
+  plan: (sectionId: string, studentId: string) => ['sections', sectionId, 'plan', studentId] as const,
   myTasmi: ['tasmi', 'mine'] as const,
   voiceStatus: ['voice', 'status'] as const,
   badges: ['badges'] as const,
