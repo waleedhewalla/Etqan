@@ -1,3 +1,4 @@
+import { SUPPORT_EMAIL } from '@/lib/site';
 import { LegalLayout } from '@/components/LegalLayout';
 
 const LINK = 'text-brand-primary underline underline-offset-2 hover:text-brand-accent';
@@ -21,7 +22,7 @@ export default function CreditsPage() {
       </p>
       <h2 className="font-heading text-xl font-bold text-text-primary">الأخطاء</h2>
       <p>
-        إن وجدتِ خطأً في نص أي آية فأبلغينا على support@itqan.link لنصحّحه بالرجوع إلى مصدر معتمد.
+        إن وجدتِ خطأً في نص أي آية فأبلغينا على {SUPPORT_EMAIL} لنصحّحه بالرجوع إلى مصدر معتمد.
       </p>
     </LegalLayout>
   );

@@ -101,10 +101,10 @@ const steps = [
 ];
 
 const trustBadges = [
-  { label: 'اعتماد كلية الأزهر للبنات', icon: GraduationCap },
+  { label: 'نسخة تجريبية مع كلية الأزهر للبنات', icon: GraduationCap },
   { label: 'نموذج وقف تعليمي غير ربحي', icon: Star },
   { label: 'حماية البيانات الشخصية', icon: Shield },
-  { label: 'محتوى معتمد من لجنة علمية', icon: CheckCircle },
+  { label: 'المعلمة هي من تقيّم التلاوة', icon: CheckCircle },
   { label: 'صوت فقط — لا كاميرا إلزامية', icon: Mic },
   { label: 'دخول بدعوة فقط — لا تسجيل عام', icon: Users },
 ];

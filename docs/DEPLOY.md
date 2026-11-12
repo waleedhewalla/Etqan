@@ -76,6 +76,10 @@ was removed rather than pinned to an image that cannot be pulled.)
 
 ## Settings you may change later
 
+- `SUPPORT_EMAIL`, `SUPPORT_PHONE` — the contact details on the public pages. They are built into the web image, so
+  rebuild it after changing them (`docker compose -f compose.prod.yml up -d --build web`). Data-deletion requests
+  arrive at this mailbox; with the phone empty, no phone line is shown.
+
 Edit `.env`, then `docker compose -f compose.prod.yml up -d` (the web app is rebuilt only if `API_DOMAIN` changed: add `--build`).
 
 - `PLAN_ENFORCEMENT=block` to refuse new students and halaqat when an institution is full or its plan has expired.
