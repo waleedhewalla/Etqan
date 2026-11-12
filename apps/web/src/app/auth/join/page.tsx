@@ -194,10 +194,9 @@ export default function JoinPage() {
           </div>
         </div>
 
-        {/* Trust Badge */}
         <div className="mb-4 flex items-center justify-center gap-2 text-xs text-text-secondary">
           <Shield className="w-4 h-4 text-brand-primary" />
-          <span>معتمد من عمادة كلية الأزهر للبنات</span>
+          <span>الانضمام برمز من معلمتك فقط</span>
         </div>
 
         {/* Form Card */}

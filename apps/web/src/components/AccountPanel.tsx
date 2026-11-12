@@ -1,5 +1,6 @@
 'use client';
 
+import { SUPPORT_EMAIL } from '@/lib/site';
 import { useRouter } from 'next/navigation';
 import { Button, Card, CardContent } from '@itqan/ui';
 import { useAuth } from '@/lib/auth-context';
@@ -63,7 +64,7 @@ export function AccountPanel() {
               </Button>
             </div>
             <p className="text-sm text-text-secondary">
-              لتعديل بياناتك أو لأي مساعدة راسلينا على <a className="text-brand-primary underline" href="mailto:support@itqan.link">support@itqan.link</a>.
+              لتعديل بياناتك أو لأي مساعدة راسلينا على <a className="text-brand-primary underline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
             </p>
           </CardContent>
         </Card>

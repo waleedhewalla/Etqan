@@ -61,11 +61,22 @@ Write the decision and its reasons down on the day, in a paragraph, before discu
 
 ## Before any student signs in
 
-These are the owner's decisions and are not settled by the software:
+Settled in the product, with the reasoning, so nobody has to decide them again:
 
-- The Quran text source and its licence terms (the bundled text is CC BY-SA 4.0).
-- How long recordings are kept (default: 24 hours after review, 30 days if never reviewed).
-- The college's actual endorsement: the landing page still claims accreditation and scientific-committee
-  approval. Remove the claims or get them in writing.
-- A real support mailbox and a real phone number on the data-deletion page.
-- WhatsApp sender with approved templates, and an email sender, for sign-in codes and links.
+- **Claims.** The pages no longer say the college accredits the platform, that a scientific committee approved
+  the content, or that it issues certificates. They say what is true: a pilot with the college, a teacher
+  grades every recitation, joining is by a teacher's code. Put a claim back only with the letter in hand.
+- **Recordings** are deleted 24 hours after the teacher reviews them, and after 30 days if never reviewed. The
+  privacy and data-deletion pages say so. Shorter is safer; lengthen it only if teachers ask.
+- **Quran text.** The bundled source is CC BY-SA 4.0 and is credited on `/credits`. That is enough for a pilot.
+  Before a public launch, have whoever signs off on content compare it with the mushaf the college teaches from.
+- **Automatic checking** stays off for the pilot (see Shape above).
+- **Contact.** Data-deletion requests go to the support mailbox and are answered within seven working days. No
+  phone number is shown until a real one is set.
+
+Still needed from a person, because software cannot supply them:
+
+1. A server and two domain names ([DEPLOY.md](../DEPLOY.md)).
+2. `SUPPORT_EMAIL` set to a mailbox somebody reads every working day (and `SUPPORT_PHONE` if you want one shown).
+3. A WhatsApp sender with approved templates and an email sender, for sign-in codes and links.
+4. The college's agreement to run the pilot, in writing, naming who may see student data.

@@ -1,3 +1,4 @@
+import { SUPPORT_EMAIL, SUPPORT_PHONE } from '@/lib/site';
 import Link from 'next/link';
 import { BrandMark } from './BrandMark';
 
@@ -37,8 +38,8 @@ export function SiteFooter() {
             <h4 className="font-heading font-bold mb-4">تواصل</h4>
             <address className="text-surface-canvas/80 text-sm not-italic space-y-2 font-normal">
               <p>كلية الأزهر للبنات - العاشر من رمضان</p>
-              <p>بريد إلكتروني: support@itqan.link</p>
-              <p>هاتف: +20 XX XXXX XXXX</p>
+              <p>بريد إلكتروني: <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">{SUPPORT_EMAIL}</a></p>
+              {SUPPORT_PHONE && <p>هاتف: <span dir="ltr">{SUPPORT_PHONE}</span></p>}
             </address>
           </div>
         </div>

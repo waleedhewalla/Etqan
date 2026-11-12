@@ -82,6 +82,8 @@ services:
       target: web
       args:
         NEXT_PUBLIC_API_URL: https://${API_DOMAIN:?set API_DOMAIN in .env}
+        NEXT_PUBLIC_SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+        NEXT_PUBLIC_SUPPORT_PHONE: ${SUPPORT_PHONE:-}
     image: itqan-web
     restart: unless-stopped
 
