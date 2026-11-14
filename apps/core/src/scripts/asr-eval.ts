@@ -7,7 +7,7 @@
  *
  * It uses only the teachers' confirm/dismiss decisions: no audio is read or kept for this.
  */
-import 'dotenv/config';
+import '../env';
 import { eq } from 'drizzle-orm';
 import { closeDb, getDb } from '../db';
 import { tasmiSubmissions, tenants, users } from '../db/schema';

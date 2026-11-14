@@ -16,6 +16,10 @@ pnpm db:migrate
 pnpm --filter @itqan/core db:seed   # demo pilot halaqa (safe to re-run)
 ```
 
+The API reads `.env` from the project root (and `apps/core/.env` if you keep one there). With no `.env` at all it
+uses the database that `docker compose up -d` starts. If the database is not running, or has no tables yet, the API
+says so when it starts and tells you which command to run.
+
 ## Quran text
 
 The verse text is not stored in this repository. Load it into the database once:

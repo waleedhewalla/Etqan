@@ -12,7 +12,7 @@
  * the reciter. Files are only read and sent to the provider; nothing is stored. The Quran text must
  * be loaded (db:seed-quran). The key is read from the environment and never printed.
  */
-import 'dotenv/config';
+import '../env';
 import { readFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import { asc } from 'drizzle-orm';

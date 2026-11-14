@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import './env';
 import Fastify from 'fastify';
 import { fastifyCors } from '@fastify/cors';
 import { fastifyHelmet } from '@fastify/helmet';
@@ -11,6 +11,7 @@ import fastifySensible from '@fastify/sensible';
 import type { ZodTypeAny } from 'zod';
 
 import { config } from './config';
+import { sql } from 'drizzle-orm';
 import { getDb, closeDb } from './db';
 import { jwtPlugin } from './lib/jwt';
 import { authRoutes } from './modules/auth/routes';
@@ -175,8 +176,28 @@ async function start() {
   const app = await buildApp();
 
   // Initialize DB connection pool
-  getDb();
+  const db = getDb();
   app.log.info('Database connection pool initialized');
+
+  // On a developer's machine, say plainly when the database is not there instead of failing on the first request.
+  if (config.NODE_ENV === 'development') {
+    try {
+      await db.execute(sql`select 1 from users limit 1`);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      const missingTables = /relation .* does not exist/.test(reason);
+      console.error([
+        '',
+        missingTables ? 'The database is running but has no tables yet.' : `Cannot use the database: ${reason || 'connection refused'}`,
+        missingTables
+          ? 'Run:  pnpm db:migrate   then   pnpm --filter @itqan/core db:seed'
+          : 'Start it with:  docker compose up -d   (Docker Desktop must be running), then  pnpm db:migrate',
+        'The address comes from DATABASE_URL in the .env file at the project root.',
+        '',
+      ].join('\n'));
+      process.exit(1);
+    }
+  }
 
   try {
     await app.listen({ port: config.PORT, host: '0.0.0.0' });

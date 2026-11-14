@@ -1,13 +1,14 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import { databaseUrl } from '../env';
 import * as schema from './schema';
 
 let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 let sql: ReturnType<typeof postgres> | null = null;
 
-export function getDb(databaseUrl?: string) {
+export function getDb(url?: string) {
   if (!db) {
-    const url = databaseUrl ?? process.env.DATABASE_URL;
+    url ??= databaseUrl();
     if (!url) throw new Error('DATABASE_URL is required');
     sql = postgres(url, { max: 10 });
     db = drizzle(sql, { schema });
