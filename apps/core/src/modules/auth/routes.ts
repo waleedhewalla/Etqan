@@ -124,7 +124,10 @@ export async function authRoutes(app: FastifyInstance) {
       targetType: 'user', targetId: whatsapp, metadata: { delivery: result.status },
     });
 
-    return reply.send({ message: 'OTP sent', expiresIn: OTP_TTL_MS / 1000 });
+    // On a developer's machine with no WhatsApp sender, the code comes back so the app can be tried without
+    // reading the server log. Never in production: there an unsent code is an error (above).
+    const devCode = config.NODE_ENV === 'development' && result.status === 'skipped' ? code : undefined;
+    return reply.send({ message: 'OTP sent', expiresIn: OTP_TTL_MS / 1000, devCode });
   });
 
   // POST /v1/auth/otp/verify — check the code and sign in.
@@ -221,6 +224,8 @@ export async function authRoutes(app: FastifyInstance) {
       actorId: 'system', actorRole: 'system', action: 'magic_link.sent',
       targetType: 'user', targetId: staff.id, metadata: { delivery: result.status },
     });
+    // As with the OTP: only on a developer's machine with no email sender.
+    if (config.NODE_ENV === 'development' && result.status === 'skipped') return reply.send({ ...generic, devLink: link });
     return reply.send(generic);
   });
 

@@ -20,6 +20,13 @@ const nextConfig = {
       },
     ],
   },
+  // Without NEXT_PUBLIC_API_URL (local development) the browser calls this site's own /v1 and it is forwarded
+  // to the API, so the app works whatever address it is opened at. A deployment sets the variable instead.
+  async rewrites() {
+    if (process.env.NEXT_PUBLIC_API_URL) return [];
+    const target = process.env.API_PROXY_TARGET || 'http://localhost:4000';
+    return [{ source: '/v1/:path*', destination: `${target}/v1/:path*` }];
+  },
   async headers() {
     return [
       {
@@ -59,14 +66,6 @@ const nextConfig = {
             value: '/',
           },
         ],
-      },
-    ];
-  },
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/:path*`,
       },
     ];
   },

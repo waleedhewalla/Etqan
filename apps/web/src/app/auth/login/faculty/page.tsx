@@ -46,7 +46,12 @@ export default function FacultyLoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await api.magicLink(email.trim());
+      const res = await api.magicLink(email.trim());
+      // Development only: with no email sender the API hands the link back, so open it straight away.
+      if (res.data.devLink) {
+        window.location.assign(`/auth/login/faculty${new URL(res.data.devLink).search}`);
+        return;
+      }
       setMode('sent');
     } catch (err) {
       setError(errorMessage(err));
