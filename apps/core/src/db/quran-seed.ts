@@ -9,7 +9,7 @@
  * 114 suras, each `{ id, name, verses: [{ id, text }] }`. The text itself is not
  * stored in this repository; see the credits page for its source and licence.
  */
-import 'dotenv/config';
+import '../env';
 import { readFile } from 'node:fs/promises';
 import { count } from 'drizzle-orm';
 import { AYAH_COUNTS, normalizeArabic, splitWords } from '@itqan/quran';

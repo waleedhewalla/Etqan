@@ -10,7 +10,7 @@
  *   guardian +201000000201  (linked to the first student)
  *   new student: join code AZH001 with any other number
  */
-import 'dotenv/config';
+import '../env';
 import { eq } from 'drizzle-orm';
 import { closeDb, getDb } from './index';
 import {

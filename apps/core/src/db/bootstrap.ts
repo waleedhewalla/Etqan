@@ -7,7 +7,7 @@
  *     --dean-email dean@example.org --dean-name "د. فلانة" \
  *     --teacher-email teacher@example.org --teacher-name "أ. فلانة" --halaqa "حلقة سورة البقرة"
  */
-import 'dotenv/config';
+import '../env';
 import { randomInt } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { closeDb, getDb, type Database } from './index';
