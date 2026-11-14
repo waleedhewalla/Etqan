@@ -13,14 +13,18 @@ import { FlaggedVerse } from '@/components/FlaggedVerse';
 import { LoadError, Spinner } from '@/components/LoadState';
 import { StudentLessons } from '@/components/StudentLessons';
 import { LessonRecordings } from '@/components/LessonRecordings';
+import { useModules } from '@/lib/modules';
 import { TASMI_STATUS, attemptLabel } from '@/lib/tasmi-status';
 
-const MAX_AYAT = 60;
+const DEFAULT_MAX_AYAT = 60;
 
 
 /** Student records a recitation for her teacher and sees her earlier submissions. */
 export function ReciteTab() {
   const queryClient = useQueryClient();
+  const { isOn, setting } = useModules();
+  /** The longest recitation one recording may cover: the institution's setting. */
+  const MAX_AYAT = Number(setting('recitation', 'maxAyatPerRecording', DEFAULT_MAX_AYAT));
   const me = useQuery({ queryKey: queryKeys.me, queryFn: () => api.getMe().then((r) => r.data) });
   const voice = useQuery({ queryKey: queryKeys.voiceStatus, queryFn: () => api.getVoiceStatus().then((r) => r.data) });
   const mine = useQuery({
@@ -145,8 +149,8 @@ export function ReciteTab() {
 
   return (
     <div className="space-y-4">
-      {sections.length > 0 && <LessonRecordings onRecite={reciteSession} maxAyat={MAX_AYAT} />}
-      {sections.length > 0 && <StudentLessons onRecite={reciteLesson} selectedId={lesson?.id ?? null} />}
+      {sections.length > 0 && isOn('live') && <LessonRecordings onRecite={reciteSession} maxAyat={MAX_AYAT} />}
+      {sections.length > 0 && isOn('lessons') && <StudentLessons onRecite={reciteLesson} selectedId={lesson?.id ?? null} />}
       <div ref={formRef} className="scroll-mt-20" />
       <Card>
         <CardHeader>

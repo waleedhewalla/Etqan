@@ -25,18 +25,18 @@ export interface StatusFacts {
   hasReply: boolean;
 }
 
-export function tasmiStatus(f: StatusFacts): TasmiStatus {
+export function tasmiStatus(f: StatusFacts, maxAttempts = MAX_ATTEMPTS): TasmiStatus {
   if (f.verdict === 'approved') return 'final_graded';
   if (f.verdict === 'flagged') return 'referred';
   if (f.verdict === 'redo') {
     if (f.hasLaterAttempt) return 'revised';
-    return f.attempt >= MAX_ATTEMPTS ? 'final_graded' : 'revision_requested';
+    return f.attempt >= maxAttempts ? 'final_graded' : 'revision_requested';
   }
   if (f.hasReply) return 'feedback_given';
   return f.reviewStartedAt ? 'under_review' : 'submitted';
 }
 
 /** Whether the student may record these verses again in place of this attempt. */
-export function canRevise(f: StatusFacts): boolean {
-  return tasmiStatus(f) === 'revision_requested';
+export function canRevise(f: StatusFacts, maxAttempts = MAX_ATTEMPTS): boolean {
+  return tasmiStatus(f, maxAttempts) === 'revision_requested';
 }

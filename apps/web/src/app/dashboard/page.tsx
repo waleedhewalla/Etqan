@@ -31,6 +31,7 @@ import { MushafReader } from '@/components/MushafReader';
 import { MonthlyRecord } from '@/components/MonthlyRecord';
 import { LiveNowBanner } from '@/components/LiveNowBanner';
 import { StudentProgram } from '@/components/ProgramNow';
+import { useModules } from '@/lib/modules';
 import { VerseText } from '@/components/VerseText';
 import { ReciteTab } from '@/components/ReciteTab';
 import { MutashabihatTrainer } from '@/components/MutashabihatTrainer';
@@ -50,6 +51,7 @@ type StudentTab =
 
 export default function StudentDashboard() {
   const { user, ready } = useRequireRole(['student', 'alumna']);
+  const { isOn } = useModules();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<StudentTab>('today');
   const [reviewing, setReviewing] = useState(false);
@@ -100,13 +102,15 @@ export default function StudentDashboard() {
 
   const navItems = [
     { id: 'today', label: 'الورد واليوم', icon: Sun },
-    { id: 'mushaf', label: 'المصحف والحفظ', icon: BookOpen },
-    { id: 'recite', label: 'التسميع', icon: Mic },
-    { id: 'mutashabihat', label: 'المتشابهات', icon: Target },
+    ...(isOn('mushaf') ? [{ id: 'mushaf', label: 'المصحف والحفظ', icon: BookOpen }] : []),
+    ...(isOn('recitation') ? [{ id: 'recite', label: 'التسميع', icon: Mic }] : []),
+    ...(isOn('mutashabihat') ? [{ id: 'mutashabihat', label: 'المتشابهات', icon: Target }] : []),
     { id: 'progress', label: 'خطتي والكفايات', icon: TrendingUp },
     { id: 'stats', label: 'الاحصائيات', icon: BarChart3 },
     { id: 'account', label: 'حسابي', icon: UserRound },
   ];
+  // A tab whose module was switched off is no longer there to be on.
+  if (!navItems.some((n) => n.id === activeTab)) setActiveTab('today');
 
   const stats = statsQuery.data;
   const masteryPercent = stats?.total ? Math.round(((stats.review + stats.mastered) / stats.total) * 100) : 0;
@@ -155,8 +159,8 @@ export default function StudentDashboard() {
         )}
       </div>
 
-      {activeTab === 'today' && <LiveNowBanner />}
-      {activeTab === 'today' && <StudentProgram />}
+      {activeTab === 'today' && isOn('live') && <LiveNowBanner />}
+      {activeTab === 'today' && isOn('program') && <StudentProgram />}
       {activeTab === 'today' && (
         queueQuery.isLoading ? <Spinner /> : queueQuery.isError || !queue ? (
           <LoadError onRetry={() => queueQuery.refetch()} />
@@ -632,16 +636,17 @@ function MushafTab() {
 
 function ProgressTab() {
   const { user } = useAuth();
-  const badgesQuery = useQuery({ queryKey: queryKeys.badges, queryFn: () => api.getBadges().then((r) => r.data) });
+  const { isOn } = useModules();
+  const badgesQuery = useQuery({ queryKey: queryKeys.badges, queryFn: () => api.getBadges().then((r) => r.data), enabled: isOn('badges') });
   const badges: BadgeProgress[] = badgesQuery.data ?? [];
   const earned = badges.filter(b => b.earned);
   const locked = badges.filter(b => !b.earned).sort((a, b) => b.progress.current / b.progress.target - a.progress.current / a.progress.target);
 
   return (
     <div className="space-y-4">
-      {user && <MonthlyRecord studentId={user.id} />}
+      {user && isOn('monthly_record') && <MonthlyRecord studentId={user.id} />}
       {/* Gamification Badges */}
-      <Card>
+      {isOn('badges') && <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Trophy className="w-5 h-5 text-brand-accent" />
@@ -679,7 +684,7 @@ function ProgressTab() {
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
       <Card>
         <CardHeader><CardTitle>سجل الأخطاء</CardTitle></CardHeader>

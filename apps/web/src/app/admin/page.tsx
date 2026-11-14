@@ -15,11 +15,12 @@ import { InstitutionSetup } from '@/components/InstitutionSetup';
 import { HifzProgramSetup } from '@/components/HifzProgramSetup';
 import { UsersAdmin } from '@/components/UsersAdmin';
 import { AuditLog } from '@/components/AuditLog';
+import { ModulesAdmin } from '@/components/ModulesAdmin';
 
 const SETUP_ROLES = ['dean', 'operator', 'superadmin'];
 const TABS = [
   { id: 'overview', label: 'نظرة عامة' }, { id: 'setup', label: 'الإعداد: الحلقات والبرنامج' },
-  { id: 'users', label: 'المستخدمون' }, { id: 'audit', label: 'سجل العمليات' },
+  { id: 'users', label: 'المستخدمون' }, { id: 'modules', label: 'الوحدات' }, { id: 'audit', label: 'سجل العمليات' },
 ] as const;
 
 const ADMIN_ROLES = ['dean', 'advisor', 'operator', 'superadmin'] as const;
@@ -42,7 +43,7 @@ export default function AdminDashboard() {
   const { user, ready } = useRequireRole([...ADMIN_ROLES], '/auth/login/faculty');
   const isSuper = user?.role === 'superadmin';
   const [tenantId, setTenantId] = useState<string | undefined>(undefined);
-  const [tab, setTab] = useState<'overview' | 'setup' | 'users' | 'audit'>('overview');
+  const [tab, setTab] = useState<'overview' | 'setup' | 'users' | 'modules' | 'audit'>('overview');
 
   const tenants = useQuery({ queryKey: queryKeys.adminTenants, queryFn: () => api.getAdminTenants().then((r) => r.data), enabled: ready && isSuper });
   const overview = useQuery({
@@ -111,6 +112,7 @@ export default function AdminDashboard() {
             )}
             {canManage && tab === 'setup' && <><InstitutionSetup /><HifzProgramSetup /></>}
             {canManage && tab === 'users' && <UsersAdmin />}
+            {canManage && tab === 'modules' && <ModulesAdmin />}
             {canManage && tab === 'audit' && <AuditLog />}
 
             {(!canManage || tab === 'overview') && (<>

@@ -123,6 +123,34 @@ dashboard, قائمة الطالبات → «الخطة والتقرير» opens
 
 API: `GET|POST|DELETE /v1/sections/:id/students/:studentId/plan` and `PUT …/plan/pace`, for whoever manages the halaqa.
 
+## Product modules (admin)
+
+Sign in as `dean@itqan.local`, open «لوحة الإدارة» and the **الوحدات** tab. Every part of the product is a module the
+institution can switch off, and some have settings. An institution that changes nothing behaves exactly as before: the
+defaults are the deployment's own values (`AUDIO_RETENTION_HOURS`, `LIVE_RECORDING_MAX_MB` and the rest of `.env`).
+
+| Module | Off means | Settings |
+|---|---|---|
+| المراجعة اليومية والحفظ الجديد | (core: cannot be switched off) | الآيات الجديدة في اليوم (default for students whose teacher set none) |
+| المصحف | the mushaf tab goes | |
+| التسميع والتقييم | students cannot record, teachers cannot grade; «آيات للحفظ» and «السجل الشهري» go with it | مرات إعادة التسميع، أطول تسميع في تسجيل واحد، مدة بقاء التسجيل بعد المراجعة وقبلها |
+| الفحص الآلي | the existing switch; needs the plan and a speech provider | |
+| آيات للحفظ | the teacher's lessons tab and the student's list | |
+| برنامج الحفظ | the program screens and the current-period cards | |
+| المتشابهات | the trainer and its API | |
+| الدروس المباشرة | live lessons and recorded lessons | السماح بالتسجيل، أكبر حجم، مدة الحفظ |
+| الحضور، السجل الشهري، الأوسمة، بوابة أولياء الأمور، الإشعارات | their screens and API routes | |
+
+- A module that depends on another (آيات للحفظ and السجل الشهري depend on التسميع) is shown as off «لأن … موقوفة».
+- Switching a module off hides its tabs and cards from teachers, students and guardians (read from `/auth/me`), and its API
+  routes answer `403 MODULE_DISABLED`, for that institution only. Nothing is deleted: switching it on again brings everything back,
+  and its settings are kept.
+- Settings have limits (shown under each field), an «إعادة إلى الافتراضي» button, and every change is in the audit log.
+- Try: switch off «المتشابهات», sign in as the teacher and as a student (the tab is gone; `GET /v1/mutashabihat/mine` is 403);
+  switch off «التسميع والتقييم» and see «آيات للحفظ» go with it; lower «أطول تسميع في تسجيل واحد» to 10 and try to record 11 verses.
+- API: `GET /v1/admin/modules`, `PUT /v1/admin/modules/:key` (`{ enabled?, config?, reset? }`). Deans, operators and superadmins only.
+- The cache of an institution's modules is 5 seconds on a deployed server, so a change reaches other users within that.
+
 ## People and the audit log (admin)
 
 Sign in as `dean@itqan.local`, open «لوحة الإدارة». The page now has four tabs: **نظرة عامة**, **الإعداد: الحلقات والبرنامج**

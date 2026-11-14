@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@itqan/ui';
 import { Bell, LogOut, Printer, Shield } from 'lucide-react';
 import { useAuth, useRequireRole } from '@/lib/auth-context';
+import { useModules } from '@/lib/modules';
 import { api, queryKeys } from '@/lib/api';
 import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 import { WeeklyReportView } from '@/components/WeeklyReportView';
@@ -14,18 +15,19 @@ import { MonthlyRecord } from '@/components/MonthlyRecord';
 export default function GuardianDashboard() {
   const { user, ready } = useRequireRole(['mahram']);
   const { logout } = useAuth();
+  const { isOn } = useModules();
   const router = useRouter();
   const [selected, setSelected] = useState(0);
 
   const studentsQuery = useQuery({
     queryKey: queryKeys.guardianStudents,
     queryFn: () => api.getGuardianStudents().then((r) => r.data.students),
-    enabled: ready,
+    enabled: ready && isOn('guardians'),
   });
   const notificationsQuery = useQuery({
     queryKey: queryKeys.notifications,
     queryFn: () => api.getNotifications().then((r) => r.data),
-    enabled: ready,
+    enabled: ready && isOn('notifications'),
   });
 
   if (!ready) return <FullPageSpinner />;
@@ -59,7 +61,11 @@ export default function GuardianDashboard() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {studentsQuery.isLoading ? <Spinner /> : studentsQuery.isError ? (
+        {!isOn('guardians') ? (
+          <Card><CardContent className="py-10 text-center text-text-secondary" data-testid="module-off">
+            بوابة أولياء الأمور غير مفعّلة في المؤسسة الآن. تواصلي مع إدارة المؤسسة.
+          </CardContent></Card>
+        ) : studentsQuery.isLoading ? <Spinner /> : studentsQuery.isError ? (
           <LoadError onRetry={() => studentsQuery.refetch()} />
         ) : students.length === 0 ? (
           <Card><CardContent className="py-10 text-center text-text-secondary">
@@ -91,11 +97,11 @@ export default function GuardianDashboard() {
             </div>
 
             {report && <WeeklyReportView report={report} />}
-            {report && <MonthlyRecord key={report.student.id} studentId={report.student.id} />}
+            {report && isOn('monthly_record') && <MonthlyRecord key={report.student.id} studentId={report.student.id} />}
           </>
         )}
 
-        <Card className="print:hidden">
+        {isOn('notifications') && <Card className="print:hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Bell className="w-5 h-5" /> التنبيهات</CardTitle>
           </CardHeader>
@@ -119,7 +125,7 @@ export default function GuardianDashboard() {
               </ul>
             )}
           </CardContent>
-        </Card>
+        </Card>}
       </main>
     </div>
   );

@@ -3,6 +3,7 @@ import { AYAH_COUNTS, parseRef, compareRefs } from '@itqan/quran';
 import type { Database } from '../db';
 import { studentCards, users } from '../db/schema';
 import { ayatBetween } from './grading';
+import { moduleConfig } from './modules';
 
 /** The most ayat a teacher can add in one step: about a juz and a half. */
 export const MAX_PLAN_AYAT = 300;
@@ -106,8 +107,10 @@ export async function loadPlan(db: Database, studentId: string) {
 
 /** How many new ayat the student is offered per day. */
 export async function newPerDay(db: Database, studentId: string): Promise<number> {
-  const [row] = await db.select({ pace: users.newAyatPerDay }).from(users).where(eq(users.id, studentId)).limit(1);
-  return row?.pace ?? DEFAULT_NEW_PER_DAY;
+  const [row] = await db.select({ pace: users.newAyatPerDay, tenantId: users.tenantId }).from(users).where(eq(users.id, studentId)).limit(1);
+  if (row?.pace != null) return row.pace;
+  // Her teacher set nothing: the institution's default.
+  return row?.tenantId ? Number((await moduleConfig(row.tenantId, 'review')).newPerDay) : DEFAULT_NEW_PER_DAY;
 }
 
 export async function setNewPerDay(db: Database, studentId: string, pace: number): Promise<void> {

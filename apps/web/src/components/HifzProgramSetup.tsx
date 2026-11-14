@@ -11,6 +11,7 @@ import {
 import { formatAyahRange, SURAH_NAMES, toArabicDigits } from '@/lib/quran';
 import { PACE_OPTIONS, paceLabel, programDay, weekRhythm, weeksText } from '@/lib/program';
 import { LoadError, Spinner } from '@/components/LoadState';
+import { useModules } from '@/lib/modules';
 
 const field = 'rounded-xl border border-divider bg-surface-elevated px-3 py-2 text-sm';
 const MAX_PERIOD_AYAT = 1500;
@@ -73,7 +74,8 @@ const weeksSpan = (from: number, weeks: number) => (weeks <= 1 ? `الأسبوع
 /** Where the admin sets what must be memorized in each period, how fast, and how a period is assessed. */
 export function HifzProgramSetup() {
   const queryClient = useQueryClient();
-  const data = useQuery({ queryKey: queryKeys.adminPrograms, queryFn: () => api.getPrograms().then((r) => r.data) });
+  const { isOn } = useModules();
+  const data = useQuery({ queryKey: queryKeys.adminPrograms, queryFn: () => api.getPrograms().then((r) => r.data), enabled: isOn('program') });
   const [chosen, setChosen] = useState('');
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.adminPrograms });
@@ -85,6 +87,13 @@ export function HifzProgramSetup() {
   });
   const [newName, setNewName] = useState('');
 
+  if (!isOn('program')) {
+    return (
+      <Card data-testid="program-off"><CardContent className="py-6 text-sm text-text-secondary">
+        وحدة «برنامج الحفظ» موقوفة في مؤسستكِ. فعّليها من تبويب «الوحدات» لتضبطي فترات الحفظ.
+      </CardContent></Card>
+    );
+  }
   if (data.isLoading) return <Spinner />;
   if (data.isError || !data.data) return <LoadError onRetry={() => data.refetch()} />;
   const { programs, halaqat } = data.data;

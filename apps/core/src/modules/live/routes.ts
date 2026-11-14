@@ -13,6 +13,7 @@ import { liveSessions, sectionEnrollments, sections, sessionParticipants, sessio
 import { isStaff, isTenantAdmin, loadManagedSection } from '../../lib/access';
 import { ItqanError } from '../../lib/errors';
 import { isLiveConfigured, live, liveUrl } from '../../lib/live';
+import { moduleConfig } from '../../lib/modules';
 import { streamAudio, validLinkToken } from '../../lib/audio-link';
 import { generateToken } from '../../lib/jwt';
 import {
@@ -171,9 +172,12 @@ export async function liveRoutes(app: FastifyInstance) {
 
     const me = people.find((p) => p.userId === request.user.sub);
     const students = people.filter((p) => p.role === 'student');
+    const [owner] = await db.select({ tenantId: sections.tenantId }).from(sections).where(eq(sections.id, session.sectionId)).limit(1);
     return {
       session: serialize(session),
       role,
+      /** Whether this institution lets teachers record lessons. */
+      recordingAllowed: owner ? Boolean((await moduleConfig(owner.tenantId, 'live')).recordingAllowed) : true,
       me: { handRaised: Boolean(me?.handRaisedAt), canSpeak: me?.canSpeak ?? false },
       attending: students.length,
       // Only the host sees who is here and who is asking to speak; a student sees just her own state.
@@ -288,6 +292,10 @@ export async function liveRoutes(app: FastifyInstance) {
     if ('error' in entered) return entered.error;
     const { session } = entered;
     if (session.status !== 'live') return request.server.httpErrors.gone('The lesson has ended');
+    const [owner] = await db.select({ tenantId: sections.tenantId }).from(sections).where(eq(sections.id, session.sectionId)).limit(1);
+    if (!owner || !(await moduleConfig(owner.tenantId, 'live')).recordingAllowed) {
+      throw new ItqanError('Recording lessons is turned off for your institution', 'RECORDING_NOT_ALLOWED', 403);
+    }
     // One recording per lesson: a stopped or interrupted one is not started again.
     const [started] = await db.update(liveSessions).set({ recordingStatus: 'recording', recordingChunks: 0, recordingBytes: 0 })
       .where(and(eq(liveSessions.id, session.id), isNull(liveSessions.recordingStatus))).returning();
@@ -329,7 +337,7 @@ export async function liveRoutes(app: FastifyInstance) {
     if (seq > session.recordingChunks) return errors.conflict(`Expected piece ${session.recordingChunks}`);
 
     const total = (session.recordingBytes ?? 0) + chunk.length;
-    if (total > maxRecordingBytes()) throw new ItqanError('The recording has reached its size limit', 'RECORDING_FULL', 413);
+    if (total > await maxRecordingBytes(request.user.facultyId!)) throw new ItqanError('The recording has reached its size limit', 'RECORDING_FULL', 413);
     // The first piece says what kind of file this is; later pieces continue it.
     const kind = seq === 0 ? sniffVideo(chunk) : await partKind(session.id);
     if (!kind) return seq === 0 ? errors.unsupportedMediaType('That is not a video recording') : errors.conflict('The recording was lost');

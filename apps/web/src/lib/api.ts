@@ -34,9 +34,29 @@ export interface SessionResponse {
   isNewUser?: boolean;
 }
 
+/** The product's modules an institution can configure; the keys are the API's. */
+export type ModuleKey =
+  | 'review' | 'mushaf' | 'recitation' | 'ai_checking' | 'lessons' | 'live' | 'mutashabihat' | 'attendance'
+  | 'monthly_record' | 'badges' | 'guardians' | 'notifications' | 'program';
+export type ModuleSettingValue = number | boolean;
+export interface ModuleSetting {
+  key: string; labelAr: string; helpAr: string | null; kind: 'int' | 'bool'; min: number | null; max: number | null; unitAr: string | null;
+  value: ModuleSettingValue; default: ModuleSettingValue; /** The institution set it to something other than the default. */ custom: boolean;
+}
+export interface ModuleView {
+  key: ModuleKey; labelAr: string; descriptionAr: string; core: boolean; dependsOn: ModuleKey[];
+  /** On in effect: chosen, and everything it depends on is on. */
+  enabled: boolean; requested: boolean; blockedBy: ModuleKey | null;
+  /** What the module needs from the plan or the deployment, when that is missing. */
+  availability: { ok: boolean; messageAr: string } | null;
+  settings: ModuleSetting[];
+}
+
 export interface MeResponse {
   user: ApiUser;
   tenant: { id: string; nameAr: string; slug: string };
+  /** Which modules are on for the institution, with the settings the screens need. */
+  modules: Record<ModuleKey, { enabled: boolean; config: Record<string, ModuleSettingValue> }>;
   sections: { id: string; nameAr: string }[];
   consents: ConsentPurpose[];
 }
@@ -332,6 +352,8 @@ export type LiveRecording = LiveSession & { sectionName: string; teacherName: st
 /** What everyone in a live lesson polls: is it still on, who is here, what was asked. */
 export interface LiveState {
   session: LiveSession;
+  /** Whether the institution lets teachers record lessons. */
+  recordingAllowed: boolean;
   role: 'host' | 'listener';
   me: { handRaised: boolean; canSpeak: boolean };
   attending: number;
@@ -588,6 +610,8 @@ export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاول�
   if (code === 'CONSENT_REQUIRED') return 'نحتاج موافقتكِ على تسجيل الصوت أولاً.';
   if (e?.response?.status === 413) return 'التسجيل كبير جداً. سجّلي مقطعاً أقصر.';
   if (e?.response?.status === 415) return 'تعذّر قبول هذا التسجيل. جرّبي متصفحاً آخر.';
+  if (code === 'MODULE_DISABLED') return 'هذه الوحدة موقوفة في مؤسستكم. تواصلي مع العميدة.';
+  if (code === 'RECORDING_NOT_ALLOWED') return 'تسجيل الدروس غير مسموح به في مؤسستكم.';
   if (code === 'LIVE_NOT_CONFIGURED') return 'الدروس المباشرة غير مفعّلة على هذا الخادم بعد.';
   if (e?.response?.status === 410) return 'انتهى هذا الدرس.';
   if (code === 'PLAN_LIMIT_REACHED') return 'بلغت المؤسسة حدّ ترخيصها (الطالبات أو الحلقات) أو انتهى ترخيصها. تواصلي مع إدارة المؤسسة.';
@@ -828,6 +852,16 @@ class ApiClient {
 
   editHalaqa(id: string, data: { nameAr?: string; teacherId?: string; maxStudents?: number; active?: boolean }) {
     return this.client.patch<SetupHalaqa>(`/admin/halaqat/${id}`, data);
+  }
+
+  // Modules
+  getModules() {
+    return this.client.get<{ modules: ModuleView[] }>('/admin/modules');
+  }
+
+  /** Switches a module on or off, changes some of its settings, or puts settings back to the defaults. */
+  saveModule(key: ModuleKey, change: { enabled?: boolean; config?: Record<string, ModuleSettingValue>; reset?: string[] }) {
+    return this.client.put<{ modules: ModuleView[] }>(`/admin/modules/${key}`, change);
   }
 
   // People and the audit log
@@ -1152,6 +1186,7 @@ export const queryKeys = {
   adminOverview: (tenantId?: string) => ['admin', 'overview', tenantId ?? 'own'] as const,
   adminTenants: ['admin', 'tenants'] as const,
   adminPrograms: ['admin', 'programs'] as const,
+  adminModules: ['admin', 'modules'] as const,
   adminUsers: (filter: object) => ['admin', 'users', filter] as const,
   adminAudit: (filter: object) => ['admin', 'audit', filter] as const,
   sectionProgram: (sectionId: string) => ['sections', sectionId, 'program'] as const,
