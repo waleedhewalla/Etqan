@@ -123,6 +123,23 @@ dashboard, قائمة الطالبات → «الخطة والتقرير» opens
 
 API: `GET|POST|DELETE /v1/sections/:id/students/:studentId/plan` and `PUT …/plan/pace`, for whoever manages the halaqa.
 
+## Verses to memorize, recorded by the teacher («آيات للحفظ»)
+
+The teacher's «آيات للحفظ» tab: choose verses of one sura (up to 60, the most a student can recite back in one
+recording), record them, add an optional note, and publish to the halaqa. With the box ticked, the verses are also
+added to each student's plan as new memorization; verses she already has are left alone.
+
+Students find the lessons at the top of their «التسميع» tab: listen, show the verses, then «سمّعي هذه الآيات» fills
+the recording form with the lesson's halaqa and verses. The recitation is linked to the lesson, so the student
+sees its result on the lesson and the teacher sees how many students have recited each one.
+
+- The recording is stored with the same storage driver as recitations, under `lessons/`, and is never exposed by
+  key. The halaqa's students and whoever manages it can listen; guardians and other halaqat cannot.
+- It is kept until the teacher deletes the lesson. Deleting removes the file; recitations of it stay.
+- Changing the verses in the form drops the link to the lesson: a linked recitation always covers the lesson's verses.
+- API: `POST|GET /v1/sections/:id/lessons`, `GET /v1/lessons/mine`, `GET /v1/lessons/:id/audio-link`,
+  `DELETE /v1/lessons/:id`; `POST /v1/tasmi` accepts an optional `lessonId`.
+
 ## Teacher's reply and the monthly record
 
 **Reply.** In التسميع والتقييم the teacher can answer a recitation in writing («ردّ مكتوب للطالبة») and with a

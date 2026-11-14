@@ -1,25 +1,25 @@
 import { randomUUID } from 'node:crypto';
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { eq, and, desc, isNull, inArray } from 'drizzle-orm';
 import { AYAH_COUNTS, compareRefs, countAyat, parseRef } from '@itqan/quran';
 import { getDb, type Database } from '../../db';
-import { sectionEnrollments, sections, tasmiSubmissions, users } from '../../db/schema';
+import { recitationLessons, sectionEnrollments, sections, tasmiSubmissions, users } from '../../db/schema';
 import { canViewStudent, isStaff, isTenantAdmin } from '../../lib/access';
 import { MAX_AUDIO_BYTES, sniffAudio } from '../../lib/audio';
 import { hasConsent } from '../../lib/consent';
 import { awardBadges } from '../../lib/badges';
 import { ayatBetween, gradeRecitation } from '../../lib/grading';
 import { ConsentRequiredError } from '../../lib/errors';
-import { generateToken, verifyToken } from '../../lib/jwt';
-import { RangeNotSatisfiableError, getStorage } from '../../lib/storage';
+import { generateToken } from '../../lib/jwt';
+import { getStorage } from '../../lib/storage';
+import { AUDIO_LINK_TTL, streamAudio, validLinkToken } from '../../lib/audio-link';
 import { isCheckEnabled, scheduleAsrCheck } from '../../lib/asr/runner';
 import type { FlaggedWord } from '../../lib/asr/types';
 import { auditLog } from '../audit/service';
 
 /** Longest recitation a single recording may cover. */
-const MAX_SUBMISSION_AYAT = 60;
-const AUDIO_LINK_TTL = '5m';
+export const MAX_SUBMISSION_AYAT = 60;
 
 type Submission = typeof tasmiSubmissions.$inferSelect;
 
@@ -31,41 +31,6 @@ function serializeTasmi(row: Submission) {
 
 /** Longest text reply a teacher may write. */
 const MAX_REPLY_TEXT = 2000;
-
-/** True when `token` is a link token of this `purpose` for this recording. */
-function validLinkToken(token: string | undefined, purpose: string, id: string): boolean {
-  try {
-    const payload = token ? verifyToken(token) : null;
-    return payload?.purpose === purpose && payload.sub === id;
-  } catch {
-    return false; // invalid or expired
-  }
-}
-
-/** Streams a stored audio object, honouring Range so the player can seek. */
-async function streamAudio(request: FastifyRequest, reply: FastifyReply, key: string, bytes: number | null) {
-  let object;
-  try {
-    object = await getStorage().get(key, request.headers.range);
-  } catch (err) {
-    if (err instanceof RangeNotSatisfiableError) {
-      return reply.code(416).header('Content-Range', `bytes */${bytes ?? 0}`).send();
-    }
-    throw err;
-  }
-  if (!object) return request.server.httpErrors.notFound('Recording not found');
-
-  reply
-    .code(object.contentRange ? 206 : 200)
-    .header('Content-Type', object.contentType)
-    .header('Content-Length', object.contentLength)
-    .header('Accept-Ranges', 'bytes')
-    .header('Cache-Control', 'private, no-store')
-    .header('X-Content-Type-Options', 'nosniff')
-    .header('Cross-Origin-Resource-Policy', 'cross-origin');
-  if (object.contentRange) reply.header('Content-Range', object.contentRange);
-  return reply.send(object.body);
-}
 
 const reviewTasmiSchema = z.object({
   /** The teacher's call on each AI flag, by flag id. */
@@ -128,6 +93,19 @@ export async function assessmentRoutes(app: FastifyInstance) {
       )).limit(1);
     if (!enrolled) return errors.badRequest('You are not in this halaqa');
 
+    // A recitation of the teacher's «آيات للحفظ» must be for that lesson's halaqa and its verses.
+    let lessonId: string | null = null;
+    if (fields.lessonId) {
+      const [lesson] = z.string().uuid().safeParse(fields.lessonId).success
+        ? await db.select().from(recitationLessons).where(eq(recitationLessons.id, fields.lessonId)).limit(1)
+        : [];
+      if (!lesson || lesson.sectionId !== fields.sectionId) return errors.badRequest('That lesson is not in this halaqa');
+      if (lesson.startRef !== fields.startRef || lesson.endRef !== fields.endRef) {
+        return errors.badRequest('Recite the verses of the lesson');
+      }
+      lessonId = lesson.id;
+    }
+
     if (!audio || audio.length === 0) return errors.badRequest('No recording attached');
     if (audio.length > MAX_AUDIO_BYTES) return errors.payloadTooLarge('Recording is too large');
     const kind = sniffAudio(audio);
@@ -148,6 +126,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
       audioContentType: kind.mime,
       audioBytes: audio.length,
       durationMs,
+      lessonId,
       aiStatus: checkAi ? 'pending' : null,
     }).returning();
     if (checkAi) scheduleAsrCheck(db, row.id);

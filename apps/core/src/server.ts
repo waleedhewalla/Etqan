@@ -24,6 +24,7 @@ import { voiceProxyRoutes } from './modules/voice-proxy/routes';
 import { badgeRoutes } from './modules/badges/routes';
 import { adminRoutes } from './modules/admin/routes';
 import { adminSetupRoutes } from './modules/admin/setup-routes';
+import { lessonRoutes } from './modules/lessons/routes';
 import { sweepPendingChecks } from './lib/asr/runner';
 import { purgeExpiredAudio } from './lib/retention';
 import { assessmentRoutes } from './modules/assessment/routes';
@@ -150,6 +151,7 @@ async function buildApp() {
   await app.register(badgeRoutes, { prefix: '/v1' });
   await app.register(adminRoutes, { prefix: '/v1' });
   await app.register(adminSetupRoutes, { prefix: '/v1' });
+  await app.register(lessonRoutes, { prefix: '/v1' });
   await app.register(assessmentRoutes, { prefix: '/v1' });
   await app.register(reportingRoutes, { prefix: '/v1' });
   await app.register(notificationRoutes, { prefix: '/v1' });

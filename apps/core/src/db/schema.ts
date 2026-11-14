@@ -13,6 +13,7 @@ import {
   uniqueIndex,
   index,
   primaryKey,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 
 // ── Enums ──
@@ -366,10 +367,29 @@ export const tasmiSubmissions = pgTable('tasmi_submissions', {
   replyDurationMs: integer('reply_duration_ms'),
   replyBy: uuid('reply_by').references(() => users.id),
   replyAt: timestamp('reply_at', { withTimezone: true }),
+  /** The teacher's lesson this recitation answers, when she recited «آيات للحفظ». */
+  lessonId: uuid('lesson_id').references((): AnyPgColumn => recitationLessons.id, { onDelete: 'set null' }),
 }, (t) => ({
   studentIdx: index('tasmi_student_idx').on(t.studentId),
   sectionIdx: index('tasmi_section_idx').on(t.sectionId),
   verdictIdx: index('tasmi_verdict_idx').on(t.reviewVerdict),
+}));
+
+/** Verses a teacher recorded for her halaqa to listen to and memorize («آيات للحفظ»). */
+export const recitationLessons = pgTable('recitation_lessons', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  sectionId: uuid('section_id').references(() => sections.id, { onDelete: 'cascade' }).notNull(),
+  teacherId: uuid('teacher_id').references(() => users.id),
+  startRef: varchar('start_ref', { length: 12 }).notNull(),
+  endRef: varchar('end_ref', { length: 12 }).notNull(),
+  note: text('note'),
+  audioKey: text('audio_key').notNull(),
+  audioContentType: varchar('audio_content_type', { length: 64 }).notNull(),
+  audioBytes: integer('audio_bytes').notNull(),
+  durationMs: integer('duration_ms'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  sectionIdx: index('recitation_lessons_section_idx').on(t.sectionId, t.createdAt),
 }));
 
 /** The teacher's written appraisal of a student for one calendar month; part of her monthly record. */
