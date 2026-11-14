@@ -191,7 +191,19 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
       r.on(lk.RoomEvent.AudioPlaybackStatusChanged, () => setSoundBlocked(!r.canPlaybackAudio));
       r.on(lk.RoomEvent.Disconnected, () => { if (room.current === r) void leave('ended'); });
 
-      await r.connect(data.url, data.token);
+      try {
+        await r.connect(data.url, data.token);
+      } catch (err) {
+        // The page reached the server (the token came back) but the room did not open: the network is blocking the
+        // live media, which "check your internet" would not tell her. The institution is told, so it can see how many.
+        const reason = (err as { reasonName?: string; name?: string; message?: string });
+        void api.reportLiveConnectionProblem(sessionId, `${reason.reasonName ?? reason.name ?? 'error'}: ${reason.message ?? ''}`).catch(() => undefined);
+        room.current = null;
+        void r.disconnect().catch(() => undefined);
+        setProblem('تعذّر الاتصال ببثّ الدرس. قد تمنع شبكتكِ البثّ المباشر. جرّبي شبكة أخرى (بيانات الهاتف مثلاً)، وأخبري معلمتكِ إن استمرت المشكلة.');
+        setPhase('failed');
+        return;
+      }
       await r.startAudio().catch(() => undefined);
       setSoundBlocked(!r.canPlaybackAudio);
       setPhase('live');

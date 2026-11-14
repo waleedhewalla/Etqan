@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
+import { and, eq } from 'drizzle-orm';
 import { buildApp } from '../server';
 import { closeDb, getDb } from '../db';
 import { guardianLinks, sectionEnrollments, sections, tenants, users } from '../db/schema';
@@ -113,6 +114,17 @@ describe.skipIf(!process.env.DATABASE_URL)('live lessons', () => {
     expect(listener.token.endsWith(`:${ids.student}:listener`)).toBe(true);
     expect((await call('classmate', 'POST', `/live/${ids.session}/join`)).json().role).toBe('listener');
     expect((await call('dean', 'POST', `/live/${ids.session}/join`)).json().role).toBe('listener');
+  });
+
+  it('notes in the audit log that someone could not connect, for her halaqa only', async () => {
+    const { auditLogs } = await import('../db/schema');
+    const note = (who: string, reason: string) => call(who, 'POST', `/live/${ids.session}/connection-problem`, { reason });
+    expect((await note('student', 'ConnectionError: could not establish pc connection')).statusCode).toBe(204);
+    expect((await note('outsider', 'x')).statusCode).toBe(404);
+    expect((await note('student', 'y'.repeat(500))).statusCode).toBe(400); // a reason is short
+    const rows = await getDb().select().from(auditLogs).where(and(eq(auditLogs.action, 'live.connection_failed'), eq(auditLogs.userId, ids.student)));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].details).toMatchObject({ role: 'listener', sessionId: ids.session, reason: expect.stringContaining('pc connection') });
   });
 
   it('shows the teacher who is here; a student sees only herself', async () => {

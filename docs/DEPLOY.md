@@ -95,8 +95,34 @@ What to know:
 - Teachers should hold lessons from a laptop: phone browsers cannot share the screen.
 - Size the server for it: a lesson with one teacher sharing her screen to 30 listeners needs roughly 30–60 Mbit/s
   of upload from the server while it runs. Measure a real lesson before relying on this figure.
-- No TURN relay is configured (LiveKit has one built in: enable `turn` in `livekit.yaml` with its own DNS name and certificate when a pilot student cannot connect). A student on a network that blocks both UDP and outbound TCP to port 7881 will
-  not hear the lesson. If that happens, the next step is LiveKit's built-in TURN on port 443 with its own DNS name.
+- **A student who cannot connect.** Signalling goes through Caddy on 443, so a student's page opens even when her network
+  blocks the live media (UDP, and TCP to 7881). She then sees «تعذّر الاتصال ببثّ الدرس» with advice to try another network
+  (mobile data), and the attempt is written to the audit log as «تعذّر دخول درس مباشر (مشكلة اتصال)» with the browser's reason.
+  Count those entries in the admin console's audit tab during the pilot: a few are normal; many from the same network
+  mean the relay below is worth setting up. Nothing is configured by default.
+- **TURN relay (only if the audit log shows it is needed).** LiveKit has one built in; it carries the media over TLS so it
+  passes networks that only allow HTTPS. What we found when trying it:
+  - LiveKit tells browsers to use `turns:<domain>:443`, so the relay must be reachable on **port 443 of its own DNS name**.
+    Caddy already holds 443 on this machine's address, so the relay needs a second public IP (bind it there: add
+    `ports: ["<second-ip>:443:443/tcp"]` to the `livekit` service and set `tls_port: 443`), or an SNI-routing proxy in front
+    of 443. It also needs a certificate for that name (`cert_file`, `key_file`); LiveKit reads it at start, so restart it after a renewal.
+  - Use TLS only:
+    ```yaml
+    turn:
+      enabled: true
+      domain: turn.example.com
+      tls_port: 443
+      cert_file: /certs/turn.crt
+      key_file: /certs/turn.key
+    ```
+    **Do not set `udp_port` under `turn` on LiveKit v1.10.0**: it advertises a malformed address (`turn:{IP }:3478`) and
+    browsers then cannot join at all (seen in Chromium). UDP relaying would not help the networks that block UDP anyway.
+  - Tested here with LiveKit v1.10.0: it starts with TLS-only TURN, advertises one valid `turns:` address, and lessons keep
+    working. The relayed media path itself was **not** verified (it needs a real certificate and DNS name, and a network that
+    blocks UDP); try it from such a network before relying on it.
+- **Server-side recording** (LiveKit Egress, so a lesson is recorded even if the teacher's browser fails) is not built. It needs
+  Redis and an Egress service next to LiveKit. The browser recording now survives a dropped connection of up to five minutes
+  (`TESTING.md`); build the server-side one only if teachers' recordings keep failing in the pilot.
 - **Scheduled lessons.** A teacher can set a lesson for later; students get a reminder the day before and 15 minutes before,
   in the app and over WhatsApp (only students who agreed to messages, and only when 360dialog is configured). Register a
   WhatsApp template named `itqan_live_reminder` (or set `WHATSAPP_TEMPLATE_LIVE`), language `ar`, category *utility*, with
