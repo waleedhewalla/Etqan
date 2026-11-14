@@ -400,6 +400,53 @@ export const recitationLessons = pgTable('recitation_lessons', {
   sectionIdx: index('recitation_lessons_section_idx').on(t.sectionId, t.createdAt),
 }));
 
+// ── Live lessons ──
+
+export const liveSessionStatusEnum = pgEnum('live_session_status', ['live', 'ended']);
+
+/** A live lesson a teacher holds for her halaqa. The audio and video go through the media server, not this database. */
+export const liveSessions = pgTable('live_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  sectionId: uuid('section_id').references(() => sections.id, { onDelete: 'cascade' }).notNull(),
+  teacherId: uuid('teacher_id').references(() => users.id),
+  title: text('title').notNull(),
+  /** The verses taught, when the teacher names them. */
+  startRef: varchar('start_ref', { length: 12 }),
+  endRef: varchar('end_ref', { length: 12 }),
+  status: liveSessionStatusEnum('status').default('live').notNull(),
+  /** Random, so a room cannot be guessed from the halaqa. */
+  roomName: varchar('room_name', { length: 64 }).notNull().unique(),
+  startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+}, (t) => ({
+  sectionIdx: index('live_sessions_section_idx').on(t.sectionId, t.startedAt),
+}));
+
+/** Who came to a live lesson, and whether she is asking to speak. */
+export const sessionParticipants = pgTable('session_participants', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  sessionId: uuid('session_id').references(() => liveSessions.id, { onDelete: 'cascade' }).notNull(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  joinedAt: timestamp('joined_at', { withTimezone: true }).defaultNow().notNull(),
+  handRaisedAt: timestamp('hand_raised_at', { withTimezone: true }),
+  /** The teacher has given her the microphone. */
+  canSpeak: boolean('can_speak').default(false).notNull(),
+}, (t) => ({
+  sessionUserIdx: uniqueIndex('session_participants_session_user_idx').on(t.sessionId, t.userId),
+}));
+
+/** Questions written during a live lesson; kept after the room closes. */
+export const sessionQuestions = pgTable('session_questions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  sessionId: uuid('session_id').references(() => liveSessions.id, { onDelete: 'cascade' }).notNull(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  text: text('text').notNull(),
+  askedAt: timestamp('asked_at', { withTimezone: true }).defaultNow().notNull(),
+  answeredAt: timestamp('answered_at', { withTimezone: true }),
+}, (t) => ({
+  sessionIdx: index('session_questions_session_idx').on(t.sessionId, t.askedAt),
+}));
+
 /** The teacher's written appraisal of a student for one calendar month; part of her monthly record. */
 export const studentMonthlyAppraisals = pgTable('student_monthly_appraisals', {
   id: uuid('id').defaultRandom().primaryKey(),

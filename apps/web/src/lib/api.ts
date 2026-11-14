@@ -311,6 +311,28 @@ export interface TasmiSubmission {
   disputedCount?: number;
 }
 
+/** A live lesson a teacher holds for her halaqa. */
+export interface LiveSession {
+  id: string;
+  sectionId: string;
+  title: string;
+  startRef: string | null;
+  endRef: string | null;
+  status: 'live' | 'ended';
+  startedAt: string;
+  endedAt: string | null;
+}
+/** What everyone in a live lesson polls: is it still on, who is here, what was asked. */
+export interface LiveState {
+  session: LiveSession;
+  role: 'host' | 'listener';
+  me: { handRaised: boolean; canSpeak: boolean };
+  attending: number;
+  /** For the host only. */
+  participants: { userId: string; name: string; handRaised: boolean; canSpeak: boolean }[];
+  questions: { id: string; name: string; text: string; askedAt: string; answeredAt: string | null; mine: boolean }[];
+}
+
 /** Verses a teacher recorded for her halaqa to listen to and memorize («آيات للحفظ»). */
 export interface Lesson {
   id: string;
@@ -434,6 +456,8 @@ export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاول�
   if (code === 'CONSENT_REQUIRED') return 'نحتاج موافقتكِ على تسجيل الصوت أولاً.';
   if (e?.response?.status === 413) return 'التسجيل كبير جداً. سجّلي مقطعاً أقصر.';
   if (e?.response?.status === 415) return 'تعذّر قبول هذا التسجيل. جرّبي متصفحاً آخر.';
+  if (code === 'LIVE_NOT_CONFIGURED') return 'الدروس المباشرة غير مفعّلة على هذا الخادم بعد.';
+  if (e?.response?.status === 410) return 'انتهى هذا الدرس.';
   if (code === 'PLAN_LIMIT_REACHED') return 'بلغت المؤسسة حدّ ترخيصها (الطالبات أو الحلقات) أو انتهى ترخيصها. تواصلي مع إدارة المؤسسة.';
   if (code === 'PLAN_FEATURE_NOT_INCLUDED') return 'هذه الميزة غير مشمولة في ترخيص مؤسستكم.';
   if (code === 'ACCOUNT_NOT_FOUND') return 'لا يوجد حساب بهذا الرقم. اطلبي رمز الحلقة من معلمتك.';
@@ -702,6 +726,52 @@ class ApiClient {
     return this.client.get<{ url: string }>(`/tasmi/${id}/audio-link`);
   }
 
+  // Live lessons
+  startLive(sectionId: string, data: { title: string; startRef?: string; endRef?: string }) {
+    return this.client.post<LiveSession>(`/sections/${sectionId}/live`, data);
+  }
+
+  getSectionLive(sectionId: string) {
+    return this.client.get<{ enabled: boolean; sessions: (LiveSession & { attended: number })[] }>(`/sections/${sectionId}/live`);
+  }
+
+  getLiveNow() {
+    return this.client.get<(LiveSession & { sectionName: string; teacherName: string | null })[]>('/live/now');
+  }
+
+  /** A short-lived token for the media server, and the caller's role in the room. */
+  joinLive(id: string) {
+    return this.client.post<{ url: string; token: string; role: 'host' | 'listener'; session: LiveSession }>(`/live/${id}/join`);
+  }
+
+  getLiveState(id: string) {
+    return this.client.get<LiveState>(`/live/${id}/state`);
+  }
+
+  askLive(id: string, text: string) {
+    return this.client.post(`/live/${id}/questions`, { text });
+  }
+
+  answerLive(id: string, questionId: string, answered: boolean) {
+    return this.client.patch(`/live/${id}/questions/${questionId}`, { answered });
+  }
+
+  setLiveHand(id: string, raised: boolean) {
+    return this.client.put<{ handRaised: boolean }>(`/live/${id}/hand`, { raised });
+  }
+
+  setLiveSpeak(id: string, userId: string, canSpeak: boolean) {
+    return this.client.put(`/live/${id}/participants/${userId}/speak`, { canSpeak });
+  }
+
+  endLive(id: string) {
+    return this.client.post<LiveSession>(`/live/${id}/end`);
+  }
+
+  getLiveAttendance(id: string) {
+    return this.client.get<{ session: LiveSession; records: { studentId: string; name: string; present: boolean }[] }>(`/live/${id}/attendance`);
+  }
+
   // «آيات للحفظ»
   /** Multipart with startRef, endRef, note, durationMs, addToPlan and the `audio` file. */
   createLesson(sectionId: string, form: FormData) {
@@ -832,6 +902,9 @@ export const queryKeys = {
   plan: (sectionId: string, studentId: string) => ['sections', sectionId, 'plan', studentId] as const,
   monthly: (studentId: string, month: string) => ['reports', 'monthly', studentId, month] as const,
   tasmiHistory: (id: string) => ['tasmi', 'history', id] as const,
+  liveNow: ['live', 'now'] as const,
+  sectionLive: (sectionId: string) => ['live', 'section', sectionId] as const,
+  liveState: (id: string) => ['live', 'state', id] as const,
   myLessons: ['lessons', 'mine'] as const,
   sectionLessons: (sectionId: string) => ['lessons', 'section', sectionId] as const,
   myTasmi: ['tasmi', 'mine'] as const,

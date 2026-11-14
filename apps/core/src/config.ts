@@ -33,6 +33,13 @@ const envSchema = z.object({
 
   // JWT
   JWT_SECRET: z.string().min(32).default('dev-secret-change-me-in-production-32chars'),
+
+  // Live lessons (LiveKit). All three set = live lessons on. LIVEKIT_URL is what browsers connect to (wss://…);
+  // LIVEKIT_API_URL is how the API reaches the same server, when that differs (e.g. http://livekit:7880).
+  LIVEKIT_URL: optional(z.string().url()),
+  LIVEKIT_API_URL: optional(z.string().url()),
+  LIVEKIT_API_KEY: optional(z.string().min(3)),
+  LIVEKIT_API_SECRET: optional(z.string().min(6)),
   JWT_EXPIRY: z.string().default('30d'),
   JWT_REFRESH_EXPIRY: z.string().default('90d'),
   

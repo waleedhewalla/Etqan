@@ -1,0 +1,8 @@
+# Used instead of Caddyfile when live lessons are on (compose.live.yml): the same sites, plus the media server.
+import /etc/caddy/Caddyfile.base
+
+{$LIVE_DOMAIN} {
+	# WebSocket signalling for live lessons. Audio and video do not pass through here: they go straight to
+	# the media server on 7881/tcp and 7882/udp.
+	reverse_proxy livekit:7880
+}
