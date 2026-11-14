@@ -20,6 +20,7 @@ export function AppShell({
   trailing,
   children,
   userInitials = '؟',
+  headerAction,
 }: {
   items: ShellNavItem[];
   activeId: string;
@@ -28,6 +29,8 @@ export function AppShell({
   trailing?: ReactNode;
   children: ReactNode;
   userInitials?: string;
+  /** Shown beside the brand (the bell): in the sidebar on a laptop, in the top bar on a phone. */
+  headerAction?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const primary = items.slice(0, 4);
@@ -58,9 +61,12 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-surface-canvas" dir="rtl">
       <aside className="hidden lg:flex flex-col fixed top-0 right-0 bottom-0 w-64 bg-surface-elevated border-l border-divider z-40 p-3">
-        <Link href={homeHref} className="mb-4 px-1 cursor-pointer">
-          <BrandMark size="sm" />
-        </Link>
+        <div className="mb-4 px-1 flex items-center justify-between gap-2">
+          <Link href={homeHref} className="cursor-pointer">
+            <BrandMark size="sm" />
+          </Link>
+          {headerAction}
+        </div>
         <nav className="flex-1 space-y-1 overflow-y-auto">{items.map(navButton)}</nav>
         {trailing}
       </aside>
@@ -90,8 +96,11 @@ export function AppShell({
           <Menu className="w-5 h-5" />
         </button>
         <BrandMark size="sm" showWordmark={false} />
+        <div className="flex items-center gap-1">
+          {headerAction}
         <div className="w-9 h-9 rounded-full bg-brand-primary text-surface-canvas flex items-center justify-center text-sm font-bold">
           {userInitials}
+        </div>
         </div>
       </header>
 

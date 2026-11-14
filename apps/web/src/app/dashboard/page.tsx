@@ -24,6 +24,7 @@ import { useRequireRole } from '@/lib/auth-context';
 import { api, errorMessage, queryKeys, type BadgeProgress, type EarnedBadge, type QueueItem, type QueueResponse, type Rating } from '@/lib/api';
 import { formatAyahRange, formatAyahRef, toArabicDigits, ayatCount, SURAH_NAMES } from '@/lib/quran';
 import { AppShell } from '@/components/AppShell';
+import { NotificationBell } from '@/components/NotificationBell';
 import { EmptyState } from '@/components/EmptyState';
 import { AccountPanel } from '@/components/AccountPanel';
 import { IconTile } from '@/components/IconTile';
@@ -123,6 +124,7 @@ export default function StudentDashboard() {
       activeId={activeTab}
       onSelect={(id) => { setActiveTab(id as StudentTab); setReviewing(false); }}
       homeHref="/dashboard"
+      headerAction={<NotificationBell />}
       userInitials={user?.displayNameAr?.slice(0, 2) || '؟'}
       trailing={
         <div className="mt-4 p-3 rounded-2xl bg-surface-canvas border border-divider text-sm">

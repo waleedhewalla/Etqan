@@ -10,7 +10,7 @@ import { api, errorMessage, queryKeys, type LiveSession } from '@/lib/api';
 import { formatAyahRange, SURAH_NAMES, toArabicDigits } from '@/lib/quran';
 import { LoadError, Spinner } from '@/components/LoadState';
 import { RecordingPlayer, lessonLength } from '@/components/LessonRecordings';
-import { lessonTime, localInputValue } from '@/lib/live-time';
+import { institutionTimeToIso, lessonTime, localInputValue } from '@/lib/live-time';
 
 const field = 'rounded-xl border border-divider bg-surface-elevated px-3 py-2';
 const when = (iso: string) => new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
@@ -32,7 +32,7 @@ export function TeacherLive({ sectionId }: { sectionId: string }) {
   /** Set for a later time instead of starting now. */
   const [later, setLater] = useState(false);
   const [at, setAt] = useState(() => localInputValue(24 * 60));
-  const whenIso = Number.isNaN(Date.parse(at)) ? null : new Date(at).toISOString();
+  const whenIso = institutionTimeToIso(at);
   const minutesAhead = whenIso ? (Date.parse(whenIso) - Date.now()) / 60_000 : 0;
   const validWhen = !later || (whenIso !== null && minutesAhead >= 5 && minutesAhead <= 60 * 24 * 60);
   const count = AYAH_COUNTS[sura - 1];
@@ -147,12 +147,12 @@ export function TeacherLive({ sectionId }: { sectionId: string }) {
               {later && (
                 <div className="space-y-1">
                   <label className="text-sm block">
-                    <span className="block text-text-secondary mb-1">موعد الدرس</span>
+                    <span className="block text-text-secondary mb-1">موعد الدرس (بتوقيت القاهرة)</span>
                     <input id="live-when" type="datetime-local" className={field} value={at} onChange={(e) => setAt(e.target.value)} />
                   </label>
                   {validWhen && whenIso
-                    ? <p className="text-xs text-text-secondary">يوافق {lessonTime(whenIso)} بتوقيت القاهرة.</p>
-                    : <p role="alert" className="text-sm text-red-800">اختاري موعداً بعد خمس دقائق على الأقل، وخلال شهرين.</p>}
+                    ? <p className="text-xs text-text-secondary">{lessonTime(whenIso)} بتوقيت القاهرة.</p>
+                    : <p role="alert" className="text-sm text-red-800">اختاري موعداً صحيحاً بعد خمس دقائق على الأقل، وخلال شهرين.</p>}
                 </div>
               )}
               <Button type="submit" loading={start.isPending} disabled={!validVerses || !validWhen}>{later ? 'جدولة الدرس' : 'ابدئي الدرس الآن'}</Button>
