@@ -12,6 +12,7 @@ import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 import { EmptyState } from '@/components/EmptyState';
 import { PilotMetrics } from '@/components/PilotMetrics';
 import { InstitutionSetup } from '@/components/InstitutionSetup';
+import { HifzProgramSetup } from '@/components/HifzProgramSetup';
 
 const SETUP_ROLES = ['dean', 'operator', 'superadmin'];
 
@@ -90,6 +91,7 @@ export default function AdminDashboard() {
             </section>
 
             {user && SETUP_ROLES.includes(user.role) && (!tenantId || tenantId === user.tenantId) && <InstitutionSetup />}
+            {user && SETUP_ROLES.includes(user.role) && (!tenantId || tenantId === user.tenantId) && <HifzProgramSetup />}
 
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" aria-label="مؤشرات">
               <Stat icon={<Users className="w-5 h-5" />} label="الطالبات في الحلقات" value={toArabicDigits(data.usage.students)} note={`في ${toArabicDigits(data.usage.halaqat)} حلقة نشطة`} />

@@ -405,6 +405,82 @@ export interface SetupHalaqa {
 }
 export interface InstitutionSetup { staff: SetupStaff[]; halaqat: SetupHalaqa[] }
 
+/** One period of a memorization program, with the size and weeks worked out from its verses and pace. */
+export interface ProgramPeriod {
+  id?: string;
+  nameAr: string;
+  goalAr: string | null;
+  /** Both null for a consolidation period, which has no new verses. */
+  startRef: string | null;
+  endRef: string | null;
+  pagesPerDay: number;
+  extraPct: number;
+  fixedWeeks: number | null;
+  kind: 'hifz' | 'consolidation';
+  ayat: number;
+  pages: number;
+  hifzWeeks: number;
+  weeks: number;
+  startWeek: number;
+}
+export type ProgramWeights = { hifz: number; tajweed: number; review: number; retention: number };
+export type ProgramWarning = { type: 'overlap'; a: number; b: number } | { type: 'short' | 'long'; period: number; weeks: number };
+export interface HifzProgram {
+  id: string;
+  nameAr: string;
+  active: boolean;
+  hifzDaysPerWeek: number;
+  weights: ProgramWeights;
+  passScore: number;
+  minCriterionPct: number;
+  periods: ProgramPeriod[];
+  totals: { pages: number; weeks: number; hifzWeeks: number };
+  warnings: ProgramWarning[];
+  inUse: boolean;
+}
+export interface AdminPrograms {
+  programs: HifzProgram[];
+  halaqat: { id: string; nameAr: string; programId: string | null; startDate: string | null; weekStart: string | null }[];
+  today: string;
+}
+/** What a period is saved with: the required verses (or the weeks of a consolidation period) and the pace. */
+export interface ProgramPeriodInput {
+  nameAr: string;
+  goalAr?: string | null;
+  startRef?: string | null;
+  endRef?: string | null;
+  pagesPerDay?: number;
+  extraPct?: number;
+  fixedWeeks?: number | null;
+}
+export interface ProgramSettingsInput {
+  nameAr?: string;
+  hifzDaysPerWeek?: number;
+  weights?: ProgramWeights;
+  passScore?: number;
+  minCriterionPct?: number;
+  active?: boolean;
+}
+/** What the halaqa is required to memorize now. `program` is null when it follows none. */
+export type SectionProgram = { program: null } | {
+  program: { id: string; nameAr: string; weights: ProgramWeights; passScore: number; minCriterionPct: number; hifzDaysPerWeek: number };
+  status: 'not_started' | 'running' | 'finished';
+  week: number;
+  totalWeeks: number;
+  periodNumber: number;
+  periodCount: number;
+  phase: 'hifz' | 'assessment' | 'consolidation';
+  weekInPeriod: number;
+  startsOn: string;
+  endsOn: string;
+  period: {
+    nameAr: string; goalAr: string | null; startRef: string | null; endRef: string | null; ayat: number; pages: number;
+    pagesPerDay: number; hifzWeeks: number; weeks: number; pagesPerWeek: number;
+  };
+  next: { nameAr: string; startRef: string | null; endRef: string | null } | null;
+  canApply: boolean;
+};
+
 export type PlanStatus = 'memorized' | 'new';
 export interface PlanRange { startRef: string; endRef: string; count: number; status: PlanStatus }
 export interface HifzPlan { total: number; memorized: number; new: number; newPerDay: number; ranges: PlanRange[] }
@@ -702,6 +778,41 @@ class ApiClient {
     return this.client.patch<SetupHalaqa>(`/admin/halaqat/${id}`, data);
   }
 
+  // Memorization programs
+  getPrograms() {
+    return this.client.get<AdminPrograms>('/admin/programs');
+  }
+
+  createProgram(data: ProgramSettingsInput & { nameAr: string; periods?: ProgramPeriodInput[] }) {
+    return this.client.post<HifzProgram>('/admin/programs', data);
+  }
+
+  editProgram(id: string, data: ProgramSettingsInput) {
+    return this.client.patch<HifzProgram>(`/admin/programs/${id}`, data);
+  }
+
+  saveProgramPeriods(id: string, periods: ProgramPeriodInput[]) {
+    return this.client.put<HifzProgram>(`/admin/programs/${id}/periods`, { periods });
+  }
+
+  deleteProgram(id: string) {
+    return this.client.delete(`/admin/programs/${id}`);
+  }
+
+  /** A halaqa follows a program from the week of `startDate` (this week if omitted), or none with `programId: null`. */
+  assignProgram(sectionId: string, programId: string | null, startDate?: string) {
+    return this.client.put<{ id: string; programId: string | null; startDate: string | null }>(`/admin/halaqat/${sectionId}/program`, { programId, startDate });
+  }
+
+  getSectionProgram(sectionId: string) {
+    return this.client.get<SectionProgram>(`/sections/${sectionId}/program`);
+  }
+
+  /** Puts the current period's verses in every student's plan as new memorization. */
+  applySectionProgram(sectionId: string) {
+    return this.client.post<{ ayat: number; students: number; added: number }>(`/sections/${sectionId}/program/apply`);
+  }
+
   getPilotReport(tenantId?: string, weeks = 4) {
     return this.client.get<PilotReport>('/admin/pilot', { params: { tenantId, weeks } });
   }
@@ -951,6 +1062,8 @@ export const queryKeys = {
   badges: ['badges'] as const,
   adminOverview: (tenantId?: string) => ['admin', 'overview', tenantId ?? 'own'] as const,
   adminTenants: ['admin', 'tenants'] as const,
+  adminPrograms: ['admin', 'programs'] as const,
+  sectionProgram: (sectionId: string) => ['sections', sectionId, 'program'] as const,
   adminSetup: ['admin', 'setup'] as const,
   pilot: (tenantId?: string) => ['admin', 'pilot', tenantId ?? 'own'] as const,
   myClusters: ['mutashabihat', 'mine'] as const,

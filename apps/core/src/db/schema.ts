@@ -177,6 +177,52 @@ export const authSessions = pgTable('auth_sessions', {
 
 // ── Sections (Halaqat) ──
 
+// ── Memorization programs (configured by the institution's admin) ──
+
+/** A program: the periods a halaqa works through, and how each period is assessed. */
+export const hifzPrograms = pgTable('hifz_programs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  tenantId: uuid('tenant_id').references(() => tenants.id).notNull(),
+  nameAr: text('name_ar').notNull(),
+  /** Days a week that new verses are memorized; the remaining program day is for the weekly test. */
+  hifzDaysPerWeek: integer('hifz_days_per_week').default(4).notNull(),
+  /** How a period is scored, out of 100 in all: memorization, tajweed, revision of earlier periods, retention after a week. */
+  weightHifz: integer('weight_hifz').default(40).notNull(),
+  weightTajweed: integer('weight_tajweed').default(25).notNull(),
+  weightReview: integer('weight_review').default(20).notNull(),
+  weightRetention: integer('weight_retention').default(15).notNull(),
+  /** The total needed to move to the next period, and the least any one criterion may reach, as a share of its weight. */
+  passScore: integer('pass_score').default(85).notNull(),
+  minCriterionPct: integer('min_criterion_pct').default(70).notNull(),
+  active: boolean('active').default(true).notNull(),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  tenantIdx: index('hifz_programs_tenant_idx').on(t.tenantId),
+}));
+
+/** One period of a program: the verses to memorize in it, and the pace they are memorized at. */
+export const hifzProgramPeriods = pgTable('hifz_program_periods', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  programId: uuid('program_id').references(() => hifzPrograms.id, { onDelete: 'cascade' }).notNull(),
+  sortOrder: integer('sort_order').notNull(),
+  nameAr: text('name_ar').notNull(),
+  goalAr: text('goal_ar'),
+  /** The required memorization. Both null for a consolidation period, which has no new verses. */
+  startRef: varchar('start_ref', { length: 12 }),
+  endRef: varchar('end_ref', { length: 12 }),
+  /** Pages memorized on each memorization day. */
+  pagesPerDay: real('pages_per_day').default(0.75).notNull(),
+  /** Extra time, as a share, for long or similar-sounding passages. */
+  extraPct: integer('extra_pct').default(0).notNull(),
+  /** Weeks of a consolidation period (the others are worked out from their verses). */
+  fixedWeeks: integer('fixed_weeks'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  programIdx: index('hifz_program_periods_program_idx').on(t.programId),
+}));
+
 export const sections = pgTable('sections', {
   id: uuid('id').defaultRandom().primaryKey(),
   tenantId: uuid('tenant_id').references(() => tenants.id).notNull(),
@@ -186,6 +232,9 @@ export const sections = pgTable('sections', {
   teacherId: uuid('teacher_id').references(() => users.id),
   maxStudents: integer('max_students').default(25).notNull(),
   active: boolean('active').default(true).notNull(),
+  /** The program this halaqa follows, and the day its first week starts (a Sunday is taken from it). */
+  hifzProgramId: uuid('hifz_program_id').references(() => hifzPrograms.id),
+  hifzProgramStart: date('hifz_program_start'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({
