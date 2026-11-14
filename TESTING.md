@@ -123,6 +123,28 @@ dashboard, قائمة الطالبات → «الخطة والتقرير» opens
 
 API: `GET|POST|DELETE /v1/sections/:id/students/:studentId/plan` and `PUT …/plan/pace`, for whoever manages the halaqa.
 
+## Live lessons
+
+Needs a LiveKit server. Locally: download `livekit-server`, run `livekit-server --dev`, set `LIVEKIT_URL=ws://localhost:7880`,
+`LIVEKIT_API_KEY=devkey`, `LIVEKIT_API_SECRET=secret` in `.env`, and restart the API. Without these the teacher's tab
+says live lessons are not set up and nothing else changes.
+
+- **Teacher** — «الدرس المباشر»: give the lesson a title (and optionally its verses) and start. In the room her
+  microphone opens; she can share her screen or camera, sees written questions and raised hands, gives one student
+  the microphone at a time, and ends the lesson for everyone. Past lessons show how many attended and can fill the
+  attendance sheet («تسجيل الحضور من الدرس»), which sends the usual absence alerts.
+- **Student** — a «درس مباشر الآن» banner on her home screen. She enters as a listener: microphone off, no camera
+  offered. She can write a question, or raise her hand and speak once the teacher allows it.
+- **Rules.** Only the halaqa's students and whoever manages it can enter; the teacher who opened the lesson hosts
+  and a dean listens. One live lesson per halaqa at a time. The room name never leaves the server; a join token
+  lasts ten minutes and names one room. A student's token cannot publish anything until the teacher grants the
+  microphone, and then only audio. Reconnecting takes the microphone back.
+- State (who is here, hands, questions) is polled every three seconds; media is live.
+- API: `POST|GET /v1/sections/:id/live`, `GET /v1/live/now`, `POST /v1/live/:id/join`, `GET /v1/live/:id/state`,
+  `POST /v1/live/:id/questions`, `PATCH /v1/live/:id/questions/:qid`, `PUT /v1/live/:id/hand`,
+  `PUT /v1/live/:id/participants/:userId/speak`, `POST /v1/live/:id/end`, `GET /v1/live/:id/attendance`.
+- The API tests replace the media server with a recorder (`setLiveGateway`), so they need no LiveKit.
+
 ## Verses to memorize, recorded by the teacher («آيات للحفظ»)
 
 The teacher's «آيات للحفظ» tab: choose verses of one sura (up to 60, the most a student can recite back in one

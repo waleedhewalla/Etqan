@@ -204,7 +204,7 @@ GET    /v1/tasmi/:id/history                the attempt chain for a lesson
 4. One grade per lesson in the monthly record; attempt history view.
 5. Optional: a "meeting link" field on a lesson so a teacher can paste an external meeting link meanwhile.
 
-**Phase B — live sessions, no recording (medium).**
+**Phase B — live sessions, no recording (medium).** **Built**, with these differences from the plan above: routes are under `/v1/live/…` (not `/sessions`, which the app already uses for study sessions); a lesson starts immediately (no scheduling yet); raised hands and questions go through the API and are polled, not sent as LiveKit data messages; `livekit-client` is used directly with Itqan's own controls; and no TURN relay is configured. See "Live lessons" in `TESTING.md` and `docs/DEPLOY.md`.
 1. LiveKit in the deployment (`compose.prod.yml`), with TURN for restrictive networks.
 2. `live_sessions`, join tokens, teacher and student room screens.
 3. Screen share, raised hands, written questions.

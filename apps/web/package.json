@@ -12,34 +12,35 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@itqan/fsrs": "workspace:*",
+    "@itqan/quran": "workspace:*",
+    "@itqan/types": "workspace:*",
+    "@itqan/ui": "workspace:*",
+    "@tanstack/react-query": "^5.24.0",
+    "axios": "^1.6.0",
+    "clsx": "^2.1.0",
+    "date-fns": "^3.3.0",
+    "livekit-client": "2.24.1",
+    "lucide-react": "^0.344.0",
     "next": "^14.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "@itqan/ui": "workspace:*",
-    "@itqan/types": "workspace:*",
-    "@itqan/fsrs": "workspace:*",
-    "@tanstack/react-query": "^5.24.0",
-    "zustand": "^4.5.0",
-    "axios": "^1.6.0",
-    "date-fns": "^3.3.0",
-    "clsx": "^2.1.0",
-    "lucide-react": "^0.344.0",
-    "@itqan/quran": "workspace:*"
+    "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.42.0",
+    "@testing-library/jest-dom": "^6.4.0",
+    "@testing-library/react": "^14.2.0",
     "@types/node": "^20.11.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
-    "typescript": "^5.4.0",
+    "autoprefixer": "^10.4.17",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.1.0",
-    "tailwindcss": "^3.4.0",
-    "postcss": "^8.4.35",
-    "autoprefixer": "^10.4.17",
-    "vitest": "^1.3.0",
-    "@testing-library/react": "^14.2.0",
-    "@testing-library/jest-dom": "^6.4.0",
     "playwright": "^1.42.0",
-    "@playwright/test": "^1.42.0"
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.3.0"
   }
 }

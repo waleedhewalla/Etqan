@@ -29,6 +29,7 @@ import { AccountPanel } from '@/components/AccountPanel';
 import { IconTile } from '@/components/IconTile';
 import { MushafReader } from '@/components/MushafReader';
 import { MonthlyRecord } from '@/components/MonthlyRecord';
+import { LiveNowBanner } from '@/components/LiveNowBanner';
 import { VerseText } from '@/components/VerseText';
 import { ReciteTab } from '@/components/ReciteTab';
 import { MutashabihatTrainer } from '@/components/MutashabihatTrainer';
@@ -153,6 +154,7 @@ export default function StudentDashboard() {
         )}
       </div>
 
+      {activeTab === 'today' && <LiveNowBanner />}
       {activeTab === 'today' && (
         queueQuery.isLoading ? <Spinner /> : queueQuery.isError || !queue ? (
           <LoadError onRetry={() => queueQuery.refetch()} />

@@ -74,6 +74,36 @@ emulator, not against those services: try a recording end to end before relying 
 (An earlier version of this stack ran MinIO. MinIO no longer publishes images and no longer maintains its community edition, so it
 was removed rather than pinned to an image that cannot be pulled.)
 
+## Live lessons (optional)
+
+Live lessons need a media server (LiveKit) beside the app. Audio and video go between browsers and that server,
+never through the API, and nothing leaves your server. Without it everything else works and the teacher's
+«الدرس المباشر» tab says live lessons are not set up.
+
+1. Point a **third DNS name** at the server, e.g. `live.example.org`.
+2. In `.env` set `LIVE_DOMAIN`, `LIVEKIT_API_KEY` (any name, e.g. `itqan`) and `LIVEKIT_API_SECRET` (`openssl rand -hex 32`).
+3. Open **7881/tcp** and **7882/udp** in the firewall, in addition to 80 and 443. Media uses UDP where it can and
+   falls back to TCP on 7881.
+4. Start the stack with both files, now and on every later command:
+
+   ```bash
+   docker compose -f compose.prod.yml -f compose.live.yml up -d
+   ```
+
+What to know:
+
+- Teachers should hold lessons from a laptop: phone browsers cannot share the screen.
+- Size the server for it: a lesson with one teacher sharing her screen to 30 listeners needs roughly 30–60 Mbit/s
+  of upload from the server while it runs. Measure a real lesson before relying on this figure.
+- No TURN relay is configured. A student on a network that blocks both UDP and outbound TCP to port 7881 will
+  not hear the lesson. If that happens, the next step is LiveKit's built-in TURN on port 443 with its own DNS name.
+- Lessons are not recorded yet (see `docs/design/live-sessions.md`, Phase C).
+- Keep the `livekit/livekit-server` image version in `compose.live.yml` in step with `livekit-client` in
+  `apps/web/package.json`. A much older server accepts connections but cannot publish audio from a newer client.
+- This overlay is **not exercised by CI**. Its Caddy and LiveKit configuration files were validated with the real
+  binaries, and the feature was tested against LiveKit 1.10 in development, but the first deployment is the first
+  time the whole stack runs together: test a lesson with two devices before inviting a halaqa.
+
 ## Settings you may change later
 
 - `SUPPORT_EMAIL`, `SUPPORT_PHONE` — the contact details on the public pages. They are built into the web image, so

@@ -71,6 +71,13 @@
       "when": 1794649687719,
       "tag": "0009_rainy_black_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1794650688449,
+      "tag": "0010_deep_guardsmen",
+      "breakpoints": true
     }
   ]
 }

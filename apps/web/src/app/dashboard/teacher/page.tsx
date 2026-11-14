@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Input } from '@itqan/ui';
 import {
   Users, AlertCircle, TrendingUp, BookOpen, UserRound, Mic, CheckCircle2,
-  CalendarCheck, Copy, UserPlus, X, Target,
+  CalendarCheck, Copy, UserPlus, X, Target, Radio,
 } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { AccountPanel } from '@/components/AccountPanel';
@@ -17,6 +17,7 @@ import { TasmiAudio } from '@/components/TasmiAudio';
 import { RecitationRecorder, type Recording } from '@/components/RecitationRecorder';
 import { MonthlyRecord } from '@/components/MonthlyRecord';
 import { TeacherLessons } from '@/components/TeacherLessons';
+import { TeacherLive } from '@/components/TeacherLive';
 import { TASMI_STATUS, attemptLabel } from '@/lib/tasmi-status';
 import { FlaggedVerse } from '@/components/FlaggedVerse';
 import { AiCheckingSwitch } from '@/components/AiCheckingSwitch';
@@ -29,7 +30,7 @@ import {
 } from '@/lib/api';
 import { formatAyahRange, toArabicDigits } from '@/lib/quran';
 
-type TeacherTab = 'overview' | 'students' | 'attendance' | 'lessons' | 'speedgrader' | 'mutashabihat' | 'cases' | 'account';
+type TeacherTab = 'overview' | 'students' | 'attendance' | 'live' | 'lessons' | 'speedgrader' | 'mutashabihat' | 'cases' | 'account';
 
 const TEACHER_ROLES = ['lecturer', 'muhaffiza', 'sheikh_reviewer', 'advisor', 'dean', 'operator', 'superadmin'] as const;
 
@@ -86,6 +87,7 @@ export default function TeacherDashboard() {
     { id: 'students', label: 'قائمة الطالبات', icon: Users },
     { id: 'attendance', label: 'الحضور', icon: CalendarCheck },
     { id: 'speedgrader', label: 'التسميع والتقييم', icon: Mic },
+    { id: 'live', label: 'الدرس المباشر', icon: Radio },
     { id: 'lessons', label: 'آيات للحفظ', icon: BookOpen },
     { id: 'mutashabihat', label: 'المتشابهات', icon: Target },
     { id: 'cases', label: 'بحاجة متابعة', icon: AlertCircle },
@@ -132,6 +134,8 @@ export default function TeacherDashboard() {
             <SpeedGraderTab sectionId={section.id} />
           </div>
         );
+      case 'live':
+        return <TeacherLive sectionId={section.id} />;
       case 'lessons':
         return <TeacherLessons sectionId={section.id} />;
       case 'mutashabihat':
