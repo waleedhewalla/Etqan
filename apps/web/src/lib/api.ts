@@ -407,6 +407,12 @@ export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاول�
   if (code === 'ACCOUNT_NOT_FOUND') return 'لا يوجد حساب بهذا الرقم. اطلبي رمز الحلقة من معلمتك.';
   if (e?.response?.status === 429) return 'محاولات كثيرة. انتظري قليلاً ثم حاولي مرة أخرى.';
   if (!e?.response) return 'تعذّر الاتصال بالخادم. تحققي من الإنترنت.';
+  // The site answered but the API behind it did not (not running, or restarting): its own errors are JSON.
+  if (e.response.status >= 500 && typeof e.response.data !== 'object') {
+    return process.env.NODE_ENV === 'development'
+      ? 'خادم البيانات (API) لا يعمل. شغّليه بالأمر pnpm dev من مجلد المشروع، ثم أعيدي المحاولة.'
+      : 'الخادم لا يستجيب الآن. حاولي بعد قليل.';
+  }
   return fallback;
 }
 
