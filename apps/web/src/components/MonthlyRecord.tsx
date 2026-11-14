@@ -130,6 +130,17 @@ export function MonthlyRecord({ studentId, editable = false }: { studentId: stri
               )}
             </div>
 
+            {r.periodTests?.length > 0 && (
+              <div data-testid="monthly-period-tests">
+                <h4 className="text-sm font-medium text-text-primary mb-1.5">اختبارات الفترات هذا الشهر</h4>
+                <ul className="text-sm space-y-1">
+                  {r.periodTests.map((t, i) => (
+                    <li key={i}>«{t.periodName}» — المحاولة {toArabicDigits(t.attempt)}: <b>{t.outcome === 'passed' ? 'نجاح' : 'إعادة'}</b> ({num(t.total)} من ١٠٠)</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {r.items.length > 0 && (
               <details className="text-sm">
                 <summary className="cursor-pointer text-brand-primary">تسميع الشهر ({recitationCount(r.items.length)})</summary>

@@ -223,6 +223,44 @@ export const hifzProgramPeriods = pgTable('hifz_program_periods', {
   programIdx: index('hifz_program_periods_program_idx').on(t.programId),
 }));
 
+/**
+ * A student's attempt at passing a period of her halaqa's program. Never edited: a mistake is voided and entered again.
+ * The weights and pass marks in force are kept with it, so changing the program later does not change what was decided.
+ */
+export const hifzPeriodResults = pgTable('hifz_period_results', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  studentId: uuid('student_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  sectionId: uuid('section_id').references(() => sections.id, { onDelete: 'set null' }),
+  programId: uuid('program_id').references(() => hifzPrograms.id).notNull(),
+  /** Position of the period in the program, and its name when she was tested. */
+  periodIndex: integer('period_index').notNull(),
+  periodName: text('period_name').notNull(),
+  /** 1 for the first test of this period, 2 for the retest, and so on. */
+  attempt: integer('attempt').notNull(),
+  scoreHifz: real('score_hifz').notNull(),
+  scoreTajweed: real('score_tajweed').notNull(),
+  /** Null when the period has no earlier period to revise. */
+  scoreReview: real('score_review'),
+  scoreRetention: real('score_retention').notNull(),
+  weights: jsonb('weights').$type<{ hifz: number; tajweed: number; review: number; retention: number }>().notNull(),
+  passScore: integer('pass_score').notNull(),
+  minCriterionPct: integer('min_criterion_pct').notNull(),
+  total: real('total').notNull(),
+  outcome: varchar('outcome', { length: 8 }).$type<'passed' | 'repeat'>().notNull(),
+  failedRules: jsonb('failed_rules').$type<unknown[]>().default([]).notNull(),
+  /** What the app suggested for each criterion, kept to show what the teacher changed. */
+  proposals: jsonb('proposals').$type<Record<string, unknown> | null>(),
+  note: text('note'),
+  enteredBy: uuid('entered_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  voidedAt: timestamp('voided_at', { withTimezone: true }),
+  voidedBy: uuid('voided_by').references(() => users.id),
+  voidReason: text('void_reason'),
+}, (t) => ({
+  studentIdx: index('hifz_period_results_student_idx').on(t.studentId, t.programId, t.createdAt),
+  sectionIdx: index('hifz_period_results_section_idx').on(t.sectionId),
+}));
+
 export const sections = pgTable('sections', {
   id: uuid('id').defaultRandom().primaryKey(),
   tenantId: uuid('tenant_id').references(() => tenants.id).notNull(),

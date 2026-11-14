@@ -6,7 +6,7 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@itqan/
 import { BookOpenCheck } from 'lucide-react';
 import { api, errorMessage, queryKeys } from '@/lib/api';
 import { formatAyahRange, toArabicDigits } from '@/lib/quran';
-import { PHASE_LABEL, paceLabel, programDay, weekRhythm, weeksText, studentsText } from '@/lib/program';
+import { CRITERION_LABEL, PHASE_LABEL, paceLabel, programDay, weekRhythm, weeksText, studentsText } from '@/lib/program';
 
 /**
  * What the halaqa must memorize in the period it is in, from the program its institution set. A teacher can put
@@ -21,7 +21,7 @@ export function ProgramNow({ sectionId, sectionName }: { sectionId: string; sect
     onSuccess: (r) => {
       setNotice(r.added === 0
         ? 'آيات هذه الفترة موجودة في خطط الطالبات كلها، فلم يُضف شيء.'
-        : `وُضعت آيات الفترة (${toArabicDigits(r.ayat)} آية) في خطط ${studentsText(r.students, true)}: أُضيف ${toArabicDigits(r.added)} بطاقة جديدة. ما كان في خطة طالبة من قبل لم يتكرر.`);
+        : `وُضعت آيات الفترة (${toArabicDigits(r.ayat)} آية) في خطط ${studentsText(r.students, true)}: أُضيف ${toArabicDigits(r.added)} بطاقة جديدة. ما كان في خطة طالبة من قبل لم يتكرر.${r.skipped ? ` ولم تُضف لـ ${studentsText(r.skipped, true)} لم تجتز فترتها السابقة بعد.` : ''}`);
       queryClient.invalidateQueries({ queryKey: ['sections', sectionId] });
     },
   });
@@ -68,6 +68,7 @@ export function ProgramNow({ sectionId, sectionName }: { sectionId: string; sect
             {n.next && <p className="text-text-secondary">التالية: {n.next.nameAr}{n.next.startRef && n.next.endRef ? ` — ${formatAyahRange(n.next.startRef, n.next.endRef)}` : ''}.</p>}
           </>
         )}
+        {n.mine && <MyStanding mine={n.mine} />}
         {n.canApply && (
           <div className="pt-1 space-y-2">
             <Button size="sm" loading={apply.isPending}
@@ -88,4 +89,33 @@ export function StudentProgram() {
   const me = useQuery({ queryKey: queryKeys.me, queryFn: () => api.getMe().then((r) => r.data) });
   const sections = me.data?.sections ?? [];
   return <>{sections.map((s) => <ProgramNow key={s.id} sectionId={s.id} sectionName={sections.length > 1 ? s.nameAr : undefined} />)}</>;
+}
+
+/** Where the student stands: the periods she has passed, the one she is on (which may be behind her halaqa's), her last result and what to do next. */
+function MyStanding({ mine }: { mine: NonNullable<Extract<import('@/lib/api').SectionProgram, { mine: unknown }>['mine']> }) {
+  const on = mine.current;
+  return (
+    <div className="rounded-xl border border-divider p-3 space-y-2" data-testid="my-standing">
+      <p className="font-medium text-text-primary">
+        {mine.finished ? 'أتممتِ فترات البرنامج كلها. بارك الله فيكِ.' : `أنهيتِ ${toArabicDigits(mine.passed)} من ${toArabicDigits(mine.periodCount)} فترات.`}
+      </p>
+      {mine.behind && on && (
+        <div className="rounded-lg bg-amber-50 text-amber-900 px-3 py-2 space-y-1" data-testid="behind">
+          <p>حلقتكِ انتقلت، وأنتِ لا تزالين في «<b>{on.nameAr}</b>». أكملي فترتكِ ثم تُختبرين فيها.</p>
+          {on.startRef && on.endRef && <p>المطلوب: {formatAyahRange(on.startRef, on.endRef)} · {paceLabel(on.pagesPerDay)}.</p>}
+          <p className="text-xs">لا تُضاف آيات الفترة التالية إلى خطتكِ قبل أن تجتازي «{on.nameAr}».</p>
+        </div>
+      )}
+      {mine.last && (
+        <p data-testid="my-last-result">
+          آخر نتيجة: «{mine.last.periodName}» — <b>{mine.last.outcome === 'passed' ? 'نجاح' : 'إعادة'}</b> بمجموع {toArabicDigits(mine.last.total)} من ١٠٠
+          {mine.last.weakest && <> · الأولى بالعناية: {CRITERION_LABEL[mine.last.weakest]}</>}.
+        </p>
+      )}
+      {mine.failures > 0 && !mine.finished && (
+        <p>{mine.retestWaiting && mine.retestOn ? `أسبوع علاج بلا حفظ جديد: يُعاد الاختبار من ${programDay(mine.retestOn)}.` : 'يمكن إعادة اختبارك الآن: كلّمي معلمتكِ.'}</p>
+      )}
+      {mine.slowdown && on && <p className="text-xs text-text-secondary">خُفّضت وتيرتكِ في «{on.nameAr}» درجة واحدة ({paceLabel(on.pagesPerDay)}) لأن الفترة السابقة احتاجت أكثر من محاولة.</p>}
+    </div>
+  );
 }

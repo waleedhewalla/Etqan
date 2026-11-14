@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Input } from '@itqan/ui';
 import {
   Users, AlertCircle, TrendingUp, BookOpen, UserRound, Mic, CheckCircle2,
-  CalendarCheck, Copy, UserPlus, X, Target, Radio,
+  CalendarCheck, Copy, UserPlus, X, Target, Radio, ClipboardCheck,
 } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -20,6 +20,7 @@ import { MonthlyRecord } from '@/components/MonthlyRecord';
 import { TeacherLessons } from '@/components/TeacherLessons';
 import { TeacherLive } from '@/components/TeacherLive';
 import { ProgramNow } from '@/components/ProgramNow';
+import { PeriodTests } from '@/components/PeriodTests';
 import { useModules } from '@/lib/modules';
 import { TASMI_STATUS, attemptLabel } from '@/lib/tasmi-status';
 import { FlaggedVerse } from '@/components/FlaggedVerse';
@@ -33,7 +34,7 @@ import {
 } from '@/lib/api';
 import { formatAyahRange, toArabicDigits } from '@/lib/quran';
 
-type TeacherTab = 'overview' | 'students' | 'attendance' | 'live' | 'lessons' | 'speedgrader' | 'mutashabihat' | 'cases' | 'account';
+type TeacherTab = 'overview' | 'students' | 'attendance' | 'live' | 'lessons' | 'speedgrader' | 'periods' | 'mutashabihat' | 'cases' | 'account';
 
 const TEACHER_ROLES = ['lecturer', 'muhaffiza', 'sheikh_reviewer', 'advisor', 'dean', 'operator', 'superadmin'] as const;
 
@@ -72,6 +73,13 @@ export default function TeacherDashboard() {
   }, [sectionId, sectionsQuery.data]);
 
   const section = sectionsQuery.data?.find((s) => s.id === sectionId) ?? null;
+  // The tests tab is only there for a halaqa that follows a program.
+  const programQuery = useQuery({
+    queryKey: queryKeys.sectionProgram(sectionId ?? ''),
+    queryFn: () => api.getSectionProgram(sectionId!).then((r) => r.data),
+    enabled: Boolean(sectionId) && isOn('program'),
+  });
+  const followsProgram = Boolean(programQuery.data && programQuery.data.program !== null);
 
   const studentsQuery = useQuery({
     queryKey: queryKeys.sectionStudents(sectionId ?? ''),
@@ -91,6 +99,7 @@ export default function TeacherDashboard() {
     { id: 'students', label: 'قائمة الطالبات', icon: Users },
     ...(isOn('attendance') ? [{ id: 'attendance', label: 'الحضور', icon: CalendarCheck }] : []),
     ...(isOn('recitation') ? [{ id: 'speedgrader', label: 'التسميع والتقييم', icon: Mic }] : []),
+    ...(isOn('program') && followsProgram ? [{ id: 'periods', label: 'اختبارات الفترات', icon: ClipboardCheck }] : []),
     ...(isOn('live') ? [{ id: 'live', label: 'الدرس المباشر', icon: Radio }] : []),
     ...(isOn('lessons') ? [{ id: 'lessons', label: 'آيات للحفظ', icon: BookOpen }] : []),
     ...(isOn('mutashabihat') ? [{ id: 'mutashabihat', label: 'المتشابهات', icon: Target }] : []),
@@ -143,6 +152,8 @@ export default function TeacherDashboard() {
             <SpeedGraderTab sectionId={section.id} />
           </div>
         );
+      case 'periods':
+        return <PeriodTests sectionId={section.id} />;
       case 'live':
         return <TeacherLive sectionId={section.id} />;
       case 'lessons':

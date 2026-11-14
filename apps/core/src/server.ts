@@ -27,6 +27,7 @@ import { adminModulesRoutes } from './modules/admin/modules-routes';
 import { moduleForPath, requireModule } from './lib/modules';
 import { adminUsersRoutes } from './modules/admin/users-routes';
 import { programRoutes } from './modules/program/routes';
+import { periodTestRoutes } from './modules/program/period-tests';
 import { adminSetupRoutes } from './modules/admin/setup-routes';
 import { lessonRoutes } from './modules/lessons/routes';
 import { liveRoutes } from './modules/live/routes';
@@ -170,6 +171,7 @@ async function buildApp() {
   await app.register(adminUsersRoutes, { prefix: '/v1' });
   await app.register(adminModulesRoutes, { prefix: '/v1' });
   await app.register(programRoutes, { prefix: '/v1' });
+  await app.register(periodTestRoutes, { prefix: '/v1' });
   await app.register(lessonRoutes, { prefix: '/v1' });
   await app.register(liveRoutes, { prefix: '/v1' });
   await app.register(assessmentRoutes, { prefix: '/v1' });

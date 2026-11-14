@@ -1,7 +1,7 @@
-import { and, asc, eq, gte, inArray, lt, lte } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNull, lt, lte } from 'drizzle-orm';
 import { compareRefs, parseRef } from '@itqan/quran';
 import type { Database } from '../db';
-import { attendance, studentMonthlyAppraisals, tasmiSubmissions, users } from '../db/schema';
+import { attendance, hifzPeriodResults, studentMonthlyAppraisals, tasmiSubmissions, users } from '../db/schema';
 import type { FlaggedWord } from './asr/types';
 import { addDays, localDate, startOfLocalDay } from './dates';
 
@@ -193,5 +193,15 @@ export async function loadMonthlyRecord(db: Database, studentId: string, month: 
     attendance: days,
     appraisal: appraisal ?? null,
   });
-  return { student, ...record };
+
+  // Period tests she took this month: the outcome and the total, as her program decided them.
+  const tests = await db.select({
+    periodName: hifzPeriodResults.periodName, attempt: hifzPeriodResults.attempt, outcome: hifzPeriodResults.outcome, total: hifzPeriodResults.total, at: hifzPeriodResults.createdAt,
+  }).from(hifzPeriodResults)
+    .where(and(
+      eq(hifzPeriodResults.studentId, studentId), isNull(hifzPeriodResults.voidedAt),
+      gte(hifzPeriodResults.createdAt, startOfLocalDay(first)), lt(hifzPeriodResults.createdAt, startOfLocalDay(next)),
+    ))
+    .orderBy(asc(hifzPeriodResults.createdAt));
+  return { student, ...record, periodTests: tests };
 }

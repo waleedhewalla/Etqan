@@ -123,6 +123,39 @@ dashboard, قائمة الطالبات → «الخطة والتقرير» opens
 
 API: `GET|POST|DELETE /v1/sections/:id/students/:studentId/plan` and `PUT …/plan/pace`, for whoever manages the halaqa.
 
+## Period tests (program)
+
+The program's weights and pass marks now decide whether a student moves on. Needs a halaqa that follows a program (see above).
+
+- **Where:** the teacher's **اختبارات الفترات** tab (shown only for a halaqa that follows a program, with the program module on). Each
+  student shows where she stands: periods passed, the period she is on, failed attempts, her last result, and a status
+  (جاهزة للاختبار، أسبوع علاج، إعادة الاختبار مستحقة، تعمل على الفترة، أتمّت البرنامج).
+- **When a period can be tested:** once the halaqa reaches its test week (the last week of a period with verses; the last week
+  of a consolidation period), or later. A student is tested on the period **she** is on, never ahead of it.
+- **The test:** four scores, each out of its weight (default حفظ 40، تجويد 25، مراجعة 20، تثبيت 15): the form shows the total and what
+  the rules decide while the teacher types. It passes only if the total reaches the pass mark **and** no criterion is below the
+  least share of its weight; otherwise it names the rule missed. In the **first** period there is nothing earlier to revise, so the
+  revision weight is shared among the other criteria and the total is still out of 100.
+- **What the app proposes:** beside each score, «المقترح ٣٤ (من ٢ تسميعات) — استخدميه»: memorization and tajweed from the grades of her
+  recent recitations of the period's verses; revision from how she did on earlier periods' verses (last 30 days); retention from this
+  period's verses (last 14 days). Fewer than 10 revision results, or no graded recitation, means no proposal. The teacher always
+  types the final score, and the app's proposal is kept beside it.
+- **Passing** moves her to the next period and tells her in the bell. **Failing** keeps her on the period for a week of work with no new
+  memorization; the retest is allowed from the fifth day. Two failed attempts before passing a period slow the **next** one by a step
+  (a quarter page a day less), with its weeks worked out again.
+- **The halaqa moves on; she catches up.** A student who has not passed shows «متأخرة عن الحلقة», keeps her own period's verses, and
+  «أضيفي آيات الفترة إلى خطط الطالبات» skips her until she passes (it says how many it skipped).
+- **What the student sees:** how many periods she has passed, her last result with the total and the criterion to work on (not each
+  score), the retest date, and any slower pace. **Guardians and the monthly record** show the outcome and total of tests taken that month.
+- **Mistakes:** «التراجع عن آخر نتيجة» takes back her latest result (it stays in the history, marked, with a reason); results are never
+  edited. The rules and weights a result was made under are kept with it, so changing the program later does not change old results.
+- **The dean:** under the program in «الإعداد»: a table of how many passed each period, are repeating it, and failed attempts.
+  A program students have been tested on can be archived but not deleted. If you change a started program's periods so their
+  order changes, results stay attached to the position in the program.
+- API: `GET /v1/sections/:id/program/standings`, `GET|POST /v1/sections/:id/program/students/:studentId/test|results`,
+  `POST …/results/:resultId/void`, `GET /v1/admin/programs/:id/results`; `GET /v1/sections/:id/program` carries the student's own
+  `mine`. Migration 0014.
+
 ## Product modules (admin)
 
 Sign in as `dean@itqan.local`, open «لوحة الإدارة» and the **الوحدات** tab. Every part of the product is a module the
