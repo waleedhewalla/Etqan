@@ -14,6 +14,8 @@ import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 import { WeeklyReportView } from '@/components/WeeklyReportView';
 import { VerseText } from '@/components/VerseText';
 import { TasmiAudio } from '@/components/TasmiAudio';
+import { RecitationRecorder, type Recording } from '@/components/RecitationRecorder';
+import { MonthlyRecord } from '@/components/MonthlyRecord';
 import { FlaggedVerse } from '@/components/FlaggedVerse';
 import { AiCheckingSwitch } from '@/components/AiCheckingSwitch';
 import { MutashabihatAuthoring } from '@/components/MutashabihatAuthoring';
@@ -548,15 +550,20 @@ function ReviewForm({ submission, onDone }: { submission: TasmiSubmission; onDon
   const [scores, setScores] = useState({ hifz: 90, tajweed: 85, fluency: 85 });
   const [verdict, setVerdict] = useState<TasmiReviewInput['verdict']>('approved');
   const [notes, setNotes] = useState('');
+  const [voice, setVoice] = useState<Recording | null>(null);
   const [decisions, setDecisions] = useState<Record<string, 'confirmed' | 'dismissed'>>({});
   const weighted = Math.round(scores.hifz * 0.5 + scores.tajweed * 0.3 + scores.fluency * 0.2);
 
   const submit = useMutation({
-    mutationFn: () => api.reviewTasmi(submission.id, {
-      hifzScore: scores.hifz, tajweedScore: scores.tajweed, fluencyScore: scores.fluency, verdict,
-      notes: notes.trim() || undefined,
-      flagDecisions: Object.keys(decisions).length ? decisions : undefined,
-    }),
+    mutationFn: async () => {
+      // The voice reply goes first: if it cannot be saved, the recitation stays in the list to try again.
+      if (voice) await api.replyToTasmi(submission.id, { audio: voice.blob, durationMs: voice.durationMs });
+      return api.reviewTasmi(submission.id, {
+        hifzScore: scores.hifz, tajweedScore: scores.tajweed, fluencyScore: scores.fluency, verdict,
+        notes: notes.trim() || undefined,
+        flagDecisions: Object.keys(decisions).length ? decisions : undefined,
+      });
+    },
     onSuccess: onDone,
   });
 
@@ -590,7 +597,7 @@ function ReviewForm({ submission, onDone }: { submission: TasmiSubmission; onDon
         </fieldset>
 
         <label className="block text-sm">
-          <span className="font-medium text-text-primary">ملاحظات للطالبة (اختياري)</span>
+          <span className="font-medium text-text-primary">ردّ مكتوب للطالبة (اختياري)</span>
           <textarea
             id="review-notes"
             value={notes}
@@ -599,6 +606,12 @@ function ReviewForm({ submission, onDone }: { submission: TasmiSubmission; onDon
             className="mt-1 w-full rounded-xl border border-divider bg-surface-elevated px-3 py-2"
           />
         </label>
+
+        <div className="text-sm space-y-2" data-testid="voice-reply">
+          <p className="font-medium text-text-primary">ردّ صوتي للطالبة (اختياري)</p>
+          <p className="text-xs text-text-secondary">سجّلي ملاحظتك بصوتك، كتصحيح نطق كلمة. تسمعه الطالبة مع ردّك المكتوب، ويُحذف بعد شهر.</p>
+          <RecitationRecorder onChange={setVoice} disabled={submit.isPending} />
+        </div>
 
         {submit.isError && (
           <p role="alert" className="text-sm rounded-lg px-3 py-2 bg-red-50 text-red-800">{errorMessage(submit.error, 'لم يُحفظ التقييم.')}</p>
@@ -707,6 +720,8 @@ function StudentDrawer({ sectionId, student, onClose }: { sectionId: string; stu
         </div>
 
         <HifzPlanCard sectionId={sectionId} studentId={student.studentId} />
+
+        <MonthlyRecord studentId={student.studentId} editable />
 
         {reportQuery.isLoading ? <Spinner /> : reportQuery.data ? <WeeklyReportView report={reportQuery.data} /> : <LoadError onRetry={() => reportQuery.refetch()} />}
 

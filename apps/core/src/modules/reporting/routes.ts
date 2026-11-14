@@ -4,14 +4,18 @@ import { eq, and, gte, lt, lte, count, sql, desc, avg, isNull, or, gt } from 'dr
 import { getDb, type Database } from '../../db';
 import {
   studentCards, reviewLogs, sessions, attendance, assignments, guardianLinks,
-  sectionEnrollments, sections, tasmiSubmissions, streaks, users,
+  sectionEnrollments, sections, tasmiSubmissions, streaks, users, studentMonthlyAppraisals,
 } from '../../db/schema';
-import { canViewStudent, loadManagedSection, GUARDIAN_ROLE } from '../../lib/access';
+import { canViewStudent, isStaff, loadManagedSection, GUARDIAN_ROLE } from '../../lib/access';
+import { currentMonth, isMonth, loadMonthlyRecord } from '../../lib/monthly';
 import { addDays, localDate, startOfLocalDay, weekStart } from '../../lib/dates';
 import { auditLog } from '../audit/service';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const weeklyQuerySchema = z.object({ week: isoDate.optional() });
+const month = z.string().refine(isMonth, 'Use YYYY-MM');
+const monthlyQuerySchema = z.object({ month: month.optional() });
+const appraisalSchema = z.object({ month, note: z.string().trim().min(1).max(2000) });
 const rangeQuerySchema = z.object({ from: isoDate.optional(), to: isoDate.optional() });
 
 /**
@@ -180,6 +184,46 @@ export async function reportingRoutes(app: FastifyInstance) {
       });
     }
     return report;
+  });
+
+  // GET /v1/reports/student/:studentId/monthly?month=YYYY-MM — her monthly record: issues, total appraisal, degree
+  app.get('/reports/student/:studentId/monthly', {
+    schema: { querystring: monthlyQuerySchema },
+    preHandler: [app.authenticate],
+  }, async (request) => {
+    const { studentId } = request.params as { studentId: string };
+    const query = request.query as z.infer<typeof monthlyQuerySchema>;
+    if (!(await canViewStudent(db, request.user, studentId))) {
+      return request.server.httpErrors.notFound('Student not found');
+    }
+    const record = await loadMonthlyRecord(db, studentId, query.month ?? currentMonth());
+    return record ?? request.server.httpErrors.notFound('Student not found');
+  });
+
+  // PUT /v1/reports/student/:studentId/monthly/appraisal — the teacher's written appraisal for a month
+  app.put('/reports/student/:studentId/monthly/appraisal', {
+    schema: { body: appraisalSchema },
+    preHandler: [app.authenticate],
+  }, async (request) => {
+    const { studentId } = request.params as { studentId: string };
+    const body = request.body as z.infer<typeof appraisalSchema>;
+    const user = request.user;
+    if (!isStaff(user) || !(await canViewStudent(db, user, studentId))) {
+      return request.server.httpErrors.notFound('Student not found');
+    }
+    if (body.month > currentMonth()) return request.server.httpErrors.badRequest('That month has not started');
+
+    await db.insert(studentMonthlyAppraisals)
+      .values({ studentId, month: body.month, note: body.note, teacherId: user.sub })
+      .onConflictDoUpdate({
+        target: [studentMonthlyAppraisals.studentId, studentMonthlyAppraisals.month],
+        set: { note: body.note, teacherId: user.sub, updatedAt: new Date() },
+      });
+    await auditLog({
+      actorId: user.sub, actorRole: user.role, action: 'appraisal.saved',
+      targetType: 'student', targetId: studentId, metadata: { month: body.month },
+    });
+    return loadMonthlyRecord(db, studentId, body.month);
   });
 
   // GET /v1/reports/section/:sectionId — section overview for the teacher

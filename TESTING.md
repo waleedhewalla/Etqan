@@ -119,6 +119,33 @@ dashboard, قائمة الطالبات → «الخطة والتقرير» opens
 
 API: `GET|POST|DELETE /v1/sections/:id/students/:studentId/plan` and `PUT …/plan/pace`, for whoever manages the halaqa.
 
+## Teacher's reply and the monthly record
+
+**Reply.** In التسميع والتقييم the teacher can answer a recitation in writing («ردّ مكتوب للطالبة») and with a
+recorded message («ردّ صوتي للطالبة»). The student sees and hears both under «ردّ المعلمة» in her التسميع tab.
+
+- The written reply is the review note that already existed; the voice reply is stored with the same storage
+  driver as recordings, under `tasmi-replies/`, and is never exposed by key.
+- The student and her staff can listen; guardians cannot (the same rule as recordings).
+- A new voice reply replaces the previous one. The teacher can remove hers. It is deleted
+  `AUDIO_UNREVIEWED_MAX_DAYS` (30) days after it was sent; the text stays.
+- API: `POST /v1/tasmi/:id/reply` (multipart: `text`, `durationMs`, `audio`), `GET /v1/tasmi/:id/reply-audio-link`,
+  `DELETE /v1/tasmi/:id/reply-audio`.
+
+**Monthly record** («السجل الشهري»): in the teacher's student panel (where she writes the month's appraisal),
+the student's خطتي والكفايات tab and the guardian's page.
+
+- **Total appraisal** = the plain average of the weighted totals (memorization 50%, tajweed 30%, fluency 20%)
+  of the month's recitations whose verdict is final: «مقبول» or «يُعاد». A recitation sent to the sheikha or not
+  reviewed yet does not count.
+- **Degree** = that average rounded to a whole number out of 100, with a grade: ممتاز from 85, جيد جداً from 75,
+  جيد from 65, مقبول from 50, ضعيف below. The bands are in `apps/core/src/lib/monthly.ts`: change them there.
+- **Issues** = recitations to repeat, mistakes the teacher confirmed (dismissed and undecided flags are left
+  out), any skill averaging under 70, absences, and a month with no recitation at all.
+- The teacher's written appraisal is a note; it does not change the degree. One per student per month.
+- A month is the calendar month in the institution's time zone, by the day a recitation was sent.
+- API: `GET /v1/reports/student/:id/monthly?month=YYYY-MM`, `PUT /v1/reports/student/:id/monthly/appraisal`.
+
 ## Badges
 
 Students earn badges automatically after a rating or a teacher's review (`apps/core/src/lib/badges.ts` holds the catalog):

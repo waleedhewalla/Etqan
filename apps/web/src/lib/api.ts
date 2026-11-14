@@ -281,7 +281,12 @@ export interface TasmiSubmission {
   submittedAt: string;
   reviewVerdict: 'approved' | 'redo' | 'flagged' | null;
   reviewWeightedTotal: number | null;
+  /** The teacher's text reply. */
   reviewNotes: string | null;
+  /** Whether the teacher left a recorded reply (it is removed after a month). */
+  hasReplyAudio?: boolean;
+  replyDurationMs?: number | null;
+  replyAt?: string | null;
   /** null = no automatic check was made (switched off, or the student did not agree). */
   aiStatus: AiStatus | null;
   aiHifzAccuracy: number | null;
@@ -289,6 +294,32 @@ export interface TasmiSubmission {
   aiFlaggedErrors: FlaggedWord[];
   /** Pending list only: flags the student says are wrong. */
   disputedCount?: number;
+}
+
+export type MonthlyGrade = 'excellent' | 'very_good' | 'good' | 'pass' | 'weak';
+export type MonthlyIssue =
+  | { kind: 'no_recitations' }
+  | { kind: 'redo'; count: number; ranges: { startRef: string; endRef: string }[] }
+  | { kind: 'mistakes'; count: number; byType: { missing: number; wrong: number; added: number }; ayat: string[] }
+  | { kind: 'weak_skill'; skill: 'hifz' | 'tajweed' | 'fluency'; average: number }
+  | { kind: 'absence'; count: number; dates: string[] };
+
+/** A student's month: what went wrong, the total appraisal of her recitations, and the degree that follows. */
+export interface MonthlyRecord {
+  month: string;
+  student: { id: string; displayNameAr: string };
+  recitations: { submitted: number; counted: number; approved: number; redo: number; awaiting: number };
+  /** Average of the weighted totals of recitations with a final verdict; null when there are none. */
+  totalAppraisal: { average: number | null; hifz: number | null; tajweed: number | null; fluency: number | null };
+  degree: { score: number | null; outOf: number; grade: MonthlyGrade | null };
+  issues: MonthlyIssue[];
+  attendance: { present: number; absent: number };
+  /** The teacher's written appraisal for the month. */
+  appraisal: { note: string; teacherName: string | null; updatedAt: string } | null;
+  items: {
+    id: string; startRef: string; endRef: string; submittedAt: string;
+    verdict: 'approved' | 'redo' | 'flagged' | null; total: number | null; notes: string | null; hasVoiceReply: boolean;
+  }[];
 }
 
 export interface TasmiReviewInput {
@@ -628,6 +659,19 @@ class ApiClient {
     return this.client.get<{ url: string }>(`/tasmi/${id}/audio-link`);
   }
 
+  /** The teacher's reply to a recording: text, a recorded voice message, or both. */
+  replyToTasmi(id: string, reply: { text?: string; audio?: Blob; durationMs?: number }) {
+    const form = new FormData();
+    if (reply.text) form.append('text', reply.text);
+    if (reply.durationMs !== undefined) form.append('durationMs', String(Math.round(reply.durationMs)));
+    if (reply.audio) form.append('audio', reply.audio, 'reply');
+    return this.client.post<TasmiSubmission>(`/tasmi/${id}/reply`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  }
+
+  getTasmiReplyAudioLink(id: string) {
+    return this.client.get<{ url: string }>(`/tasmi/${id}/reply-audio-link`);
+  }
+
   disputeFlag(id: string, flagId: string) {
     return this.client.post<TasmiSubmission>(`/tasmi/${id}/flags/${flagId}/dispute`);
   }
@@ -655,6 +699,14 @@ class ApiClient {
   // Reports
   getWeeklyReport(studentId: string, week?: string) {
     return this.client.get<WeeklyReport>(`/reports/student/${studentId}/weekly`, { params: { week } });
+  }
+
+  getMonthlyRecord(studentId: string, month?: string) {
+    return this.client.get<MonthlyRecord>(`/reports/student/${studentId}/monthly`, { params: { month } });
+  }
+
+  saveMonthlyAppraisal(studentId: string, month: string, note: string) {
+    return this.client.put<MonthlyRecord>(`/reports/student/${studentId}/monthly/appraisal`, { month, note });
   }
 
   getGuardianStudents() {
@@ -708,6 +760,7 @@ export const queryKeys = {
   attendance: (id: string, date: string) => ['sections', id, 'attendance', date] as const,
   guardians: (sectionId: string, studentId: string) => ['sections', sectionId, 'guardians', studentId] as const,
   plan: (sectionId: string, studentId: string) => ['sections', sectionId, 'plan', studentId] as const,
+  monthly: (studentId: string, month: string) => ['reports', 'monthly', studentId, month] as const,
   myTasmi: ['tasmi', 'mine'] as const,
   voiceStatus: ['voice', 'status'] as const,
   badges: ['badges'] as const,

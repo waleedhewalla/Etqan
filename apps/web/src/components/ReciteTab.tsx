@@ -215,7 +215,13 @@ export function ReciteTab() {
                     {new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(t.submittedAt))}
                     {t.reviewWeightedTotal != null && ` · الدرجة ${toArabicDigits(Math.round(t.reviewWeightedTotal))}`}
                   </p>
-                  {t.reviewNotes && <p className="text-sm rounded-lg bg-surface-canvas px-3 py-2">{t.reviewNotes}</p>}
+                  {(t.reviewNotes || t.hasReplyAudio) && (
+                    <div className="rounded-lg bg-surface-canvas px-3 py-2 space-y-2" data-testid="teacher-reply">
+                      <p className="text-xs text-text-secondary">ردّ المعلمة</p>
+                      {t.reviewNotes && <p className="text-sm whitespace-pre-wrap">{t.reviewNotes}</p>}
+                      <TasmiAudio id={t.id} hasAudio={Boolean(t.hasReplyAudio)} kind="reply" />
+                    </div>
+                  )}
                   <AiResult
                     t={t}
                     onDispute={(flagId) => dispute.mutate({ id: t.id, flagId })}

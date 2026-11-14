@@ -50,6 +50,13 @@
       "when": 1794379815398,
       "tag": "0006_sudden_anita_blake",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1794646075364,
+      "tag": "0007_fantastic_loa",
+      "breakpoints": true
     }
   ]
 }

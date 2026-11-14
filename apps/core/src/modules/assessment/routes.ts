@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { eq, and, desc, isNull, inArray } from 'drizzle-orm';
 import { AYAH_COUNTS, compareRefs, countAyat, parseRef } from '@itqan/quran';
@@ -25,8 +25,46 @@ type Submission = typeof tasmiSubmissions.$inferSelect;
 
 /** What clients may see: never the storage key or a raw URL, only whether a recording exists. */
 function serializeTasmi(row: Submission) {
-  const { audioKey, audioUrl, audioContentType, audioBytes, ...rest } = row;
-  return { ...rest, hasAudio: Boolean(audioKey) && !row.audioDeletedAt, audioBytes };
+  const { audioKey, audioUrl, audioContentType, audioBytes, replyAudioKey, replyAudioContentType, replyAudioBytes, ...rest } = row;
+  return { ...rest, hasAudio: Boolean(audioKey) && !row.audioDeletedAt, audioBytes, hasReplyAudio: Boolean(replyAudioKey) };
+}
+
+/** Longest text reply a teacher may write. */
+const MAX_REPLY_TEXT = 2000;
+
+/** True when `token` is a link token of this `purpose` for this recording. */
+function validLinkToken(token: string | undefined, purpose: string, id: string): boolean {
+  try {
+    const payload = token ? verifyToken(token) : null;
+    return payload?.purpose === purpose && payload.sub === id;
+  } catch {
+    return false; // invalid or expired
+  }
+}
+
+/** Streams a stored audio object, honouring Range so the player can seek. */
+async function streamAudio(request: FastifyRequest, reply: FastifyReply, key: string, bytes: number | null) {
+  let object;
+  try {
+    object = await getStorage().get(key, request.headers.range);
+  } catch (err) {
+    if (err instanceof RangeNotSatisfiableError) {
+      return reply.code(416).header('Content-Range', `bytes */${bytes ?? 0}`).send();
+    }
+    throw err;
+  }
+  if (!object) return request.server.httpErrors.notFound('Recording not found');
+
+  reply
+    .code(object.contentRange ? 206 : 200)
+    .header('Content-Type', object.contentType)
+    .header('Content-Length', object.contentLength)
+    .header('Accept-Ranges', 'bytes')
+    .header('Cache-Control', 'private, no-store')
+    .header('X-Content-Type-Options', 'nosniff')
+    .header('Cross-Origin-Resource-Policy', 'cross-origin');
+  if (object.contentRange) reply.header('Content-Range', object.contentRange);
+  return reply.send(object.body);
 }
 
 const reviewTasmiSchema = z.object({
@@ -139,37 +177,11 @@ export async function assessmentRoutes(app: FastifyInstance) {
   app.get('/tasmi/:id/audio', async (request, reply) => {
     const { id } = request.params as { id: string };
     const { token } = request.query as { token?: string };
-    let ok = false;
-    try {
-      const payload = token ? verifyToken(token) : null;
-      ok = payload?.purpose === 'audio' && payload.sub === id;
-    } catch { /* invalid or expired */ }
-    if (!ok) return request.server.httpErrors.unauthorized('Link expired');
+    if (!validLinkToken(token, 'audio', id)) return request.server.httpErrors.unauthorized('Link expired');
 
     const [row] = await db.select().from(tasmiSubmissions).where(eq(tasmiSubmissions.id, id)).limit(1);
     if (!row?.audioKey || row.audioDeletedAt) return request.server.httpErrors.notFound('Recording not found');
-
-    let object;
-    try {
-      object = await getStorage().get(row.audioKey, request.headers.range);
-    } catch (err) {
-      if (err instanceof RangeNotSatisfiableError) {
-        return reply.code(416).header('Content-Range', `bytes */${row.audioBytes ?? 0}`).send();
-      }
-      throw err;
-    }
-    if (!object) return request.server.httpErrors.notFound('Recording not found');
-
-    reply
-      .code(object.contentRange ? 206 : 200)
-      .header('Content-Type', object.contentType)
-      .header('Content-Length', object.contentLength)
-      .header('Accept-Ranges', 'bytes')
-      .header('Cache-Control', 'private, no-store')
-      .header('X-Content-Type-Options', 'nosniff')
-      .header('Cross-Origin-Resource-Policy', 'cross-origin');
-    if (object.contentRange) reply.header('Content-Range', object.contentRange);
-    return reply.send(object.body);
+    return streamAudio(request, reply, row.audioKey, row.audioBytes);
   });
 
   // DELETE /v1/tasmi/:id/audio — the student removes her own recording; scores and notes stay
@@ -330,5 +342,106 @@ export async function assessmentRoutes(app: FastifyInstance) {
     // Badges after the transaction commits: an approved recitation or newly mastered cards may earn one.
     await awardBadges(db, existing.studentId);
     return { ...serializeTasmi(result.row), graded: result.graded };
+  });
+
+  // ── The teacher's reply to a recording: text, a recorded voice message, or both ──
+
+  /** The submission, if the caller is staff who may see this student; otherwise null. */
+  const loadForStaff = async (request: FastifyRequest, id: string) => {
+    if (!z.string().uuid().safeParse(id).success) return null;
+    const [row] = await db.select().from(tasmiSubmissions).where(eq(tasmiSubmissions.id, id)).limit(1);
+    if (!row || !isStaff(request.user) || !(await canViewStudent(db, request.user, row.studentId))) return null;
+    return row;
+  };
+
+  // POST /v1/tasmi/:id/reply — multipart: optional field `text`, optional field `durationMs`, optional `audio` file.
+  // The text is the review note the student already sees; a new voice reply replaces the previous one.
+  app.post('/tasmi/:id/reply', {
+    preHandler: [app.authenticate],
+  }, async (request) => {
+    const { id } = request.params as { id: string };
+    const errors = request.server.httpErrors;
+    const row = await loadForStaff(request, id);
+    if (!row) return errors.notFound('Submission not found');
+    if (!request.isMultipart()) return errors.badRequest('Send multipart/form-data');
+
+    const fields: Record<string, string> = {};
+    let audio: Buffer | null = null;
+    try {
+      for await (const part of request.parts()) {
+        if (part.type === 'file') {
+          if (part.fieldname !== 'audio' || audio) { part.file.resume(); continue; }
+          audio = await part.toBuffer(); // throws if larger than the multipart limit
+        } else if (typeof part.value === 'string') {
+          fields[part.fieldname] = part.value;
+        }
+      }
+    } catch {
+      return errors.payloadTooLarge('Recording is too large');
+    }
+
+    const text = fields.text?.trim();
+    if (text && text.length > MAX_REPLY_TEXT) return errors.badRequest(`A reply can be at most ${MAX_REPLY_TEXT} characters`);
+    if (!text && !audio?.length) return errors.badRequest('Write a reply or record one');
+    const durationMs = fields.durationMs ? Number(fields.durationMs) : undefined;
+    if (durationMs !== undefined && (!Number.isInteger(durationMs) || durationMs < 0)) return errors.badRequest('Invalid duration');
+
+    const update: Partial<typeof tasmiSubmissions.$inferInsert> = { replyBy: request.user.sub, replyAt: new Date() };
+    if (text) update.reviewNotes = text;
+    if (audio?.length) {
+      if (audio.length > MAX_AUDIO_BYTES) return errors.payloadTooLarge('Recording is too large');
+      const kind = sniffAudio(audio);
+      if (!kind) return errors.unsupportedMediaType('That file is not an audio recording');
+      const key = `tasmi-replies/${id}/${randomUUID()}.${kind.ext}`;
+      await getStorage().put(key, audio, kind.mime);
+      Object.assign(update, { replyAudioKey: key, replyAudioContentType: kind.mime, replyAudioBytes: audio.length, replyDurationMs: durationMs ?? null });
+    }
+
+    const [updated] = await db.update(tasmiSubmissions).set(update).where(eq(tasmiSubmissions.id, id)).returning();
+    // The reply it replaces goes only after the new one is saved.
+    if (audio?.length && row.replyAudioKey) await getStorage().delete(row.replyAudioKey).catch(() => undefined);
+    await auditLog({
+      actorId: request.user.sub, actorRole: request.user.role, action: 'tasmi.reply',
+      targetType: 'tasmi_submission', targetId: id, ip: request.ip,
+      metadata: { text: Boolean(text), voice: Boolean(audio?.length) },
+    });
+    return serializeTasmi(updated);
+  });
+
+  // DELETE /v1/tasmi/:id/reply-audio — the teacher takes her voice reply back; the text stays
+  app.delete('/tasmi/:id/reply-audio', {
+    preHandler: [app.authenticate],
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const row = await loadForStaff(request, id);
+    if (!row?.replyAudioKey) return request.server.httpErrors.notFound('Reply not found');
+    await getStorage().delete(row.replyAudioKey);
+    await db.update(tasmiSubmissions)
+      .set({ replyAudioKey: null, replyAudioContentType: null, replyAudioBytes: null, replyDurationMs: null })
+      .where(eq(tasmiSubmissions.id, id));
+    return reply.code(204).send();
+  });
+
+  // GET /v1/tasmi/:id/reply-audio-link — short-lived link to the voice reply (the student or her staff, not guardians)
+  app.get('/tasmi/:id/reply-audio-link', {
+    preHandler: [app.authenticate],
+  }, async (request) => {
+    const { id } = request.params as { id: string };
+    const user = request.user;
+    const [row] = await db.select().from(tasmiSubmissions).where(eq(tasmiSubmissions.id, id)).limit(1);
+    const allowed = row && (user.sub === row.studentId || (isStaff(user) && await canViewStudent(db, user, row.studentId)));
+    if (!row || !allowed || !row.replyAudioKey) return request.server.httpErrors.notFound('Reply not found');
+    const token = generateToken({ sub: id, role: 'audio', purpose: 'reply-audio' }, AUDIO_LINK_TTL);
+    return { url: `/v1/tasmi/${id}/reply-audio?token=${encodeURIComponent(token)}` };
+  });
+
+  // GET /v1/tasmi/:id/reply-audio?token= — streams the voice reply
+  app.get('/tasmi/:id/reply-audio', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { token } = request.query as { token?: string };
+    if (!validLinkToken(token, 'reply-audio', id)) return request.server.httpErrors.unauthorized('Link expired');
+    const [row] = await db.select().from(tasmiSubmissions).where(eq(tasmiSubmissions.id, id)).limit(1);
+    if (!row?.replyAudioKey) return request.server.httpErrors.notFound('Reply not found');
+    return streamAudio(request, reply, row.replyAudioKey, row.replyAudioBytes);
   });
 }
