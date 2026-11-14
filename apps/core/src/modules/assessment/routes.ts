@@ -17,15 +17,19 @@ import { AUDIO_LINK_TTL, streamAudio, validLinkToken } from '../../lib/audio-lin
 import { isCheckEnabled, scheduleAsrCheck } from '../../lib/asr/runner';
 import type { FlaggedWord } from '../../lib/asr/types';
 import { MAX_ATTEMPTS, canRevise, tasmiStatus } from '../../lib/tasmi-status';
+import { moduleConfig } from '../../lib/modules';
+import type { TokenPayload } from '../../lib/jwt';
 import { auditLog } from '../audit/service';
 
 /** Longest recitation a single recording may cover. */
 export const MAX_SUBMISSION_AYAT = 60;
+/** The most attempts an institution may allow (see the recitation module's settings); walking a chain never goes past it. */
+const MAX_ATTEMPTS_CEILING = 5;
 
 type Submission = typeof tasmiSubmissions.$inferSelect;
 
 /** What clients may see: never the storage key or a raw URL, only whether a recording exists. */
-function serializeTasmi(row: Submission, hasLaterAttempt = false) {
+function serializeTasmi(row: Submission, hasLaterAttempt: boolean, maxAttempts: number) {
   const { audioKey, audioUrl, audioContentType, audioBytes, replyAudioKey, replyAudioContentType, replyAudioBytes, ...rest } = row;
   const facts = {
     verdict: row.reviewVerdict, attempt: row.attempt, hasLaterAttempt, reviewStartedAt: row.reviewStartedAt,
@@ -33,7 +37,7 @@ function serializeTasmi(row: Submission, hasLaterAttempt = false) {
   };
   return {
     ...rest, hasAudio: Boolean(audioKey) && !row.audioDeletedAt, audioBytes, hasReplyAudio: Boolean(replyAudioKey),
-    status: tasmiStatus(facts), canRevise: canRevise(facts), maxAttempts: MAX_ATTEMPTS,
+    status: tasmiStatus(facts, maxAttempts), canRevise: canRevise(facts, maxAttempts), maxAttempts,
   };
 }
 
@@ -60,6 +64,13 @@ const reviewTasmiSchema = z.object({
 
 export async function assessmentRoutes(app: FastifyInstance) {
   const db = getDb();
+
+  /** The institution's recitation settings for the signed-in user: how often a recitation may be redone, and how long one may be. */
+  const limitsFor = async (user: TokenPayload) => {
+    if (!user.facultyId) return { maxAttempts: MAX_ATTEMPTS, maxAyat: MAX_SUBMISSION_AYAT };
+    const c = await moduleConfig(user.facultyId, 'recitation');
+    return { maxAttempts: Number(c.maxAttempts), maxAyat: Number(c.maxAyatPerRecording) };
+  };
 
   // POST /v1/tasmi — multipart: fields startRef, endRef, sectionId, durationMs, then the `audio` file
   app.post('/tasmi', {
@@ -92,8 +103,9 @@ export async function assessmentRoutes(app: FastifyInstance) {
     const end = parseRef(fields.endRef ?? '');
     if (!start || !end) return errors.badRequest('Invalid verse reference');
     if (compareRefs(start, end) > 0) return errors.badRequest('The range ends before it starts');
-    if (countAyat(start, end) > MAX_SUBMISSION_AYAT) {
-      return errors.badRequest(`A recording can cover at most ${MAX_SUBMISSION_AYAT} ayat`);
+    const limits = await limitsFor(user);
+    if (countAyat(start, end) > limits.maxAyat) {
+      return errors.badRequest(`A recording can cover at most ${limits.maxAyat} ayat`);
     }
     if (!z.string().uuid().safeParse(fields.sectionId).success) return errors.badRequest('Choose a halaqa');
     const durationMs = fields.durationMs ? Number(fields.durationMs) : undefined;
@@ -138,7 +150,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
         verdict: previous.reviewVerdict, attempt: previous.attempt, hasLaterAttempt: replaced,
         reviewStartedAt: previous.reviewStartedAt, hasReply: true,
       };
-      if (!canRevise(facts)) return errors.conflict('This recitation is not waiting to be recorded again');
+      if (!canRevise(facts, limits.maxAttempts)) return errors.conflict('This recitation is not waiting to be recorded again');
       attempt = previous.attempt + 1;
       revisionOf = previous.id;
       lessonId = previous.lessonId;
@@ -170,7 +182,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
       aiStatus: checkAi ? 'pending' : null,
     }).returning();
     if (checkAi) scheduleAsrCheck(db, row.id);
-    return serializeTasmi(row);
+    return serializeTasmi(row, false, limits.maxAttempts);
   });
 
   // GET /v1/tasmi/:id/audio-link — short-lived link to the recording (student herself or her staff, not guardians)
@@ -239,7 +251,8 @@ export async function assessmentRoutes(app: FastifyInstance) {
       .orderBy(desc(tasmiSubmissions.submittedAt))
       .limit(50);
     const replaced = await replacedIds(db, rows.map((r) => r.id));
-    return rows.map((r) => serializeTasmi(r, replaced.has(r.id)));
+    const { maxAttempts } = await limitsFor(request.user);
+    return rows.map((r) => serializeTasmi(r, replaced.has(r.id), maxAttempts));
   });
 
   // GET /v1/tasmi/pending?sectionId= — unreviewed submissions in the reviewer's halaqat
@@ -248,6 +261,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
   }, async (request) => {
     const user = request.user;
     if (!isStaff(user)) return request.server.httpErrors.forbidden('Staff only');
+    const { maxAttempts } = await limitsFor(user);
     const { sectionId } = request.query as { sectionId?: string };
 
     const managed = await db.select({ id: sections.id }).from(sections)
@@ -268,7 +282,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
     // Submissions the student disputed come first: they are the ones most likely to be wrong.
     const disputed = (s: Submission) => ((s.aiFlaggedErrors ?? []) as FlaggedWord[]).filter((f) => f.disputed).length;
     return rows
-      .map((r) => ({ ...serializeTasmi(r.submission), studentName: r.studentName, disputedCount: disputed(r.submission) }))
+      .map((r) => ({ ...serializeTasmi(r.submission, false, maxAttempts), studentName: r.studentName, disputedCount: disputed(r.submission) }))
       .sort((a, b) => b.disputedCount - a.disputedCount);
   });
 
@@ -286,7 +300,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
     if (!submission || !(await canViewStudent(db, request.user, submission.studentId))) {
       return request.server.httpErrors.notFound('Submission not found');
     }
-    return serializeTasmi(submission, (await replacedIds(db, [id])).has(id));
+    return serializeTasmi(submission, (await replacedIds(db, [id])).has(id), (await limitsFor(request.user)).maxAttempts);
   });
 
   // GET /v1/tasmi/:id/history — every attempt at these verses, oldest first, with its scores and the teacher's reply
@@ -299,19 +313,20 @@ export async function assessmentRoutes(app: FastifyInstance) {
     if (!start || !(await canViewStudent(db, request.user, start.studentId))) {
       return request.server.httpErrors.notFound('Submission not found');
     }
-    // Walk back to the first attempt, then forward to the latest. A chain is at most MAX_ATTEMPTS long.
+    // Walk back to the first attempt, then forward to the latest. A chain is at most `maxAttempts` long (plus one, in case the limit was lowered).
+    const { maxAttempts } = await limitsFor(request.user);
     const chain = [start];
-    while (chain[0].revisionOf && chain.length <= MAX_ATTEMPTS) {
+    while (chain[0].revisionOf && chain.length <= MAX_ATTEMPTS_CEILING) {
       const [previous] = await db.select().from(tasmiSubmissions).where(eq(tasmiSubmissions.id, chain[0].revisionOf)).limit(1);
       if (!previous) break;
       chain.unshift(previous);
     }
-    while (chain.length <= MAX_ATTEMPTS) {
+    while (chain.length <= MAX_ATTEMPTS_CEILING) {
       const [next] = await db.select().from(tasmiSubmissions).where(eq(tasmiSubmissions.revisionOf, chain[chain.length - 1].id)).limit(1);
       if (!next) break;
       chain.push(next);
     }
-    return chain.map((row, i) => serializeTasmi(row, i < chain.length - 1));
+    return chain.map((row, i) => serializeTasmi(row, i < chain.length - 1, maxAttempts));
   });
 
   // POST /v1/tasmi/:id/flags/:flagId/dispute — the student says an AI flag is wrong (before review)
@@ -329,7 +344,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
     const [updated] = await db.update(tasmiSubmissions)
       .set({ aiFlaggedErrors: flags.map((f) => (f.id === flagId ? { ...f, disputed: true } : f)) })
       .where(eq(tasmiSubmissions.id, id)).returning();
-    return serializeTasmi(updated);
+    return serializeTasmi(updated, false, (await limitsFor(request.user)).maxAttempts);
   });
 
   // POST /v1/tasmi/:id/review — Teacher reviews a submission
@@ -391,7 +406,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
     if (!result.row) return request.server.httpErrors.notFound('Submission not found');
     // Badges after the transaction commits: an approved recitation or newly mastered cards may earn one.
     await awardBadges(db, existing.studentId);
-    return { ...serializeTasmi(result.row, (await replacedIds(db, [id])).has(id)), graded: result.graded };
+    return { ...serializeTasmi(result.row, (await replacedIds(db, [id])).has(id), (await limitsFor(request.user)).maxAttempts), graded: result.graded };
   });
 
   // ── The teacher's reply to a recording: text, a recorded voice message, or both ──
@@ -455,7 +470,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
       targetType: 'tasmi_submission', targetId: id, ip: request.ip,
       metadata: { text: Boolean(text), voice: Boolean(audio?.length) },
     });
-    return serializeTasmi(updated);
+    return serializeTasmi(updated, false, (await limitsFor(request.user)).maxAttempts);
   });
 
   // DELETE /v1/tasmi/:id/reply-audio — the teacher takes her voice reply back; the text stays

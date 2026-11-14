@@ -23,6 +23,8 @@ import { mutashabihatRoutes } from './modules/mutashabihat/routes';
 import { voiceProxyRoutes } from './modules/voice-proxy/routes';
 import { badgeRoutes } from './modules/badges/routes';
 import { adminRoutes } from './modules/admin/routes';
+import { adminModulesRoutes } from './modules/admin/modules-routes';
+import { moduleForPath, requireModule } from './lib/modules';
 import { adminUsersRoutes } from './modules/admin/users-routes';
 import { programRoutes } from './modules/program/routes';
 import { adminSetupRoutes } from './modules/admin/setup-routes';
@@ -143,6 +145,16 @@ async function buildApp() {
   // Health check
   await app.register(healthRoutes, { prefix: '/v1' });
 
+  // A module an institution has switched off refuses its own routes. Added to every route as it is registered, after
+  // the route's own preHandlers, so the signed-in user is known by then.
+  app.addHook('onRoute', (route) => {
+    const module = moduleForPath(route.url);
+    if (!module) return;
+    const guard = requireModule(module) as unknown as NonNullable<typeof route.preHandler>;
+    const existing = route.preHandler ? (Array.isArray(route.preHandler) ? route.preHandler : [route.preHandler]) : [];
+    route.preHandler = [...existing, guard] as typeof route.preHandler;
+  });
+
   // API routes
   await app.register(authRoutes, { prefix: '/v1/auth' });
   await app.register(sectionRoutes, { prefix: '/v1' });
@@ -155,6 +167,7 @@ async function buildApp() {
   await app.register(adminRoutes, { prefix: '/v1' });
   await app.register(adminSetupRoutes, { prefix: '/v1' });
   await app.register(adminUsersRoutes, { prefix: '/v1' });
+  await app.register(adminModulesRoutes, { prefix: '/v1' });
   await app.register(programRoutes, { prefix: '/v1' });
   await app.register(lessonRoutes, { prefix: '/v1' });
   await app.register(liveRoutes, { prefix: '/v1' });

@@ -5,6 +5,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { getDb, type Database } from '../../db';
 import { consents, sectionEnrollments, sections, tenants, users } from '../../db/schema';
 import { config } from '../../config';
+import { resolveModules } from '../../lib/modules';
 import { ItqanError, ValidationError, UnauthorizedError } from '../../lib/errors';
 import { generateToken, issueSessionTokens, verifyToken, TokenPayload } from '../../lib/jwt';
 import { STAFF_ROLES } from '../../lib/access';
@@ -304,6 +305,8 @@ export async function authRoutes(app: FastifyInstance) {
     return {
       user: publicUser(row.user),
       tenant: { id: row.tenant.id, nameAr: row.tenant.nameAr, slug: row.tenant.slug },
+      /** Which modules are on for this institution, and the settings of each that the screens need. */
+      modules: Object.fromEntries(Object.entries(resolveModules(row.tenant.settings)).map(([key, m]) => [key, { enabled: m.enabled, config: m.config }])),
       sections: enrolled,
       consents: granted.map((c) => c.purpose),
     };

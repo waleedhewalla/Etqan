@@ -5,10 +5,11 @@
  */
 import { appendFile, mkdir, stat, unlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { and, eq, isNotNull, lt } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, lt } from 'drizzle-orm';
 import type { Database } from '../db';
-import { liveSessions, sections } from '../db/schema';
+import { liveSessions, sections, tenants } from '../db/schema';
 import { config } from '../config';
+import { moduleConfig, resolveModules } from './modules';
 import { auditLog } from '../modules/audit/service';
 import { getStorage } from './storage';
 import { writeWebmDuration } from './webm-duration';
@@ -18,7 +19,8 @@ const DAY = 86_400_000;
 
 /** One piece is about ten seconds; anything near this size is not a piece of a lesson. */
 export const MAX_CHUNK_BYTES = 8 * 1024 * 1024;
-export const maxRecordingBytes = () => config.LIVE_RECORDING_MAX_MB * 1024 * 1024;
+/** The most a recording may grow to for this institution (its setting, or the deployment's LIVE_RECORDING_MAX_MB). */
+export const maxRecordingBytes = async (tenantId: string) => Number((await moduleConfig(tenantId, 'live')).recordingMaxMb) * 1024 * 1024;
 
 const KINDS = { webm: 'video/webm', mp4: 'video/mp4' } as const;
 type Kind = keyof typeof KINDS;
@@ -105,12 +107,22 @@ export async function purgeExpiredRecordings(db: Database, now = new Date()) {
     .where(and(eq(liveSessions.recordingStatus, 'recording'), lt(liveSessions.startedAt, new Date(now.getTime() - DAY)))).limit(50);
   for (const session of abandoned) await finalizeRecording(db, session);
 
-  const expired = await db.select({ session: liveSessions, tenantId: sections.tenantId }).from(liveSessions)
-    .innerJoin(sections, eq(liveSessions.sectionId, sections.id))
-    .where(and(
-      isNotNull(liveSessions.recordingKey),
-      lt(liveSessions.recordingReadyAt, new Date(now.getTime() - config.LIVE_RECORDING_RETENTION_DAYS * DAY)),
-    )).limit(100);
+  // Institutions that keep recordings for the same time are purged together.
+  const byDays = new Map<number, string[]>();
+  for (const t of await db.select({ id: tenants.id, settings: tenants.settings }).from(tenants)) {
+    const days = Number(resolveModules(t.settings).live.config.recordingRetentionDays);
+    byDays.set(days, [...(byDays.get(days) ?? []), t.id]);
+  }
+  const expired: { session: typeof liveSessions.$inferSelect; tenantId: string }[] = [];
+  for (const [days, tenantIds] of byDays) {
+    expired.push(...await db.select({ session: liveSessions, tenantId: sections.tenantId }).from(liveSessions)
+      .innerJoin(sections, eq(liveSessions.sectionId, sections.id))
+      .where(and(
+        inArray(sections.tenantId, tenantIds),
+        isNotNull(liveSessions.recordingKey),
+        lt(liveSessions.recordingReadyAt, new Date(now.getTime() - days * DAY)),
+      )).limit(100));
+  }
   let deleted = 0;
   for (const { session, tenantId } of expired) {
     try {

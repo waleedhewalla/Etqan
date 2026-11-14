@@ -122,7 +122,7 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
       setRecordingNote('انقطع التسجيل عند إعادة فتح الصفحة. حُفظ ما سُجّل قبل ذلك.');
       return;
     }
-    if (current.recordingStatus || !wantRecording) return;
+    if (current.recordingStatus || !wantRecording || state.data?.recordingAllowed === false) return;
     if (!canRecordLesson()) { setRecordingNote('هذا المتصفح لا يدعم تسجيل الدرس. استخدمي Chrome أو Edge على حاسوب.'); return; }
     try {
       await api.startLiveRecording(sessionId);
@@ -256,7 +256,7 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
                     ? 'تدخلين معلمةً للدرس: يُفتح ميكروفونكِ عند الدخول، وتشاركين شاشتكِ متى شئتِ.'
                     : 'تدخلين مستمعةً: ميكروفونكِ مغلق ولا تُعرض كاميرتكِ. يمكنكِ كتابة سؤال أو رفع يدكِ لتأذن لكِ المعلمة بالكلام.'}
                 </p>
-                {state.data?.role === 'host' ? !state.data.session.recordingStatus && (
+                {state.data?.role === 'host' ? !state.data.session.recordingStatus && state.data.recordingAllowed && (
                   <label className="flex items-start gap-2 text-sm">
                     <input id="live-record" type="checkbox" className="mt-1" checked={wantRecording} onChange={(e) => setWantRecording(e.target.checked)} />
                     <span>

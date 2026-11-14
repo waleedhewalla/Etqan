@@ -16,7 +16,7 @@ import { addToPlan } from '../../lib/hifz-plan';
 import { generateToken, type TokenPayload } from '../../lib/jwt';
 import { getStorage } from '../../lib/storage';
 import { auditLog } from '../audit/service';
-import { MAX_SUBMISSION_AYAT } from '../assessment/routes';
+import { moduleConfig } from '../../lib/modules';
 
 const MAX_NOTE = 500;
 const MAX_LISTED = 50;
@@ -75,7 +75,8 @@ export async function lessonRoutes(app: FastifyInstance) {
     // One sura at a time, and no longer than a student may recite back in one recording.
     if (start[0] !== end[0]) return errors.badRequest('A lesson covers verses of one sura');
     if (compareRefs(start, end) > 0) return errors.badRequest('The range ends before it starts');
-    if (countAyat(start, end) > MAX_SUBMISSION_AYAT) return errors.badRequest(`A lesson can cover at most ${MAX_SUBMISSION_AYAT} ayat`);
+    const maxAyat = Number((await moduleConfig(section.tenantId, 'recitation')).maxAyatPerRecording);
+    if (countAyat(start, end) > maxAyat) return errors.badRequest(`A lesson can cover at most ${maxAyat} ayat`);
     const note = fields.note?.trim() || null;
     if (note && note.length > MAX_NOTE) return errors.badRequest(`A note can be at most ${MAX_NOTE} characters`);
     const durationMs = fields.durationMs ? Number(fields.durationMs) : undefined;

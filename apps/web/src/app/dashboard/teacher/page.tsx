@@ -19,6 +19,7 @@ import { MonthlyRecord } from '@/components/MonthlyRecord';
 import { TeacherLessons } from '@/components/TeacherLessons';
 import { TeacherLive } from '@/components/TeacherLive';
 import { ProgramNow } from '@/components/ProgramNow';
+import { useModules } from '@/lib/modules';
 import { TASMI_STATUS, attemptLabel } from '@/lib/tasmi-status';
 import { FlaggedVerse } from '@/components/FlaggedVerse';
 import { AiCheckingSwitch } from '@/components/AiCheckingSwitch';
@@ -54,6 +55,7 @@ function riskLabel(reasons: StudentSummary['riskReasons'], s: StudentSummary) {
 
 export default function TeacherDashboard() {
   const { user, ready } = useRequireRole([...TEACHER_ROLES], '/auth/login/faculty');
+  const { isOn } = useModules();
   const [activeTab, setActiveTab] = useState<TeacherTab>('overview');
   const [sectionId, setSectionId] = useState<string | null>(null);
   const [openStudent, setOpenStudent] = useState<string | null>(null);
@@ -86,14 +88,16 @@ export default function TeacherDashboard() {
   const navItems = [
     { id: 'overview', label: 'نظرة عامة', icon: TrendingUp },
     { id: 'students', label: 'قائمة الطالبات', icon: Users },
-    { id: 'attendance', label: 'الحضور', icon: CalendarCheck },
-    { id: 'speedgrader', label: 'التسميع والتقييم', icon: Mic },
-    { id: 'live', label: 'الدرس المباشر', icon: Radio },
-    { id: 'lessons', label: 'آيات للحفظ', icon: BookOpen },
-    { id: 'mutashabihat', label: 'المتشابهات', icon: Target },
+    ...(isOn('attendance') ? [{ id: 'attendance', label: 'الحضور', icon: CalendarCheck }] : []),
+    ...(isOn('recitation') ? [{ id: 'speedgrader', label: 'التسميع والتقييم', icon: Mic }] : []),
+    ...(isOn('live') ? [{ id: 'live', label: 'الدرس المباشر', icon: Radio }] : []),
+    ...(isOn('lessons') ? [{ id: 'lessons', label: 'آيات للحفظ', icon: BookOpen }] : []),
+    ...(isOn('mutashabihat') ? [{ id: 'mutashabihat', label: 'المتشابهات', icon: Target }] : []),
     { id: 'cases', label: 'بحاجة متابعة', icon: AlertCircle },
     { id: 'account', label: 'حسابي', icon: UserRound },
   ];
+  // A tab whose module was switched off is no longer there to be on.
+  if (!navItems.some((n) => n.id === activeTab)) setActiveTab('overview');
 
   const students = studentsQuery.data?.students ?? [];
   const openRow = students.find((s) => s.studentId === openStudent) ?? null;
@@ -117,7 +121,7 @@ export default function TeacherDashboard() {
       case 'overview':
         return (
           <div className="space-y-4">
-          <ProgramNow sectionId={section.id} />
+          {isOn('program') && <ProgramNow sectionId={section.id} />}
           <OverviewTab
             summary={studentsQuery.data!.summary}
             pendingReviews={reportQuery.data?.pendingReviews ?? 0}
@@ -744,9 +748,11 @@ function StudentDrawer({ sectionId, student, onClose }: { sectionId: string; stu
     queryKey: ['weekly', student.studentId],
     queryFn: () => api.getWeeklyReport(student.studentId).then((r) => r.data),
   });
+  const { isOn } = useModules();
   const guardiansQuery = useQuery({
     queryKey: queryKeys.guardians(sectionId, student.studentId),
     queryFn: () => api.getGuardians(sectionId, student.studentId).then((r) => r.data),
+    enabled: isOn('guardians'),
   });
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -774,11 +780,11 @@ function StudentDrawer({ sectionId, student, onClose }: { sectionId: string; stu
 
         <HifzPlanCard sectionId={sectionId} studentId={student.studentId} />
 
-        <MonthlyRecord studentId={student.studentId} editable />
+        {isOn('monthly_record') && <MonthlyRecord studentId={student.studentId} editable />}
 
         {reportQuery.isLoading ? <Spinner /> : reportQuery.data ? <WeeklyReportView report={reportQuery.data} /> : <LoadError onRetry={() => reportQuery.refetch()} />}
 
-        <Card>
+        {isOn('guardians') && <Card>
           <CardHeader><CardTitle>أولياء الأمور</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {guardiansQuery.data?.length ? (
@@ -805,7 +811,7 @@ function StudentDrawer({ sectionId, student, onClose }: { sectionId: string; stu
               <p role="alert" className="text-sm text-red-800">{errorMessage(addGuardian.error, 'تعذّرت إضافة ولي الأمر. تحققي من الرقم.')}</p>
             )}
           </CardContent>
-        </Card>
+        </Card>}
       </div>
     </div>
   );
