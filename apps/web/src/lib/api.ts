@@ -316,6 +316,9 @@ export interface TasmiSubmission {
   /** The student may record these verses again in place of this attempt. */
   canRevise: boolean;
   lessonId: string | null;
+  /** The recorded live lesson she recited the verses of, and its title (in the lists). */
+  liveSessionId?: string | null;
+  liveSessionTitle?: string | null;
   /** The teacher's text reply. */
   reviewNotes: string | null;
   /** Whether the teacher left a recorded reply (it is removed after a month). */
@@ -1107,7 +1110,7 @@ class ApiClient {
   }
 
   getSectionLive(sectionId: string) {
-    return this.client.get<{ enabled: boolean; sessions: (LiveSession & { attended: number })[] }>(`/sections/${sectionId}/live`);
+    return this.client.get<{ enabled: boolean; sessions: (LiveSession & { attended: number; recited: number })[] }>(`/sections/${sectionId}/live`);
   }
 
   /** Starts a lesson that was scheduled, now. */

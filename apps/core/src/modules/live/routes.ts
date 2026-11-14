@@ -6,10 +6,10 @@
 import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { and, asc, count, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
+import { and, asc, count, countDistinct, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
 import { compareRefs, parseRef } from '@itqan/quran';
 import { getDb } from '../../db';
-import { liveSessions, sectionEnrollments, sections, sessionParticipants, sessionQuestions, users } from '../../db/schema';
+import { liveSessions, sectionEnrollments, sections, sessionParticipants, sessionQuestions, tasmiSubmissions, users } from '../../db/schema';
 import { isStaff, isTenantAdmin, loadManagedSection } from '../../lib/access';
 import { ItqanError } from '../../lib/errors';
 import { isLiveConfigured, live, liveUrl } from '../../lib/live';
@@ -122,7 +122,16 @@ export async function liveRoutes(app: FastifyInstance) {
         .groupBy(sessionParticipants.sessionId)
       : [];
     const bySession = new Map(attended.map((a) => [a.sessionId, a.n]));
-    return { enabled: isLiveConfigured(), sessions: rows.map((r) => ({ ...serialize(r), attended: bySession.get(r.id) ?? 0 })) };
+    // How many students recited this lesson's verses from its recording.
+    const recited = rows.length
+      ? await db.select({ sessionId: tasmiSubmissions.liveSessionId, n: countDistinct(tasmiSubmissions.studentId) }).from(tasmiSubmissions)
+        .where(inArray(tasmiSubmissions.liveSessionId, rows.map((r) => r.id))).groupBy(tasmiSubmissions.liveSessionId)
+      : [];
+    const recitedBy = new Map(recited.map((r) => [r.sessionId, r.n]));
+    return {
+      enabled: isLiveConfigured(),
+      sessions: rows.map((r) => ({ ...serialize(r), attended: bySession.get(r.id) ?? 0, recited: recitedBy.get(r.id) ?? 0 })),
+    };
   });
 
   // GET /v1/live/now — lessons the caller can join right now

@@ -45,6 +45,9 @@ export function ReciteTab() {
   const [sent, setSent] = useState(false);
   /** The teacher's lesson being recited back, if she chose one; cleared as soon as she changes the verses. */
   const [lesson, setLesson] = useState<StudentLesson | null>(null);
+  /** The recorded live lesson whose verses she is reciting; cleared like `lesson`. */
+  const [liveLesson, setLiveLesson] = useState<{ id: string; title: string } | null>(null);
+  const clearLessons = () => { setLesson(null); setLiveLesson(null); };
   /** The earlier attempt being recorded again after «يُعاد»; cleared with the lesson when the verses change. */
   const [revising, setRevising] = useState<TasmiSubmission | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
@@ -72,6 +75,7 @@ export function ReciteTab() {
       form.append('durationMs', String(recording!.durationMs));
       if (revising) form.append('revisionOf', revising.id);
       else if (lesson) form.append('lessonId', lesson.id);
+      else if (liveLesson) form.append('liveSessionId', liveLesson.id);
       const ext = recording!.blob.type.includes('mp4') ? 'm4a' : recording!.blob.type.includes('ogg') ? 'ogg' : 'webm';
       form.append('audio', recording!.blob, `recitation.${ext}`);
       return api.uploadTasmi(form);
@@ -80,7 +84,7 @@ export function ReciteTab() {
       setSent(true);
       setRecording(null);
       setRecorderKey((k) => k + 1);
-      setLesson(null);
+      clearLessons();
       setRevising(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.myTasmi });
       queryClient.invalidateQueries({ queryKey: queryKeys.myLessons });
@@ -95,6 +99,7 @@ export function ReciteTab() {
     setFrom(a);
     setTo(Number(l.endRef.split(':')[1]));
     setLesson(l);
+    setLiveLesson(null);
     // If the teacher asked her to repeat this lesson, the new recording replaces that attempt.
     const previous = mine.data?.find((t) => t.id === l.myRecitation?.id);
     setRevising(previous?.canRevise ? previous : null);
@@ -103,14 +108,15 @@ export function ReciteTab() {
   };
 
   /** Fills the form with the verses of a recorded live lesson. */
-  const reciteSession = (l: { sectionId: string; startRef: string | null; endRef: string | null }) => {
+  const reciteSession = (l: { id: string; title: string; sectionId: string; startRef: string | null; endRef: string | null }) => {
     if (!l.startRef || !l.endRef) return;
     const [s, a] = l.startRef.split(':').map(Number);
     setSectionId(l.sectionId);
     setSura(s);
     setFrom(a);
     setTo(Number(l.endRef.split(':')[1]));
-    setLesson(null);
+    clearLessons();
+    setLiveLesson({ id: l.id, title: l.title });
     setRevising(null);
     setSent(false);
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -123,7 +129,7 @@ export function ReciteTab() {
     setSura(s);
     setFrom(a);
     setTo(Number(t.endRef.split(':')[1]));
-    setLesson(null);
+    clearLessons();
     setRevising(t);
     setSent(false);
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -141,7 +147,7 @@ export function ReciteTab() {
 
   const setNumber = (set: (n: number) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const n = Math.floor(Number(e.target.value));
-    if (n >= 1 && n <= count) { set(n); setSent(false); setLesson(null); setRevising(null); }
+    if (n >= 1 && n <= count) { set(n); setSent(false); clearLessons(); setRevising(null); }
   };
 
   if (me.isLoading) return <Spinner />;
@@ -193,6 +199,11 @@ export function ReciteTab() {
                   تعيدين تسجيل <b>{formatAyahRange(revising.startRef, revising.endRef)}</b> — {attemptLabel(revising.attempt + 1)} من {toArabicDigits(revising.maxAttempts)}.
                 </p>
               )}
+              {liveLesson && !lesson && !revising && (
+                <p data-testid="reciting-live-lesson" className="rounded-xl bg-brand-primary/5 border border-brand-primary/20 px-3 py-2 text-sm">
+                  تسمّعين آيات الدرس المسجَّل: <b>{liveLesson.title}</b>
+                </p>
+              )}
               {lesson && !revising && (
                 <p data-testid="reciting-lesson" className="rounded-xl bg-brand-primary/5 border border-brand-primary/20 px-3 py-2 text-sm">
                   تسمّعين الآن آيات الحفظ: <b>{formatAyahRange(lesson.startRef, lesson.endRef)}</b>
@@ -202,7 +213,7 @@ export function ReciteTab() {
                 {sections.length > 1 && (
                   <label className="text-sm">
                     <span className="block text-text-secondary mb-1">الحلقة</span>
-                    <select id="recite-section" value={section} onChange={(e) => { setSectionId(e.target.value); setLesson(null); setRevising(null); }}
+                    <select id="recite-section" value={section} onChange={(e) => { setSectionId(e.target.value); clearLessons(); setRevising(null); }}
                       className="rounded-xl border border-divider bg-surface-elevated px-3 py-2">
                       {sections.map((s) => <option key={s.id} value={s.id}>{s.nameAr}</option>)}
                     </select>
@@ -211,7 +222,7 @@ export function ReciteTab() {
                 <label className="text-sm">
                   <span className="block text-text-secondary mb-1">السورة</span>
                   <select id="recite-sura" value={sura}
-                    onChange={(e) => { const n = Number(e.target.value); setSura(n); setFrom(1); setTo(Math.min(AYAH_COUNTS[n - 1], 5)); setSent(false); setLesson(null); setRevising(null); }}
+                    onChange={(e) => { const n = Number(e.target.value); setSura(n); setFrom(1); setTo(Math.min(AYAH_COUNTS[n - 1], 5)); setSent(false); clearLessons(); setRevising(null); }}
                     className="rounded-xl border border-divider bg-surface-elevated px-3 py-2 min-w-[10rem]">
                     {SURAH_NAMES.map((name, i) => <option key={name} value={i + 1}>{toArabicDigits(i + 1)}. {name}</option>)}
                   </select>
@@ -271,7 +282,10 @@ export function ReciteTab() {
               {mine.data!.map((t) => (
                 <li key={t.id} className="py-3 space-y-2" data-testid="my-tasmi">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <span className="font-medium">{formatAyahRange(t.startRef, t.endRef)}</span>
+                    <span className="font-medium">
+                      {formatAyahRange(t.startRef, t.endRef)}
+                      {t.liveSessionTitle && <span className="text-xs font-normal text-text-secondary"> · من درس «{t.liveSessionTitle}»</span>}
+                    </span>
                     <span className="flex items-center gap-2">
                       {t.attempt > 1 && <span className="text-xs text-text-secondary">{attemptLabel(t.attempt)}</span>}
                       <Badge className={TASMI_STATUS[t.status].tone} data-testid="tasmi-status">{TASMI_STATUS[t.status].label}</Badge>

@@ -200,7 +200,7 @@ export function TeacherLive({ sectionId }: { sectionId: string }) {
                     <div>
                       <p className="font-medium text-text-primary">{s.title}</p>
                       <p className="text-sm text-text-secondary">
-                        {when(s.startedAt)}{s.startRef && s.endRef && ` · ${formatAyahRange(s.startRef, s.endRef)}`} · حضرت {toArabicDigits(s.attended)}
+                        {when(s.startedAt)}{s.startRef && s.endRef && ` · ${formatAyahRange(s.startRef, s.endRef)}`} · حضرت {toArabicDigits(s.attended)}{s.recited > 0 && ` · سمّعت آياته ${toArabicDigits(s.recited)}`}
                         {s.recordingStatus === 'ready' && ` · مسجَّل${s.recordingDurationMs ? ` (${lessonLength(s.recordingDurationMs)})` : ''}`}
                         {s.recordingStatus === 'failed' && ' · لم يُحفظ التسجيل'}
                         {s.recordingStatus === 'deleted' && ' · حُذف التسجيل'}

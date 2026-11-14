@@ -489,6 +489,8 @@ export const tasmiSubmissions = pgTable('tasmi_submissions', {
   replyAt: timestamp('reply_at', { withTimezone: true }),
   /** The teacher's lesson this recitation answers, when she recited «آيات للحفظ». */
   lessonId: uuid('lesson_id').references((): AnyPgColumn => recitationLessons.id, { onDelete: 'set null' }),
+  /** The recorded live lesson this recitation answers, when she recited a lesson's verses from its recording. */
+  liveSessionId: uuid('live_session_id').references((): AnyPgColumn => liveSessions.id, { onDelete: 'set null' }),
   /** The earlier attempt this recording replaces, after the teacher asked for it to be repeated. */
   revisionOf: uuid('revision_of').references((): AnyPgColumn => tasmiSubmissions.id, { onDelete: 'set null' }),
   /** 1 for a first recording, 2 for its first repeat, and so on. */
@@ -498,6 +500,7 @@ export const tasmiSubmissions = pgTable('tasmi_submissions', {
 }, (t) => ({
   studentIdx: index('tasmi_student_idx').on(t.studentId),
   sectionIdx: index('tasmi_section_idx').on(t.sectionId),
+  liveSessionIdx: index('tasmi_live_session_idx').on(t.liveSessionId),
   verdictIdx: index('tasmi_verdict_idx').on(t.reviewVerdict),
   // One repeat per attempt: two recordings cannot both replace the same one.
   revisionIdx: uniqueIndex('tasmi_revision_of_idx').on(t.revisionOf),

@@ -287,6 +287,9 @@ says live lessons are not set up and nothing else changes.
   before (the teacher too). In-app notifications go to every active student of the halaqa; WhatsApp only to students who
   granted «whatsapp_notifications», only when 360dialog is configured and the `itqan_live_reminder` template exists. Nothing is
   sent when the live or notifications modules are off for the institution (WhatsApp is separate from notifications).
+  **Guardians** of the halaqa's students get the same two reminders, once each (one message naming all her daughters in the
+  halaqa), in the guardian page's notifications and over WhatsApp to her number (as absence alerts: no second consent). A
+  student who withdrew guardian access («mahram_access») is left out. A guardian's message has no link: she cannot enter the room.
 - **Synced mushaf:** inside a lesson the teacher sees «المصحف المتزامن»: arrows move one verse at a time, or choose a sura and
   a verse and «انتقال». Students see the same verses, the teacher's verse marked, following her within about three seconds; a
   lesson with verses starts at its first verse. The full lesson text stays below it.
@@ -299,7 +302,11 @@ says live lessons are not set up and nothing else changes.
   for everyone in the room. Share the screen or the camera, talk for half a minute, then «إنهاء الدرس» (or «إيقاف التسجيل»
   first; it cannot be resumed). Under «الدروس السابقة» the lesson says «مسجَّل» with a player and «حذف التسجيل».
 - **Student** (same halaqa): «التسميع» now starts with «دروس مسجَّلة». «شاهدي التسجيل» plays it with a timeline she can
-  drag; «سمّعي آيات الدرس» fills the recording form with the lesson's verses.
+  drag; «سمّعي آيات الدرس» fills the recording form with the lesson's verses and says «تسمّعين آيات الدرس المسجَّل».
+  The recitation remembers the lesson (`live_session_id`): the student's list and the teacher's review card say
+  «من درس …», and the teacher's «الدروس السابقة» shows «سمّعت آياته N» (students who recited it). The API refuses other
+  verses, another halaqa's lesson, and a lesson still running; recording again after «يُعاد» keeps the link; deleting the
+  lesson leaves the recitation.
 - What is recorded: the teacher's microphone and the stage (her screen or camera, or the lesson's title when she shares
   nothing). A student who is given the microphone is heard live but is not in the recording.
 - The recording is made by the teacher's browser (desktop Chrome, Edge or Firefox) and sent in ten-second pieces.
