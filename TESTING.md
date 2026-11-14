@@ -323,6 +323,11 @@ says live lessons are not set up and nothing else changes.
   `POST /v1/live/:id/recording/finish`, `GET /v1/live/recordings`, `GET /v1/live/:id/recording-link`,
   `GET /v1/live/:id/recording?token=`, `DELETE /v1/live/:id/recording`.
 
+- **A browser that cannot join the room** (the page loaded, the media is blocked): the student sees «تعذّر الاتصال ببثّ الدرس…»
+  (not «تحققي من الإنترنت») and the attempt is noted in the audit log as «تعذّر دخول درس مباشر (مشكلة اتصال)» with the role and
+  the browser's reason. API: `POST /v1/live/:id/connection-problem` (members of the halaqa only; 204; reason up to 120 characters).
+  To see it: stop the media server, open a lesson as a student.
+
 ### Checked in a real run (package E)
 
 Done with a real API process, a real LiveKit server and Chromium with a fake microphone and camera:

@@ -177,6 +177,22 @@ export async function liveRoutes(app: FastifyInstance) {
     return { url: liveUrl(), token, role, session: serialize(session) };
   });
 
+  // POST /v1/live/:id/connection-problem — the browser could not join the room (the network blocks the media, say).
+  // Only noted in the audit log, so the dean can see how many people cannot connect before deciding on a relay server.
+  app.post('/live/:id/connection-problem', {
+    schema: { body: z.object({ reason: z.string().trim().max(120).default('') }) },
+    preHandler: [app.authenticate],
+  }, async (request, reply) => {
+    const entered = await enter(request);
+    if ('error' in entered) return entered.error;
+    const { session, role } = entered;
+    await auditLog({
+      actorId: request.user.sub, actorRole: request.user.role, action: 'live.connection_failed', targetType: 'section', targetId: session.sectionId,
+      metadata: { sessionId: session.id, role, reason: (request.body as { reason: string }).reason, userAgent: String(request.headers['user-agent'] ?? '').slice(0, 160) },
+    });
+    return reply.code(204).send();
+  });
+
   // POST /v1/live/:id/start — the host starts a scheduled lesson now
   app.post('/live/:id/start', { preHandler: [app.authenticate] }, async (request) => {
     const entered = await enter(request);

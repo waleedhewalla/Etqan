@@ -1141,6 +1141,11 @@ class ApiClient {
     return this.client.post<{ url: string; token: string; role: 'host' | 'listener'; session: LiveSession }>(`/live/${id}/join`);
   }
 
+  /** Tells the server this browser could not join the room, so the institution can see how many people cannot connect. */
+  reportLiveConnectionProblem(id: string, reason: string) {
+    return this.client.post(`/live/${id}/connection-problem`, { reason: reason.slice(0, 120) });
+  }
+
   getLiveState(id: string) {
     return this.client.get<LiveState>(`/live/${id}/state`);
   }

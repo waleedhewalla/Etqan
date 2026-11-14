@@ -42,6 +42,7 @@ export const ACTION_LABEL: Record<string, string> = {
   login: 'تسجيل دخول',
   'otp.requested': 'طلب رمز دخول',
   'session.ended': 'إنهاء درس مباشر',
+  'live.connection_failed': 'تعذّر دخول درس مباشر (مشكلة اتصال)',
   'session.recording.started': 'بدء تسجيل درس',
   'session.recording.finished': 'انتهاء تسجيل درس',
   'session.recording.viewed': 'مشاهدة تسجيل درس',
