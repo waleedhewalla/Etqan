@@ -13,6 +13,11 @@ import { liveSessions, sectionEnrollments, sections, sessionParticipants, sessio
 import { isStaff, isTenantAdmin, loadManagedSection } from '../../lib/access';
 import { ItqanError } from '../../lib/errors';
 import { isLiveConfigured, live, liveUrl } from '../../lib/live';
+import { streamAudio, validLinkToken } from '../../lib/audio-link';
+import { generateToken } from '../../lib/jwt';
+import {
+  MAX_CHUNK_BYTES, appendChunk, deleteRecording, finalizeRecording, maxRecordingBytes, partKind, recordingContentType, sniffVideo,
+} from '../../lib/live-recording';
 import type { TokenPayload } from '../../lib/jwt';
 import { auditLog } from '../audit/service';
 
@@ -30,8 +35,11 @@ const speakSchema = z.object({ canSpeak: z.boolean() });
 const answerSchema = z.object({ answered: z.boolean() });
 
 type Session = typeof liveSessions.$inferSelect;
-/** What clients see: never the room name, which is as good as a key to the room. */
-const serialize = ({ roomName, ...rest }: Session) => rest;
+/** A lesson is watched for longer than a recitation is heard, and the player keeps asking for more of the file as it goes. */
+const RECORDING_LINK_TTL = '4h';
+const finishSchema = z.object({ durationMs: z.number().int().min(0).max(24 * 3_600_000).optional() });
+/** What clients see: never the room name, which is as good as a key to the room, nor where the recording is kept. */
+const serialize = ({ roomName, recordingKey, recordingChunks, ...rest }: Session) => rest;
 
 export async function liveRoutes(app: FastifyInstance) {
   const db = getDb();
@@ -250,8 +258,10 @@ export async function liveRoutes(app: FastifyInstance) {
       return request.server.httpErrors.notFound('Session not found');
     }
     if (session.status === 'ended') return serialize(session);
-    const [ended] = await db.update(liveSessions).set({ status: 'ended', endedAt: new Date() })
-      .where(eq(liveSessions.id, session.id)).returning();
+    await db.update(liveSessions).set({ status: 'ended', endedAt: new Date() }).where(eq(liveSessions.id, session.id));
+    // A recording the teacher's browser did not close itself is closed with what it sent.
+    const [current] = await db.select().from(liveSessions).where(eq(liveSessions.id, session.id)).limit(1);
+    const ended = await finalizeRecording(db, current);
     await db.update(sessionParticipants).set({ canSpeak: false, handRaisedAt: null }).where(eq(sessionParticipants.sessionId, session.id));
     // Best effort: the lesson is over in our records even if the media server cannot be reached.
     await live().closeRoom(session.roomName).catch((err) => request.log.warn({ err }, 'could not close the room'));
@@ -260,6 +270,157 @@ export async function liveRoutes(app: FastifyInstance) {
       metadata: { sessionId: session.id },
     });
     return serialize(ended);
+  });
+
+  // ---- Recording: made in the host's browser (her voice and what she shows), sent here in pieces ----
+
+  /** The lesson when the caller is its host, or the reply to send when she is not. */
+  const hosting = async (request: { params: unknown; user: TokenPayload; server: FastifyInstance }) => {
+    const entered = await enter(request);
+    if ('error' in entered) return entered;
+    if (entered.role !== 'host') return { error: request.server.httpErrors.forbidden('Only the host records the lesson') };
+    return entered;
+  };
+
+  // POST /v1/live/:id/recording/start — the host starts recording; everyone in the room is shown that it is on
+  app.post('/live/:id/recording/start', { preHandler: [app.authenticate] }, async (request) => {
+    const entered = await hosting(request);
+    if ('error' in entered) return entered.error;
+    const { session } = entered;
+    if (session.status !== 'live') return request.server.httpErrors.gone('The lesson has ended');
+    // One recording per lesson: a stopped or interrupted one is not started again.
+    const [started] = await db.update(liveSessions).set({ recordingStatus: 'recording', recordingChunks: 0, recordingBytes: 0 })
+      .where(and(eq(liveSessions.id, session.id), isNull(liveSessions.recordingStatus))).returning();
+    if (!started) return request.server.httpErrors.conflict('This lesson already has a recording');
+    await auditLog({
+      actorId: request.user.sub, actorRole: request.user.role, action: 'session.recording.started', targetType: 'section', targetId: session.sectionId,
+      metadata: { sessionId: session.id },
+    });
+    return serialize(started);
+  });
+
+  // POST /v1/live/:id/recording/chunks — the next piece (multipart: seq, chunk)
+  app.post('/live/:id/recording/chunks', { preHandler: [app.authenticate] }, async (request) => {
+    const errors = request.server.httpErrors;
+    const entered = await hosting(request);
+    if ('error' in entered) return entered.error;
+    const { session } = entered;
+    if (session.recordingStatus !== 'recording') return errors.conflict('This lesson is not being recorded');
+    if (!request.isMultipart()) return errors.badRequest('Send multipart/form-data');
+
+    let seq = NaN;
+    let chunk: Buffer | null = null;
+    try {
+      for await (const part of request.parts({ limits: { fileSize: MAX_CHUNK_BYTES } })) {
+        if (part.type === 'file') {
+          if (part.fieldname !== 'chunk' || chunk) { part.file.resume(); continue; }
+          chunk = await part.toBuffer();
+        } else if (part.fieldname === 'seq' && typeof part.value === 'string') {
+          seq = Number(part.value);
+        }
+      }
+    } catch {
+      return errors.payloadTooLarge('That piece is too large');
+    }
+    if (!Number.isInteger(seq) || seq < 0) return errors.badRequest('Invalid piece number');
+    if (!chunk || chunk.length === 0) return errors.badRequest('No recording attached');
+    // A piece sent twice (the reply was lost on the way back) is accepted once.
+    if (seq < session.recordingChunks) return { received: session.recordingChunks };
+    if (seq > session.recordingChunks) return errors.conflict(`Expected piece ${session.recordingChunks}`);
+
+    const total = (session.recordingBytes ?? 0) + chunk.length;
+    if (total > maxRecordingBytes()) throw new ItqanError('The recording has reached its size limit', 'RECORDING_FULL', 413);
+    // The first piece says what kind of file this is; later pieces continue it.
+    const kind = seq === 0 ? sniffVideo(chunk) : await partKind(session.id);
+    if (!kind) return seq === 0 ? errors.unsupportedMediaType('That is not a video recording') : errors.conflict('The recording was lost');
+
+    const [claimed] = await db.update(liveSessions).set({ recordingChunks: seq + 1, recordingBytes: total })
+      .where(and(eq(liveSessions.id, session.id), eq(liveSessions.recordingStatus, 'recording'), eq(liveSessions.recordingChunks, seq)))
+      .returning({ id: liveSessions.id });
+    if (!claimed) return errors.conflict('This lesson is not being recorded');
+    try {
+      await appendChunk(session.id, kind, chunk);
+    } catch (err) {
+      // Not written (a full disk, say): the piece is not counted, so the browser's next try sends it again.
+      await db.update(liveSessions).set({ recordingChunks: seq, recordingBytes: session.recordingBytes ?? 0 })
+        .where(and(eq(liveSessions.id, session.id), eq(liveSessions.recordingChunks, seq + 1)));
+      throw err;
+    }
+    return { received: seq + 1 };
+  });
+
+  // POST /v1/live/:id/recording/finish — the host stops recording; what was received becomes the lesson's recording
+  app.post('/live/:id/recording/finish', { schema: { body: finishSchema }, preHandler: [app.authenticate] }, async (request) => {
+    const entered = await hosting(request);
+    if ('error' in entered) return entered.error;
+    const { session } = entered;
+    if (session.recordingStatus !== 'recording') return serialize(session);
+    const finished = await finalizeRecording(db, session, (request.body as z.infer<typeof finishSchema>).durationMs);
+    if (finished.recordingStatus === 'recording') return request.server.httpErrors.serviceUnavailable('The recording could not be saved yet');
+    await auditLog({
+      actorId: request.user.sub, actorRole: request.user.role, action: 'session.recording.finished', targetType: 'section', targetId: session.sectionId,
+      metadata: { sessionId: session.id, status: finished.recordingStatus, bytes: finished.recordingBytes },
+    });
+    return serialize(finished);
+  });
+
+  // GET /v1/live/recordings — recorded lessons of the caller's halaqat, newest first
+  app.get('/live/recordings', { preHandler: [app.authenticate] }, async (request) => {
+    const user = request.user;
+    const sectionIds = isStaff(user)
+      ? (await db.select({ id: sections.id }).from(sections)
+        .where(isTenantAdmin(user)
+          ? eq(sections.tenantId, user.facultyId!)
+          : and(eq(sections.tenantId, user.facultyId!), eq(sections.teacherId, user.sub)))).map((s) => s.id)
+      : (await db.select({ id: sectionEnrollments.sectionId }).from(sectionEnrollments)
+        .where(and(eq(sectionEnrollments.studentId, user.sub), isNull(sectionEnrollments.droppedAt)))).map((s) => s.id);
+    if (sectionIds.length === 0) return [];
+    const rows = await db.select({ session: liveSessions, sectionName: sections.nameAr, teacherName: users.displayNameAr })
+      .from(liveSessions)
+      .innerJoin(sections, eq(liveSessions.sectionId, sections.id))
+      .leftJoin(users, eq(liveSessions.teacherId, users.id))
+      .where(and(inArray(liveSessions.sectionId, sectionIds), eq(liveSessions.recordingStatus, 'ready')))
+      .orderBy(desc(liveSessions.startedAt)).limit(MAX_LISTED);
+    return rows.map((r) => ({ ...serialize(r.session), sectionName: r.sectionName, teacherName: r.teacherName }));
+  });
+
+  // GET /v1/live/:id/recording-link — short-lived link, for the halaqa's students and whoever manages it (not guardians)
+  app.get('/live/:id/recording-link', { preHandler: [app.authenticate] }, async (request) => {
+    const entered = await enter(request);
+    if ('error' in entered) return entered.error;
+    const { session } = entered;
+    if (session.recordingStatus !== 'ready') return request.server.httpErrors.notFound('This lesson has no recording');
+    await auditLog({
+      actorId: request.user.sub, actorRole: request.user.role, action: 'session.recording.viewed', targetType: 'section', targetId: session.sectionId,
+      metadata: { sessionId: session.id },
+    });
+    const token = generateToken({ sub: session.id, role: 'audio', purpose: 'session-recording' }, RECORDING_LINK_TTL);
+    return { url: `/v1/live/${session.id}/recording?token=${encodeURIComponent(token)}`, contentType: recordingContentType(session.recordingKey!) };
+  });
+
+  // GET /v1/live/:id/recording?token= — the recording itself; the link is the permission
+  app.get('/live/:id/recording', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { token } = request.query as { token?: string };
+    if (!validLinkToken(token, 'session-recording', id)) return request.server.httpErrors.unauthorized('Link expired');
+    const session = await find(id);
+    if (!session?.recordingKey) return request.server.httpErrors.notFound('This lesson has no recording');
+    return streamAudio(request, reply, session.recordingKey, session.recordingBytes, recordingContentType(session.recordingKey));
+  });
+
+  // DELETE /v1/live/:id/recording — whoever manages the halaqa removes the recording; the lesson's record stays
+  app.delete('/live/:id/recording', { preHandler: [app.authenticate] }, async (request) => {
+    const session = await find((request.params as { id: string }).id);
+    if (!session || !(await loadManagedSection(db, request.user, session.sectionId))) {
+      return request.server.httpErrors.notFound('Session not found');
+    }
+    if (session.recordingStatus !== 'ready') return request.server.httpErrors.notFound('This lesson has no recording');
+    const updated = await deleteRecording(db, session);
+    await auditLog({
+      actorId: request.user.sub, actorRole: request.user.role, action: 'session.recording.deleted', targetType: 'section', targetId: session.sectionId,
+      metadata: { sessionId: session.id },
+    });
+    return serialize(updated);
   });
 
   // GET /v1/live/:id/attendance — who of the halaqa came, to fill the attendance sheet from

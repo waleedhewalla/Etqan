@@ -418,6 +418,14 @@ export const liveSessions = pgTable('live_sessions', {
   roomName: varchar('room_name', { length: 64 }).notNull().unique(),
   startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
   endedAt: timestamp('ended_at', { withTimezone: true }),
+  /** null = never recorded; recording → ready | failed; deleted once removed by a teacher or by retention. */
+  recordingStatus: varchar('recording_status', { length: 12 }),
+  /** Pieces received so far while recording; the next piece must carry this number. */
+  recordingChunks: integer('recording_chunks').default(0).notNull(),
+  recordingKey: text('recording_key'),
+  recordingBytes: integer('recording_bytes'),
+  recordingDurationMs: integer('recording_duration_ms'),
+  recordingReadyAt: timestamp('recording_ready_at', { withTimezone: true }),
 }, (t) => ({
   sectionIdx: index('live_sessions_section_idx').on(t.sectionId, t.startedAt),
 }));

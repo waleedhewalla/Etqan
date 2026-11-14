@@ -145,6 +145,25 @@ says live lessons are not set up and nothing else changes.
   `PUT /v1/live/:id/participants/:userId/speak`, `POST /v1/live/:id/end`, `GET /v1/live/:id/attendance`.
 - The API tests replace the media server with a recorder (`setLiveGateway`), so they need no LiveKit.
 
+### Recorded live lessons
+
+- **Teacher:** at the door of the lesson «سجّلي الدرس وشاركيه مع الحلقة» is ticked. Enter: «يُسجَّل» shows beside «مباشر»
+  for everyone in the room. Share the screen or the camera, talk for half a minute, then «إنهاء الدرس» (or «إيقاف التسجيل»
+  first; it cannot be resumed). Under «الدروس السابقة» the lesson says «مسجَّل» with a player and «حذف التسجيل».
+- **Student** (same halaqa): «التسميع» now starts with «دروس مسجَّلة». «شاهدي التسجيل» plays it with a timeline she can
+  drag; «سمّعي آيات الدرس» fills the recording form with the lesson's verses.
+- What is recorded: the teacher's microphone and the stage (her screen or camera, or the lesson's title when she shares
+  nothing). A student who is given the microphone is heard live but is not in the recording.
+- The recording is made by the teacher's browser (desktop Chrome, Edge or Firefox) and sent in ten-second pieces.
+  Closing or reloading the page stops it; what was sent is kept, and re-entering says so. A browser that cannot record
+  says so and the lesson goes on unrecorded.
+- A guardian, another halaqa's student or teacher gets 404 for the list entry and the link. The link lasts four hours.
+- `LIVE_RECORDING_MAX_MB` (default 600) stops a recording that grows too large; `LIVE_RECORDING_RETENTION_DAYS`
+  (default 90) deletes old ones in the nightly job. While a lesson runs its pieces are in `AUDIO_DIR/.recording`.
+- API: `POST /v1/live/:id/recording/start`, `POST /v1/live/:id/recording/chunks` (multipart `seq`, `chunk`),
+  `POST /v1/live/:id/recording/finish`, `GET /v1/live/recordings`, `GET /v1/live/:id/recording-link`,
+  `GET /v1/live/:id/recording?token=`, `DELETE /v1/live/:id/recording`.
+
 ## Verses to memorize, recorded by the teacher («آيات للحفظ»)
 
 The teacher's «آيات للحفظ» tab: choose verses of one sura (up to 60, the most a student can recite back in one

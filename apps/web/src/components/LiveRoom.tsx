@@ -4,12 +4,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@itqan/ui';
-import { Hand, Mic, MicOff, MonitorUp, PhoneOff, Send, Video, VideoOff } from 'lucide-react';
+import { Circle, Hand, Mic, MicOff, MonitorUp, PhoneOff, Send, Square, Video, VideoOff } from 'lucide-react';
 import type { Room, RemoteTrack, Track as LkTrack } from 'livekit-client';
 import { api, errorMessage, homeFor, queryKeys, type LiveSession } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatAyahRange, toArabicDigits } from '@/lib/quran';
 import { VerseText } from '@/components/VerseText';
+import { canRecordLesson, startLessonRecorder, type LessonRecorder } from '@/lib/lesson-recorder';
 
 type Phase = 'lobby' | 'connecting' | 'live' | 'ended' | 'failed';
 
@@ -33,6 +34,12 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
   const [question, setQuestion] = useState('');
   /** The browser is holding the sound back until she taps something. */
   const [soundBlocked, setSoundBlocked] = useState(false);
+
+  /** The host's choice in the lobby: record the lesson and share it with the halaqa. */
+  const [wantRecording, setWantRecording] = useState(true);
+  const [recordingNote, setRecordingNote] = useState('');
+  const recorder = useRef<LessonRecorder | null>(null);
+  const [recordingHere, setRecordingHere] = useState(false);
 
   const room = useRef<Room | null>(null);
   const stage = useRef<HTMLVideoElement>(null);
@@ -61,7 +68,21 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
   const info = session ?? state.data?.session ?? null;
   const canSpeak = role === 'host' || (state.data?.me.canSpeak ?? false);
 
+  /** Stops the recording in this browser, sends what is left, and closes it on the server. */
+  const stopRecording = useCallback(async () => {
+    const rec = recorder.current;
+    if (!rec) return;
+    recorder.current = null;
+    setRecordingHere(false);
+    // Sending the last piece is given a little time, not forever: ending the lesson must not hang on a dead
+    // connection, and the server closes the recording with what it has.
+    const done = await Promise.race([rec.stop(), new Promise<null>((r) => setTimeout(() => r(null), 20_000))]);
+    await api.finishLiveRecording(sessionId, done?.durationMs).catch(() => undefined);
+    queryClient.invalidateQueries({ queryKey: ['live'] });
+  }, [sessionId, queryClient]);
+
   const leave = useCallback(async (next: Phase) => {
+    await stopRecording();
     const r = room.current;
     room.current = null;
     videos.current = [];
@@ -86,7 +107,45 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
     }
   }, [phase, role, canSpeak, mic]);
 
-  useEffect(() => () => { void room.current?.disconnect(); }, []);
+  useEffect(() => () => {
+    const rec = recorder.current;
+    recorder.current = null;
+    if (rec) void rec.stop().then(({ durationMs }) => api.finishLiveRecording(sessionId, durationMs)).catch(() => undefined);
+    void room.current?.disconnect();
+  }, [sessionId]);
+
+  /** Starts recording this lesson from the host's browser. */
+  async function record(r: Room, current: LiveSession) {
+    if (current.recordingStatus === 'recording') {
+      // She was recording and the page was reloaded: what was sent before is kept as the recording.
+      await api.finishLiveRecording(sessionId).catch(() => undefined);
+      setRecordingNote('انقطع التسجيل عند إعادة فتح الصفحة. حُفظ ما سُجّل قبل ذلك.');
+      return;
+    }
+    if (current.recordingStatus || !wantRecording) return;
+    if (!canRecordLesson()) { setRecordingNote('هذا المتصفح لا يدعم تسجيل الدرس. استخدمي Chrome أو Edge على حاسوب.'); return; }
+    try {
+      await api.startLiveRecording(sessionId);
+      const lk = await import('livekit-client');
+      recorder.current = startLessonRecorder({
+        title: current.title,
+        stage: () => stage.current,
+        microphone: () => r.localParticipant.getTrackPublication(lk.Track.Source.Microphone)?.track?.mediaStreamTrack ?? null,
+        send: (seq, piece) => api.sendLiveRecordingChunk(sessionId, seq, piece),
+        onFailure: (reason) => {
+          setRecordingNote(reason === 'upload'
+            ? 'توقف التسجيل: تعذّر إرسال التسجيل إلى الخادم أو بلغ حدّه الأقصى. الدرس مستمر، وحُفظ ما أُرسل.'
+            : 'توقف التسجيل في هذا المتصفح. الدرس مستمر، وحُفظ ما أُرسل.');
+          void stopRecording();
+        },
+      });
+      setRecordingHere(true);
+      queryClient.invalidateQueries({ queryKey: queryKeys.liveState(sessionId) });
+    } catch (err) {
+      recorder.current = null;
+      setRecordingNote(errorMessage(err, 'لم يبدأ تسجيل الدرس. الدرس مستمر بلا تسجيل.'));
+    }
+  }
 
   async function enter() {
     setPhase('connecting');
@@ -139,6 +198,7 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
         void r.localParticipant.setMicrophoneEnabled(true)
           .then(() => { if (room.current === r) setMic(true); })
           .catch(() => setProblem('لم نتمكن من فتح الميكروفون. تحققي من إذن المتصفح.'));
+        void record(r, data.session);
       }
     } catch (err) {
       room.current = null;
@@ -169,7 +229,8 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
   const ask = useMutation({ mutationFn: () => api.askLive(sessionId, question.trim()), onSuccess: () => { setQuestion(''); refresh(); } });
   const answer = useMutation({ mutationFn: (id: string) => api.answerLive(sessionId, id, true), onSuccess: refresh });
   const end = useMutation({
-    mutationFn: () => api.endLive(sessionId),
+    // The recording is closed first, so its last seconds are in it when the lesson ends.
+    mutationFn: async () => { await stopRecording(); return api.endLive(sessionId); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['live'] }); void leave('ended'); },
   });
 
@@ -195,6 +256,17 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
                     ? 'تدخلين معلمةً للدرس: يُفتح ميكروفونكِ عند الدخول، وتشاركين شاشتكِ متى شئتِ.'
                     : 'تدخلين مستمعةً: ميكروفونكِ مغلق ولا تُعرض كاميرتكِ. يمكنكِ كتابة سؤال أو رفع يدكِ لتأذن لكِ المعلمة بالكلام.'}
                 </p>
+                {state.data?.role === 'host' ? !state.data.session.recordingStatus && (
+                  <label className="flex items-start gap-2 text-sm">
+                    <input id="live-record" type="checkbox" className="mt-1" checked={wantRecording} onChange={(e) => setWantRecording(e.target.checked)} />
+                    <span>
+                      سجّلي الدرس وشاركيه مع الحلقة
+                      <span className="block text-xs text-text-secondary">يُسجَّل صوتكِ وما تعرضينه فقط، ولا تُسجَّل أصوات الطالبات. أبقي هذه الصفحة مفتوحة حتى نهاية الدرس.</span>
+                    </span>
+                  </label>
+                ) : (
+                  <p className="text-xs text-text-secondary">قد تسجّل المعلمة الدرس لتشاهده الحلقة لاحقاً: يُسجَّل صوتها وشاشتها فقط، ولا يُسجَّل صوتكِ.</p>
+                )}
                 <Button className="w-full" onClick={enter} loading={phase === 'connecting'} disabled={state.isLoading}>دخول الدرس</Button>
               </>
             )}
@@ -218,6 +290,11 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
           <h1 className="font-heading text-lg font-bold text-text-primary truncate">{info?.title}</h1>
           <p className="text-xs text-text-secondary">
             <Badge variant="red" size="sm">مباشر</Badge> {toArabicDigits(s?.attending ?? 0)} طالبة حاضرة
+            {(recordingHere || s?.session.recordingStatus === 'recording') && (
+              <span className="mr-2 inline-flex items-center gap-1 text-red-700" data-testid="live-recording">
+                <Circle className="w-2.5 h-2.5 fill-current" /> يُسجَّل
+              </span>
+            )}
           </p>
         </div>
         {role === 'host' ? (
@@ -257,6 +334,13 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
                 <Button variant={camera ? 'primary' : 'outline'} onClick={toggleCamera} aria-pressed={camera}>
                   {camera ? <Video className="w-4 h-4 ml-1" /> : <VideoOff className="w-4 h-4 ml-1" />} {camera ? 'إيقاف الكاميرا' : 'الكاميرا'}
                 </Button>
+                {recordingHere && (
+                  <Button variant="outline" onClick={() => {
+                    if (window.confirm('إيقاف التسجيل؟ لا يمكن استئنافه في هذا الدرس.')) void stopRecording().then(() => setRecordingNote('أُوقف التسجيل وحُفظ.'));
+                  }}>
+                    <Square className="w-4 h-4 ml-1" /> إيقاف التسجيل
+                  </Button>
+                )}
               </>
             )}
             {role === 'listener' && user?.role === 'student' && !canSpeak && (
@@ -273,6 +357,7 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
           )}
           {role === 'listener' && canSpeak && <p role="status" className="text-sm text-brand-primary">أذنت لكِ المعلمة بالكلام.</p>}
           {problem && <p role="alert" className="text-sm text-red-800">{problem}</p>}
+          {recordingNote && <p role="status" className="text-sm text-text-secondary" data-testid="live-recording-note">{recordingNote}</p>}
 
           {verses && (
             <details className="rounded-2xl border border-divider bg-surface-elevated p-3">

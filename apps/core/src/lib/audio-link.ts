@@ -16,7 +16,11 @@ export function validLinkToken(token: string | undefined, purpose: string, id: s
 }
 
 /** Streams a stored audio object, honouring Range so the player can seek. */
-export async function streamAudio(request: FastifyRequest, reply: FastifyReply, key: string, bytes: number | null) {
+export async function streamAudio(
+  request: FastifyRequest, reply: FastifyReply, key: string, bytes: number | null,
+  /** Sent instead of the type the storage reports, for objects whose type it cannot tell from the name. */
+  contentType?: string,
+) {
   let object;
   try {
     object = await getStorage().get(key, request.headers.range);
@@ -30,7 +34,7 @@ export async function streamAudio(request: FastifyRequest, reply: FastifyReply, 
 
   reply
     .code(object.contentRange ? 206 : 200)
-    .header('Content-Type', object.contentType)
+    .header('Content-Type', contentType ?? object.contentType)
     .header('Content-Length', object.contentLength)
     .header('Accept-Ranges', 'bytes')
     .header('Cache-Control', 'private, no-store')

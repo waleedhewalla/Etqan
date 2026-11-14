@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { auditLog } from '../modules/audit/service';
 import { config } from '../config';
 import { getStorage } from './storage';
+import { purgeExpiredRecordings } from './live-recording';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -51,7 +52,7 @@ export async function purgeExpiredAudio(db: Database, now = new Date()) {
     });
     deleted++;
   }
-  return deleted + await purgeExpiredReplies(db, now);
+  return deleted + await purgeExpiredReplies(db, now) + await purgeExpiredRecordings(db, now);
 }
 
 /**

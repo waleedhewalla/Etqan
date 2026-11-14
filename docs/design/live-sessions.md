@@ -210,10 +210,15 @@ GET    /v1/tasmi/:id/history                the attempt chain for a lesson
 3. Screen share, raised hands, written questions.
 4. Attendance pre-fill from participants.
 
-**Phase C — recording and sharing (medium).**
-1. Egress, object storage in `s3` mode, the webhook.
-2. Session lesson with video playback in «آيات للحفظ».
-3. Retention and audit for session recordings.
+**Phase C — recording and sharing (medium).** **Built**, differently from the plan above:
+
+- **The recording is made in the teacher's browser, not by LiveKit Egress.** Egress needs two more services (Egress itself and Redis) and a headless Chrome on the server; the browser already has the teacher's microphone and screen. Her browser records her voice and whatever is on the stage (her screen or camera, or a title card), and sends it to the API in ten-second pieces, which the API appends to a file and moves into storage when the lesson ends. Students' voices are never in it, because they are never given to the recorder. The cost: recording needs a desktop Chrome, Edge or Firefox, stops if she closes or reloads the page (what was sent until then is kept), and is one stream at about 0.45 Mbit/s (roughly 200 MB an hour) from her connection in addition to the lesson itself. If this proves too fragile in the pilot, Egress can replace the recorder without changing anything else: the storage, links, list and retention stay.
+- Recording is the teacher's choice at the door of each lesson (ticked by default), she can stop it, and it cannot be resumed in the same lesson.
+- Recorded lessons are a list of their own («دروس مسجَّلة») above «آيات للحفظ» on the student's recitation page, not rows in `recitation_lessons`; «سمّعي آيات الدرس» fills the recording form when the lesson's verses are in one sura and no more than 60. A recitation made this way is not linked to the lesson.
+- Limits: `LIVE_RECORDING_MAX_MB` (default 600, about three hours) and `LIVE_RECORDING_RETENTION_DAYS` (default 90). Start, finish, each viewing link, deletion and expiry are in the audit log.
+- Recordings are WebM (VP8 + Opus) from Chrome, Edge and Firefox. iPhones play WebM only from iOS 17.4; older ones cannot watch. Safari records MP4, which the API also accepts, but that path is untested.
+
+See "Recorded live lessons" in `TESTING.md`.
 
 **Phase D — refinements.** Synced mushaf view; attempt limit per institution; scheduled-session reminders over WhatsApp.
 
