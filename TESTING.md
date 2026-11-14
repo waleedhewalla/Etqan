@@ -140,6 +140,29 @@ sees its result on the lesson and the teacher sees how many students have recite
 - API: `POST|GET /v1/sections/:id/lessons`, `GET /v1/lessons/mine`, `GET /v1/lessons/:id/audio-link`,
   `DELETE /v1/lessons/:id`; `POST /v1/tasmi` accepts an optional `lessonId`.
 
+## The recitation cycle: status, recording again, final grade
+
+Every recitation carries a `status` both sides see, derived from what is stored (`apps/core/src/lib/tasmi-status.ts`):
+
+| Status | Shown as | When |
+| --- | --- | --- |
+| `submitted` | أُرسل | received, not opened |
+| `under_review` | قيد المراجعة | a teacher opened the recording |
+| `feedback_given` | وصل ردّ المعلمة | she replied but has not graded yet |
+| `revision_requested` | أعيدي التسجيل | graded «يُعاد» and not yet repeated |
+| `revised` | أُعيد التسجيل | graded «يُعاد» and then recorded again |
+| `referred` | عند الشيخة للمراجعة | sent to the sheikha |
+| `final_graded` | الدرجة النهائية | «مقبول», or any verdict on the last allowed attempt |
+
+- After «يُعاد» the student sees «أعيدي التسجيل» in «تسميعاتي» (and on the lesson, if it came from one). The new
+  recording is stored as the next attempt (`revision_of`, `attempt`); the earlier attempt, its grade and its
+  feedback are never changed. Three attempts at most (`MAX_ATTEMPTS`).
+- The teacher's list marks repeats («المحاولة الثانية»), can be filtered to first recordings or repeats, and shows
+  what she said about the earlier attempts above the new one.
+- **Grade:** the monthly record counts each set of verses once, by its latest *graded* attempt. Until a repeat is
+  graded, the earlier grade stands. Earlier attempts stay listed, dimmed, as history.
+- API: `POST /v1/tasmi` accepts `revisionOf`; `GET /v1/tasmi/:id/history` returns the chain, oldest first.
+
 ## Teacher's reply and the monthly record
 
 **Reply.** In التسميع والتقييم the teacher can answer a recitation in writing («ردّ مكتوب للطالبة») and with a

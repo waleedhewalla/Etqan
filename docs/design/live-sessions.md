@@ -197,7 +197,7 @@ GET    /v1/tasmi/:id/history                the attempt chain for a lesson
 
 ## 9. Build order
 
-**Phase A — close the cycle without live video (small).** Worth shipping first; it needs no new infrastructure.
+**Phase A — close the cycle without live video (small).** **Built**, except item 5; see "The recitation cycle" in `TESTING.md`.
 1. Attempt chain (`revision_of`, `attempt`) and «أعيدي التسجيل».
 2. Derived status, shown to both sides, with a teacher filter.
 3. `review_started_at`.

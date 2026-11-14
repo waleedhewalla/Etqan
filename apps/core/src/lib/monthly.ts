@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lt, lte } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lt, lte } from 'drizzle-orm';
 import { compareRefs, parseRef } from '@itqan/quran';
 import type { Database } from '../db';
 import { attendance, studentMonthlyAppraisals, tasmiSubmissions, users } from '../db/schema';
@@ -15,6 +15,8 @@ import { addDays, localDate, startOfLocalDay } from './dates';
  * - The TOTAL APPRAISAL is the plain average of those totals over the month's recitations whose verdict is
  *   final ("approved" or "redo"). A recitation sent to the sheikha ("flagged") or not reviewed yet does not
  *   count until it is decided.
+ * - Verses recorded again after «يُعاد» count ONCE: an attempt stops counting as soon as a later attempt at the
+ *   same verses is graded. Until then the earlier grade stands. Earlier attempts stay listed as history.
  * - The DEGREE is that average rounded to a whole number out of 100, with the grade it falls in.
  */
 
@@ -51,6 +53,12 @@ export interface MonthlyRecitation {
   notes: string | null;
   flags: FlaggedWord[];
   hasVoiceReply: boolean;
+  /** 1 for a first recording; higher when she recorded the same verses again after «يُعاد». */
+  attempt: number;
+  /** She recorded these verses again in place of this attempt. */
+  hasLaterAttempt: boolean;
+  /** …and that later attempt has been graded, so this one no longer counts. */
+  laterGraded: boolean;
 }
 
 export interface MonthlyInput {
@@ -72,8 +80,8 @@ const mean = (values: number[]) => (values.length ? values.reduce((a, b) => a + 
 
 export function buildMonthlyRecord(input: MonthlyInput) {
   const { recitations } = input;
-  // Only a final verdict counts towards the appraisal.
-  const counted = recitations.filter((r) => (r.verdict === 'approved' || r.verdict === 'redo') && r.total !== null);
+  // Only a final verdict counts towards the appraisal, and only the latest graded attempt at the same verses.
+  const counted = recitations.filter((r) => (r.verdict === 'approved' || r.verdict === 'redo') && r.total !== null && !r.laterGraded);
   const average = mean(counted.map((r) => r.total!));
   const skillAverage = (skill: Skill) => mean(counted.map((r) => r[skill]).filter((v): v is number => v !== null));
   const skills: Record<Skill, number | null> = { hifz: skillAverage('hifz'), tajweed: skillAverage('tajweed'), fluency: skillAverage('fluency') };
@@ -81,7 +89,8 @@ export function buildMonthlyRecord(input: MonthlyInput) {
   const issues: MonthlyIssue[] = [];
   if (recitations.length === 0) issues.push({ kind: 'no_recitations' });
 
-  const redo = recitations.filter((r) => r.verdict === 'redo');
+  // Still to be recorded again: «يُعاد» that she has not yet repeated.
+  const redo = recitations.filter((r) => r.verdict === 'redo' && !r.hasLaterAttempt);
   if (redo.length) issues.push({ kind: 'redo', count: redo.length, ranges: redo.map((r) => ({ startRef: r.startRef, endRef: r.endRef })) });
 
   // Mistakes the teacher confirmed; flags she dismissed or never decided are not the student's issue.
@@ -110,7 +119,7 @@ export function buildMonthlyRecord(input: MonthlyInput) {
       submitted: recitations.length,
       counted: counted.length,
       approved: recitations.filter((r) => r.verdict === 'approved').length,
-      redo: redo.length,
+      redo: recitations.filter((r) => r.verdict === 'redo').length,
       awaiting: recitations.filter((r) => r.verdict === null || r.verdict === 'flagged').length,
     },
     totalAppraisal: {
@@ -126,6 +135,7 @@ export function buildMonthlyRecord(input: MonthlyInput) {
     items: recitations.map((r) => ({
       id: r.id, startRef: r.startRef, endRef: r.endRef, submittedAt: r.submittedAt,
       verdict: r.verdict, total: r.total === null ? null : round1(r.total), notes: r.notes, hasVoiceReply: r.hasVoiceReply,
+      attempt: r.attempt, replaced: r.laterGraded,
     })),
   };
 }
@@ -164,12 +174,21 @@ export async function loadMonthlyRecord(db: Database, studentId: string, month: 
     .leftJoin(users, eq(studentMonthlyAppraisals.teacherId, users.id))
     .where(and(eq(studentMonthlyAppraisals.studentId, studentId), eq(studentMonthlyAppraisals.month, month))).limit(1);
 
+  // Later attempts at the same verses, whenever they were recorded: they decide which grade stands.
+  const later = rows.length
+    ? await db.select({ of: tasmiSubmissions.revisionOf, verdict: tasmiSubmissions.reviewVerdict }).from(tasmiSubmissions)
+      .where(inArray(tasmiSubmissions.revisionOf, rows.map((r) => r.id)))
+    : [];
+  const laterOf = new Map(later.map((l) => [l.of!, l.verdict]));
+
   const record = buildMonthlyRecord({
     month,
     recitations: rows.map((r) => ({
       id: r.id, startRef: r.startRef, endRef: r.endRef, submittedAt: r.submittedAt, verdict: r.reviewVerdict,
       hifz: r.reviewHifzScore, tajweed: r.reviewTajweedScore, fluency: r.reviewFluencyScore, total: r.reviewWeightedTotal,
       notes: r.reviewNotes, flags: (r.aiFlaggedErrors ?? []) as FlaggedWord[], hasVoiceReply: Boolean(r.replyAudioKey),
+      attempt: r.attempt, hasLaterAttempt: laterOf.has(r.id),
+      laterGraded: laterOf.get(r.id) === 'approved' || laterOf.get(r.id) === 'redo',
     })),
     attendance: days,
     appraisal: appraisal ?? null,

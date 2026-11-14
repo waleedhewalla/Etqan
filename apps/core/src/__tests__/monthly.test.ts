@@ -14,7 +14,8 @@ import { buildMonthlyRecord, currentMonth, gradeFor, isMonth, type MonthlyInput,
 
 const rec = (over: Partial<MonthlyRecitation>): MonthlyRecitation => ({
   id: randomUUID(), startRef: '2:1', endRef: '2:5', submittedAt: new Date('2026-10-05T10:00:00Z'),
-  verdict: 'approved', hifz: 90, tajweed: 80, fluency: 70, total: 83, notes: null, flags: [], hasVoiceReply: false, ...over,
+  verdict: 'approved', hifz: 90, tajweed: 80, fluency: 70, total: 83, notes: null, flags: [], hasVoiceReply: false,
+  attempt: 1, hasLaterAttempt: false, laterGraded: false, ...over,
 });
 const base: MonthlyInput = { month: '2026-10', recitations: [], attendance: [], appraisal: null };
 
@@ -93,6 +94,28 @@ describe('buildMonthlyRecord', () => {
       { kind: 'weak_skill', skill: 'tajweed', average: 60 },
       { kind: 'weak_skill', skill: 'fluency', average: 69.9 },
     ]);
+  });
+
+  it('counts verses recorded again once: the latest graded attempt replaces the earlier one', () => {
+    const first = rec({ verdict: 'redo', total: 50, hifz: 50, tajweed: 50, fluency: 50, hasLaterAttempt: true, laterGraded: true });
+    const second = rec({ attempt: 2, total: 90, hifz: 90, tajweed: 90, fluency: 90 });
+    const r = buildMonthlyRecord({ ...base, recitations: [first, second, rec({ total: 70, hifz: 70, tajweed: 70, fluency: 70 })] });
+    // (90 + 70) / 2, not (50 + 90 + 70) / 3
+    expect(r.totalAppraisal.average).toBe(80);
+    expect(r.degree.score).toBe(80);
+    expect(r.recitations).toMatchObject({ submitted: 3, counted: 2, redo: 1 });
+    // She already recorded it again, so it is no longer something to repeat.
+    expect(r.issues.find((i) => i.kind === 'redo')).toBeUndefined();
+    expect(r.items.map((i) => [i.attempt, i.replaced])).toEqual([[1, true], [2, false], [1, false]]);
+  });
+
+  it('keeps the earlier grade until the new attempt is graded', () => {
+    const first = rec({ verdict: 'redo', total: 50, hifz: 50, tajweed: 50, fluency: 50, hasLaterAttempt: true, laterGraded: false });
+    const second = rec({ attempt: 2, verdict: null, total: null, hifz: null, tajweed: null, fluency: null });
+    const r = buildMonthlyRecord({ ...base, recitations: [first, second] });
+    expect(r.degree.score).toBe(50);
+    expect(r.recitations).toMatchObject({ counted: 1, awaiting: 1 });
+    expect(r.issues.find((i) => i.kind === 'redo')).toBeUndefined();
   });
 
   it('carries the teacher\'s appraisal and her note on each recitation', () => {

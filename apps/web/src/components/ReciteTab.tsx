@@ -12,14 +12,10 @@ import { TasmiAudio } from '@/components/TasmiAudio';
 import { FlaggedVerse } from '@/components/FlaggedVerse';
 import { LoadError, Spinner } from '@/components/LoadState';
 import { StudentLessons } from '@/components/StudentLessons';
+import { TASMI_STATUS, attemptLabel } from '@/lib/tasmi-status';
 
 const MAX_AYAT = 60;
 
-const VERDICT: Record<string, { label: string; tone: string }> = {
-  approved: { label: 'مقبول', tone: 'bg-green-50 text-green-800' },
-  redo: { label: 'أعيدي التسميع', tone: 'bg-amber-50 text-amber-900' },
-  flagged: { label: 'عند الشيخة للمراجعة', tone: 'bg-red-50 text-red-800' },
-};
 
 /** Student records a recitation for her teacher and sees her earlier submissions. */
 export function ReciteTab() {
@@ -44,6 +40,8 @@ export function ReciteTab() {
   const [sent, setSent] = useState(false);
   /** The teacher's lesson being recited back, if she chose one; cleared as soon as she changes the verses. */
   const [lesson, setLesson] = useState<StudentLesson | null>(null);
+  /** The earlier attempt being recorded again after «يُعاد»; cleared with the lesson when the verses change. */
+  const [revising, setRevising] = useState<TasmiSubmission | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
   const sections = me.data?.sections ?? [];
@@ -67,7 +65,8 @@ export function ReciteTab() {
       form.append('endRef', `${sura}:${to}`);
       form.append('sectionId', section);
       form.append('durationMs', String(recording!.durationMs));
-      if (lesson) form.append('lessonId', lesson.id);
+      if (revising) form.append('revisionOf', revising.id);
+      else if (lesson) form.append('lessonId', lesson.id);
       const ext = recording!.blob.type.includes('mp4') ? 'm4a' : recording!.blob.type.includes('ogg') ? 'ogg' : 'webm';
       form.append('audio', recording!.blob, `recitation.${ext}`);
       return api.uploadTasmi(form);
@@ -77,6 +76,7 @@ export function ReciteTab() {
       setRecording(null);
       setRecorderKey((k) => k + 1);
       setLesson(null);
+      setRevising(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.myTasmi });
       queryClient.invalidateQueries({ queryKey: queryKeys.myLessons });
     },
@@ -90,6 +90,22 @@ export function ReciteTab() {
     setFrom(a);
     setTo(Number(l.endRef.split(':')[1]));
     setLesson(l);
+    // If the teacher asked her to repeat this lesson, the new recording replaces that attempt.
+    const previous = mine.data?.find((t) => t.id === l.myRecitation?.id);
+    setRevising(previous?.canRevise ? previous : null);
+    setSent(false);
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  /** Fills the form to record the same verses again after «يُعاد». */
+  const reviseTasmi = (t: TasmiSubmission) => {
+    const [s, a] = t.startRef.split(':').map(Number);
+    if (t.sectionId) setSectionId(t.sectionId);
+    setSura(s);
+    setFrom(a);
+    setTo(Number(t.endRef.split(':')[1]));
+    setLesson(null);
+    setRevising(t);
     setSent(false);
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -106,7 +122,7 @@ export function ReciteTab() {
 
   const setNumber = (set: (n: number) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const n = Math.floor(Number(e.target.value));
-    if (n >= 1 && n <= count) { set(n); setSent(false); setLesson(null); }
+    if (n >= 1 && n <= count) { set(n); setSent(false); setLesson(null); setRevising(null); }
   };
 
   if (me.isLoading) return <Spinner />;
@@ -152,7 +168,12 @@ export function ReciteTab() {
                   <Button size="sm" variant="outline" loading={grant.isPending} onClick={() => grant.mutate(['ai_processing'])}>أسمح بالفحص الآلي</Button>
                 </div>
               )}
-              {lesson && (
+              {revising && (
+                <p data-testid="revising" className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
+                  تعيدين تسجيل <b>{formatAyahRange(revising.startRef, revising.endRef)}</b> — {attemptLabel(revising.attempt + 1)} من {toArabicDigits(revising.maxAttempts)}.
+                </p>
+              )}
+              {lesson && !revising && (
                 <p data-testid="reciting-lesson" className="rounded-xl bg-brand-primary/5 border border-brand-primary/20 px-3 py-2 text-sm">
                   تسمّعين الآن آيات الحفظ: <b>{formatAyahRange(lesson.startRef, lesson.endRef)}</b>
                 </p>
@@ -161,7 +182,7 @@ export function ReciteTab() {
                 {sections.length > 1 && (
                   <label className="text-sm">
                     <span className="block text-text-secondary mb-1">الحلقة</span>
-                    <select id="recite-section" value={section} onChange={(e) => { setSectionId(e.target.value); setLesson(null); }}
+                    <select id="recite-section" value={section} onChange={(e) => { setSectionId(e.target.value); setLesson(null); setRevising(null); }}
                       className="rounded-xl border border-divider bg-surface-elevated px-3 py-2">
                       {sections.map((s) => <option key={s.id} value={s.id}>{s.nameAr}</option>)}
                     </select>
@@ -170,7 +191,7 @@ export function ReciteTab() {
                 <label className="text-sm">
                   <span className="block text-text-secondary mb-1">السورة</span>
                   <select id="recite-sura" value={sura}
-                    onChange={(e) => { const n = Number(e.target.value); setSura(n); setFrom(1); setTo(Math.min(AYAH_COUNTS[n - 1], 5)); setSent(false); setLesson(null); }}
+                    onChange={(e) => { const n = Number(e.target.value); setSura(n); setFrom(1); setTo(Math.min(AYAH_COUNTS[n - 1], 5)); setSent(false); setLesson(null); setRevising(null); }}
                     className="rounded-xl border border-divider bg-surface-elevated px-3 py-2 min-w-[10rem]">
                     {SURAH_NAMES.map((name, i) => <option key={name} value={i + 1}>{toArabicDigits(i + 1)}. {name}</option>)}
                   </select>
@@ -231,11 +252,10 @@ export function ReciteTab() {
                 <li key={t.id} className="py-3 space-y-2" data-testid="my-tasmi">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="font-medium">{formatAyahRange(t.startRef, t.endRef)}</span>
-                    {t.reviewVerdict ? (
-                      <Badge className={VERDICT[t.reviewVerdict].tone}>{VERDICT[t.reviewVerdict].label}</Badge>
-                    ) : (
-                      <Badge>بانتظار المعلمة</Badge>
-                    )}
+                    <span className="flex items-center gap-2">
+                      {t.attempt > 1 && <span className="text-xs text-text-secondary">{attemptLabel(t.attempt)}</span>}
+                      <Badge className={TASMI_STATUS[t.status].tone} data-testid="tasmi-status">{TASMI_STATUS[t.status].label}</Badge>
+                    </span>
                   </div>
                   <p className="text-xs text-text-secondary">
                     {new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(t.submittedAt))}
@@ -246,6 +266,14 @@ export function ReciteTab() {
                       <p className="text-xs text-text-secondary">ردّ المعلمة</p>
                       {t.reviewNotes && <p className="text-sm whitespace-pre-wrap">{t.reviewNotes}</p>}
                       <TasmiAudio id={t.id} hasAudio={Boolean(t.hasReplyAudio)} kind="reply" />
+                    </div>
+                  )}
+                  {t.canRevise && (
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <Button size="sm" onClick={() => reviseTasmi(t)}>أعيدي التسجيل</Button>
+                      <span className="text-xs text-text-secondary">
+                        بقي لكِ {toArabicDigits(t.maxAttempts - t.attempt)} من {toArabicDigits(t.maxAttempts)} محاولات. درجتكِ هي درجة آخر محاولة.
+                      </span>
                     </div>
                   )}
                   <AiResult

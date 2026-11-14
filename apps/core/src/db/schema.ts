@@ -369,10 +369,18 @@ export const tasmiSubmissions = pgTable('tasmi_submissions', {
   replyAt: timestamp('reply_at', { withTimezone: true }),
   /** The teacher's lesson this recitation answers, when she recited «آيات للحفظ». */
   lessonId: uuid('lesson_id').references((): AnyPgColumn => recitationLessons.id, { onDelete: 'set null' }),
+  /** The earlier attempt this recording replaces, after the teacher asked for it to be repeated. */
+  revisionOf: uuid('revision_of').references((): AnyPgColumn => tasmiSubmissions.id, { onDelete: 'set null' }),
+  /** 1 for a first recording, 2 for its first repeat, and so on. */
+  attempt: integer('attempt').default(1).notNull(),
+  /** When a teacher first opened the recording: from then on it is "under review". */
+  reviewStartedAt: timestamp('review_started_at', { withTimezone: true }),
 }, (t) => ({
   studentIdx: index('tasmi_student_idx').on(t.studentId),
   sectionIdx: index('tasmi_section_idx').on(t.sectionId),
   verdictIdx: index('tasmi_verdict_idx').on(t.reviewVerdict),
+  // One repeat per attempt: two recordings cannot both replace the same one.
+  revisionIdx: uniqueIndex('tasmi_revision_of_idx').on(t.revisionOf),
 }));
 
 /** Verses a teacher recorded for her halaqa to listen to and memorize («آيات للحفظ»). */
