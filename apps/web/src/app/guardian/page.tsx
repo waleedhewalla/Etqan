@@ -9,6 +9,7 @@ import { useAuth, useRequireRole } from '@/lib/auth-context';
 import { api, queryKeys } from '@/lib/api';
 import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 import { WeeklyReportView } from '@/components/WeeklyReportView';
+import { MonthlyRecord } from '@/components/MonthlyRecord';
 
 export default function GuardianDashboard() {
   const { user, ready } = useRequireRole(['mahram']);
@@ -90,6 +91,7 @@ export default function GuardianDashboard() {
             </div>
 
             {report && <WeeklyReportView report={report} />}
+            {report && <MonthlyRecord key={report.student.id} studentId={report.student.id} />}
           </>
         )}
 

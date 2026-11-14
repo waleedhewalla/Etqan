@@ -51,5 +51,32 @@ export async function purgeExpiredAudio(db: Database, now = new Date()) {
     });
     deleted++;
   }
+  return deleted + await purgeExpiredReplies(db, now);
+}
+
+/**
+ * Deletes teachers' voice replies older than AUDIO_UNREVIEWED_MAX_DAYS: long enough for the student to
+ * listen, and no longer. The text reply and the scores stay.
+ */
+async function purgeExpiredReplies(db: Database, now: Date) {
+  const before = new Date(now.getTime() - config.AUDIO_UNREVIEWED_MAX_DAYS * DAY);
+  const expired = await db.select({ id: tasmiSubmissions.id, key: tasmiSubmissions.replyAudioKey })
+    .from(tasmiSubmissions)
+    .where(and(isNotNull(tasmiSubmissions.replyAudioKey), lt(tasmiSubmissions.replyAt, before)))
+    .limit(200);
+
+  let deleted = 0;
+  for (const row of expired) {
+    try {
+      await getStorage().delete(row.key!);
+    } catch (err) {
+      console.error('[RETENTION] could not delete reply', row.id, err instanceof Error ? err.message : err);
+      continue;
+    }
+    await db.update(tasmiSubmissions)
+      .set({ replyAudioKey: null, replyAudioContentType: null, replyAudioBytes: null, replyDurationMs: null })
+      .where(eq(tasmiSubmissions.id, row.id));
+    deleted++;
+  }
   return deleted;
 }

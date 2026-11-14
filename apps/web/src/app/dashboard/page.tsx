@@ -28,6 +28,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { AccountPanel } from '@/components/AccountPanel';
 import { IconTile } from '@/components/IconTile';
 import { MushafReader } from '@/components/MushafReader';
+import { MonthlyRecord } from '@/components/MonthlyRecord';
 import { VerseText } from '@/components/VerseText';
 import { ReciteTab } from '@/components/ReciteTab';
 import { MutashabihatTrainer } from '@/components/MutashabihatTrainer';
@@ -626,6 +627,7 @@ function MushafTab() {
 }
 
 function ProgressTab() {
+  const { user } = useAuth();
   const badgesQuery = useQuery({ queryKey: queryKeys.badges, queryFn: () => api.getBadges().then((r) => r.data) });
   const badges: BadgeProgress[] = badgesQuery.data ?? [];
   const earned = badges.filter(b => b.earned);
@@ -633,6 +635,7 @@ function ProgressTab() {
 
   return (
     <div className="space-y-4">
+      {user && <MonthlyRecord studentId={user.id} />}
       {/* Gamification Badges */}
       <Card>
         <CardHeader>

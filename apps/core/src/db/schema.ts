@@ -357,11 +357,33 @@ export const tasmiSubmissions = pgTable('tasmi_submissions', {
   reviewFluencyScore: real('review_fluency_score'),
   reviewWeightedTotal: real('review_weighted_total'),
   reviewVerdict: tasmiVerdictEnum('review_verdict'),
+  /** The teacher's text reply to the student. */
   reviewNotes: text('review_notes'),
+  /** The teacher's recorded reply, kept in the same storage as recordings. Null when there is none or it was removed. */
+  replyAudioKey: text('reply_audio_key'),
+  replyAudioContentType: varchar('reply_audio_content_type', { length: 64 }),
+  replyAudioBytes: integer('reply_audio_bytes'),
+  replyDurationMs: integer('reply_duration_ms'),
+  replyBy: uuid('reply_by').references(() => users.id),
+  replyAt: timestamp('reply_at', { withTimezone: true }),
 }, (t) => ({
   studentIdx: index('tasmi_student_idx').on(t.studentId),
   sectionIdx: index('tasmi_section_idx').on(t.sectionId),
   verdictIdx: index('tasmi_verdict_idx').on(t.reviewVerdict),
+}));
+
+/** The teacher's written appraisal of a student for one calendar month; part of her monthly record. */
+export const studentMonthlyAppraisals = pgTable('student_monthly_appraisals', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  studentId: uuid('student_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  /** YYYY-MM in the institution's time zone. */
+  month: varchar('month', { length: 7 }).notNull(),
+  note: text('note').notNull(),
+  teacherId: uuid('teacher_id').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => ({
+  studentMonthIdx: uniqueIndex('monthly_appraisal_student_month_idx').on(t.studentId, t.month),
 }));
 
 // ── Gamification ──
