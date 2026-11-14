@@ -123,6 +123,36 @@ dashboard, قائمة الطالبات → «الخطة والتقرير» opens
 
 API: `GET|POST|DELETE /v1/sections/:id/students/:studentId/plan` and `PUT …/plan/pace`, for whoever manages the halaqa.
 
+## Memorization program (admin)
+
+The dean sets what must be memorized, period by period. Sign in as `dean@itqan.local` and open «لوحة الإدارة»: under the
+setup section is **برنامج الحفظ**.
+
+- **Create** a program (name only to start). Settings: days of new memorization a week (default 4, Sunday to Wednesday;
+  Thursday is the weekly test; Friday and Saturday are outside the program), the evaluation weights (حفظ 40، تجويد 25،
+  مراجعة 20، تثبيت 15 — they must add up to 100), the total needed to move on (85) and the least any one criterion may
+  reach (70% of its weight).
+- **Periods:** «إضافة فترة», then a name, an optional goal, and either *حفظ جديد* (from verse to verse, across suras if
+  you like, a pace in pages a day, and optional extra time for long or similar passages) or *تثبيت* (a number of weeks,
+  no new verses). The line under each period updates as you type: pages, memorization weeks, plus one test week. Pages
+  are an estimate from the word count of the verses (about half a page either way). «حفظ الفترات» saves; leaving with
+  unsaved changes warns. Changing a verse range, a pace or the days a week re-draws the whole schedule.
+- **الملخص الشامل** shows every period with its verses, pages, pace, length and week numbers, and warns when ranges
+  overlap or a period has fewer than 3 or more than 6 memorization weeks.
+- **Assign:** under «الحلقات التي تتبع البرنامج» choose a program and the week it starts for each halaqa (the Sunday of
+  that week is used). A halaqa follows one program; an archived program or one with no periods cannot be assigned, and a
+  program in use cannot be deleted (archive it).
+- **The teacher** sees «مقرّر الحفظ» on her overview: the period, its verses, the pace, the week rhythm, the dates and how
+  the period is passed. «أضيفي آيات الفترة إلى خطط الطالبات» puts the verses in every student's plan as new
+  memorization (verses already in a plan are left alone; pressing it again adds nothing). It is offered only in a
+  memorization week, not in the test week or a consolidation period.
+- **The student** sees the same card at the top of «اليوم», read-only.
+- Not built yet: entering the period test's scores and moving a student to the next period. The weights and pass marks
+  are stored for that.
+- API: `GET|POST /v1/admin/programs`, `PATCH|DELETE /v1/admin/programs/:id`, `PUT /v1/admin/programs/:id/periods`,
+  `PUT /v1/admin/halaqat/:id/program`, `GET /v1/sections/:id/program`, `POST /v1/sections/:id/program/apply`.
+  Deans, operators and superadmins configure; advisors, teachers and students get 403.
+
 ## Live lessons
 
 Needs a LiveKit server. Locally: download `livekit-server`, run `livekit-server --dev`, set `LIVEKIT_URL=ws://localhost:7880`,

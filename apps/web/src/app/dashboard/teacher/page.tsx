@@ -18,6 +18,7 @@ import { RecitationRecorder, type Recording } from '@/components/RecitationRecor
 import { MonthlyRecord } from '@/components/MonthlyRecord';
 import { TeacherLessons } from '@/components/TeacherLessons';
 import { TeacherLive } from '@/components/TeacherLive';
+import { ProgramNow } from '@/components/ProgramNow';
 import { TASMI_STATUS, attemptLabel } from '@/lib/tasmi-status';
 import { FlaggedVerse } from '@/components/FlaggedVerse';
 import { AiCheckingSwitch } from '@/components/AiCheckingSwitch';
@@ -115,6 +116,8 @@ export default function TeacherDashboard() {
     switch (activeTab) {
       case 'overview':
         return (
+          <div className="space-y-4">
+          <ProgramNow sectionId={section.id} />
           <OverviewTab
             summary={studentsQuery.data!.summary}
             pendingReviews={reportQuery.data?.pendingReviews ?? 0}
@@ -122,6 +125,7 @@ export default function TeacherDashboard() {
             onOpenStudent={(id) => { setOpenStudent(id); setActiveTab('students'); }}
             onGo={setActiveTab}
           />
+          </div>
         );
       case 'students':
         return <StudentsTab students={students} onOpen={setOpenStudent} />;
