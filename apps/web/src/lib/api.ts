@@ -286,6 +286,16 @@ export interface TasmiSubmission {
   submittedAt: string;
   reviewVerdict: 'approved' | 'redo' | 'flagged' | null;
   reviewWeightedTotal: number | null;
+  /** Where it stands for both sides; derived by the API from the verdict, replies and attempts. */
+  status: 'submitted' | 'under_review' | 'feedback_given' | 'revision_requested' | 'revised' | 'referred' | 'final_graded';
+  /** 1 for a first recording, higher when the same verses were recorded again after «يُعاد». */
+  attempt: number;
+  maxAttempts: number;
+  /** The earlier attempt this one replaces. */
+  revisionOf: string | null;
+  /** The student may record these verses again in place of this attempt. */
+  canRevise: boolean;
+  lessonId: string | null;
   /** The teacher's text reply. */
   reviewNotes: string | null;
   /** Whether the teacher left a recorded reply (it is removed after a month). */
@@ -343,6 +353,9 @@ export interface MonthlyRecord {
   items: {
     id: string; startRef: string; endRef: string; submittedAt: string;
     verdict: 'approved' | 'redo' | 'flagged' | null; total: number | null; notes: string | null; hasVoiceReply: boolean;
+    attempt: number;
+    /** A later graded attempt at the same verses replaced this one, so it no longer counts. */
+    replaced: boolean;
   }[];
 }
 
@@ -720,6 +733,11 @@ class ApiClient {
     return this.client.post<TasmiSubmission>(`/tasmi/${id}/reply`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
   }
 
+  /** Every attempt at the same verses, oldest first. */
+  getTasmiHistory(id: string) {
+    return this.client.get<TasmiSubmission[]>(`/tasmi/${id}/history`);
+  }
+
   getTasmiReplyAudioLink(id: string) {
     return this.client.get<{ url: string }>(`/tasmi/${id}/reply-audio-link`);
   }
@@ -813,6 +831,7 @@ export const queryKeys = {
   guardians: (sectionId: string, studentId: string) => ['sections', sectionId, 'guardians', studentId] as const,
   plan: (sectionId: string, studentId: string) => ['sections', sectionId, 'plan', studentId] as const,
   monthly: (studentId: string, month: string) => ['reports', 'monthly', studentId, month] as const,
+  tasmiHistory: (id: string) => ['tasmi', 'history', id] as const,
   myLessons: ['lessons', 'mine'] as const,
   sectionLessons: (sectionId: string) => ['lessons', 'section', sectionId] as const,
   myTasmi: ['tasmi', 'mine'] as const,

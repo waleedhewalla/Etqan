@@ -7,6 +7,7 @@ import { ClipboardList, Mic } from 'lucide-react';
 import { api, errorMessage, queryKeys, type MonthlyGrade, type MonthlyIssue, type MonthlyRecord as Record_ } from '@/lib/api';
 import { formatAyahRange, formatAyahRef, toArabicDigits } from '@/lib/quran';
 import { LoadError, Spinner } from '@/components/LoadState';
+import { attemptLabel } from '@/lib/tasmi-status';
 
 const GRADE: Record<MonthlyGrade, { label: string; tone: 'green' | 'info' | 'amber' | 'red' }> = {
   excellent: { label: 'ممتاز', tone: 'green' },
@@ -114,7 +115,8 @@ export function MonthlyRecord({ studentId, editable = false }: { studentId: stri
               </p>
             )}
             <p className="text-xs text-text-secondary">
-              الدرجة هي متوسط درجات التسميع المقيَّم في الشهر (الحفظ ٥٠٪، التجويد ٣٠٪، الطلاقة ٢٠٪). ما لم يُقيَّم بعد لا يدخل فيها.
+              الدرجة هي متوسط درجات التسميع المقيَّم في الشهر (الحفظ ٥٠٪، التجويد ٣٠٪، الطلاقة ٢٠٪). ما لم يُقيَّم بعد لا يدخل فيها،
+              وما أُعيد تسجيله تُحتسب درجة آخر محاولة فيه فقط.
             </p>
 
             <div>
@@ -133,12 +135,13 @@ export function MonthlyRecord({ studentId, editable = false }: { studentId: stri
                 <summary className="cursor-pointer text-brand-primary">تسميع الشهر ({recitationCount(r.items.length)})</summary>
                 <ul className="mt-2 divide-y divide-divider">
                   {r.items.map((item) => (
-                    <li key={item.id} className="py-2 space-y-1">
+                    <li key={item.id} className={`py-2 space-y-1 ${item.replaced ? 'opacity-60' : ''}`}>
                       <p className="flex items-center justify-between gap-2 flex-wrap">
                         <span className="font-medium">{formatAyahRange(item.startRef, item.endRef)} <span className="text-text-secondary font-normal">· {day(item.submittedAt)}</span></span>
                         <span className="flex items-center gap-2 text-text-secondary">
                           {item.hasVoiceReply && <Mic className="w-3.5 h-3.5" aria-label="ردّ صوتي" />}
-                          {item.verdict ? VERDICT[item.verdict] : 'لم يُقيَّم'}
+                          {item.attempt > 1 && <span>{attemptLabel(item.attempt)}</span>}
+                          {item.replaced ? 'أُعيد تسجيله' : item.verdict ? VERDICT[item.verdict] : 'لم يُقيَّم'}
                           {item.total !== null && item.verdict !== 'flagged' && <b className="tabular-nums text-text-primary">{num(item.total)}</b>}
                         </span>
                       </p>

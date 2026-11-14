@@ -64,6 +64,13 @@
       "when": 1794648714171,
       "tag": "0008_lively_mercury",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1794649687719,
+      "tag": "0009_rainy_black_queen",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { eq, and, desc, isNull, inArray } from 'drizzle-orm';
+import { eq, and, desc, isNull, inArray, sql } from 'drizzle-orm';
 import { AYAH_COUNTS, compareRefs, countAyat, parseRef } from '@itqan/quran';
 import { getDb, type Database } from '../../db';
 import { recitationLessons, sectionEnrollments, sections, tasmiSubmissions, users } from '../../db/schema';
@@ -16,6 +16,7 @@ import { getStorage } from '../../lib/storage';
 import { AUDIO_LINK_TTL, streamAudio, validLinkToken } from '../../lib/audio-link';
 import { isCheckEnabled, scheduleAsrCheck } from '../../lib/asr/runner';
 import type { FlaggedWord } from '../../lib/asr/types';
+import { MAX_ATTEMPTS, canRevise, tasmiStatus } from '../../lib/tasmi-status';
 import { auditLog } from '../audit/service';
 
 /** Longest recitation a single recording may cover. */
@@ -24,9 +25,24 @@ export const MAX_SUBMISSION_AYAT = 60;
 type Submission = typeof tasmiSubmissions.$inferSelect;
 
 /** What clients may see: never the storage key or a raw URL, only whether a recording exists. */
-function serializeTasmi(row: Submission) {
+function serializeTasmi(row: Submission, hasLaterAttempt = false) {
   const { audioKey, audioUrl, audioContentType, audioBytes, replyAudioKey, replyAudioContentType, replyAudioBytes, ...rest } = row;
-  return { ...rest, hasAudio: Boolean(audioKey) && !row.audioDeletedAt, audioBytes, hasReplyAudio: Boolean(replyAudioKey) };
+  const facts = {
+    verdict: row.reviewVerdict, attempt: row.attempt, hasLaterAttempt, reviewStartedAt: row.reviewStartedAt,
+    hasReply: Boolean(row.reviewNotes || row.replyAt),
+  };
+  return {
+    ...rest, hasAudio: Boolean(audioKey) && !row.audioDeletedAt, audioBytes, hasReplyAudio: Boolean(replyAudioKey),
+    status: tasmiStatus(facts), canRevise: canRevise(facts), maxAttempts: MAX_ATTEMPTS,
+  };
+}
+
+/** Of these submissions, the ones a later attempt has replaced. */
+async function replacedIds(db: Database, ids: string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const rows = await db.select({ of: tasmiSubmissions.revisionOf }).from(tasmiSubmissions)
+    .where(inArray(tasmiSubmissions.revisionOf, ids));
+  return new Set(rows.map((r) => r.of!));
 }
 
 /** Longest text reply a teacher may write. */
@@ -106,6 +122,28 @@ export async function assessmentRoutes(app: FastifyInstance) {
       lessonId = lesson.id;
     }
 
+    // Recording again after «يُعاد»: the new attempt replaces the previous one and carries its lesson.
+    let attempt = 1;
+    let revisionOf: string | null = null;
+    if (fields.revisionOf) {
+      const [previous] = z.string().uuid().safeParse(fields.revisionOf).success
+        ? await db.select().from(tasmiSubmissions).where(eq(tasmiSubmissions.id, fields.revisionOf)).limit(1)
+        : [];
+      if (!previous || previous.studentId !== user.sub) return errors.badRequest('That recitation is not yours');
+      if (previous.startRef !== fields.startRef || previous.endRef !== fields.endRef || previous.sectionId !== fields.sectionId) {
+        return errors.badRequest('Record the same verses again');
+      }
+      const replaced = (await replacedIds(db, [previous.id])).has(previous.id);
+      const facts = {
+        verdict: previous.reviewVerdict, attempt: previous.attempt, hasLaterAttempt: replaced,
+        reviewStartedAt: previous.reviewStartedAt, hasReply: true,
+      };
+      if (!canRevise(facts)) return errors.conflict('This recitation is not waiting to be recorded again');
+      attempt = previous.attempt + 1;
+      revisionOf = previous.id;
+      lessonId = previous.lessonId;
+    }
+
     if (!audio || audio.length === 0) return errors.badRequest('No recording attached');
     if (audio.length > MAX_AUDIO_BYTES) return errors.payloadTooLarge('Recording is too large');
     const kind = sniffAudio(audio);
@@ -127,6 +165,8 @@ export async function assessmentRoutes(app: FastifyInstance) {
       audioBytes: audio.length,
       durationMs,
       lessonId,
+      revisionOf,
+      attempt,
       aiStatus: checkAi ? 'pending' : null,
     }).returning();
     if (checkAi) scheduleAsrCheck(db, row.id);
@@ -148,6 +188,10 @@ export async function assessmentRoutes(app: FastifyInstance) {
       actorId: user.sub, actorRole: user.role, action: 'tasmi.audio.view',
       targetType: 'tasmi_submission', targetId: id, ip: request.ip,
     });
+    // The first time a teacher opens it, the student sees it move to "under review".
+    if (user.sub !== row.studentId && !row.reviewStartedAt && !row.reviewVerdict) {
+      await db.update(tasmiSubmissions).set({ reviewStartedAt: new Date() }).where(eq(tasmiSubmissions.id, id));
+    }
     const token = generateToken({ sub: id, role: 'audio', purpose: 'audio' }, AUDIO_LINK_TTL);
     return { url: `/v1/tasmi/${id}/audio?token=${encodeURIComponent(token)}` };
   });
@@ -194,7 +238,8 @@ export async function assessmentRoutes(app: FastifyInstance) {
       .where(eq(tasmiSubmissions.studentId, userId))
       .orderBy(desc(tasmiSubmissions.submittedAt))
       .limit(50);
-    return rows.map(serializeTasmi);
+    const replaced = await replacedIds(db, rows.map((r) => r.id));
+    return rows.map((r) => serializeTasmi(r, replaced.has(r.id)));
   });
 
   // GET /v1/tasmi/pending?sectionId= — unreviewed submissions in the reviewer's halaqat
@@ -241,7 +286,32 @@ export async function assessmentRoutes(app: FastifyInstance) {
     if (!submission || !(await canViewStudent(db, request.user, submission.studentId))) {
       return request.server.httpErrors.notFound('Submission not found');
     }
-    return serializeTasmi(submission);
+    return serializeTasmi(submission, (await replacedIds(db, [id])).has(id));
+  });
+
+  // GET /v1/tasmi/:id/history — every attempt at these verses, oldest first, with its scores and the teacher's reply
+  app.get('/tasmi/:id/history', {
+    preHandler: [app.authenticate],
+  }, async (request) => {
+    const { id } = request.params as { id: string };
+    const [start] = z.string().uuid().safeParse(id).success
+      ? await db.select().from(tasmiSubmissions).where(eq(tasmiSubmissions.id, id)).limit(1) : [];
+    if (!start || !(await canViewStudent(db, request.user, start.studentId))) {
+      return request.server.httpErrors.notFound('Submission not found');
+    }
+    // Walk back to the first attempt, then forward to the latest. A chain is at most MAX_ATTEMPTS long.
+    const chain = [start];
+    while (chain[0].revisionOf && chain.length <= MAX_ATTEMPTS) {
+      const [previous] = await db.select().from(tasmiSubmissions).where(eq(tasmiSubmissions.id, chain[0].revisionOf)).limit(1);
+      if (!previous) break;
+      chain.unshift(previous);
+    }
+    while (chain.length <= MAX_ATTEMPTS) {
+      const [next] = await db.select().from(tasmiSubmissions).where(eq(tasmiSubmissions.revisionOf, chain[chain.length - 1].id)).limit(1);
+      if (!next) break;
+      chain.push(next);
+    }
+    return chain.map((row, i) => serializeTasmi(row, i < chain.length - 1));
   });
 
   // POST /v1/tasmi/:id/flags/:flagId/dispute — the student says an AI flag is wrong (before review)
@@ -296,6 +366,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
         .set({
           reviewedBy: reviewerId,
           reviewedAt: new Date(),
+          reviewStartedAt: sql`coalesce(${tasmiSubmissions.reviewStartedAt}, now())`,
           reviewHifzScore: body.hifzScore,
           reviewTajweedScore: body.tajweedScore,
           reviewFluencyScore: body.fluencyScore,
@@ -320,7 +391,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
     if (!result.row) return request.server.httpErrors.notFound('Submission not found');
     // Badges after the transaction commits: an approved recitation or newly mastered cards may earn one.
     await awardBadges(db, existing.studentId);
-    return { ...serializeTasmi(result.row), graded: result.graded };
+    return { ...serializeTasmi(result.row, (await replacedIds(db, [id])).has(id)), graded: result.graded };
   });
 
   // ── The teacher's reply to a recording: text, a recorded voice message, or both ──

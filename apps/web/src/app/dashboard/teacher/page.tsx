@@ -17,6 +17,7 @@ import { TasmiAudio } from '@/components/TasmiAudio';
 import { RecitationRecorder, type Recording } from '@/components/RecitationRecorder';
 import { MonthlyRecord } from '@/components/MonthlyRecord';
 import { TeacherLessons } from '@/components/TeacherLessons';
+import { TASMI_STATUS, attemptLabel } from '@/lib/tasmi-status';
 import { FlaggedVerse } from '@/components/FlaggedVerse';
 import { AiCheckingSwitch } from '@/components/AiCheckingSwitch';
 import { MutashabihatAuthoring } from '@/components/MutashabihatAuthoring';
@@ -491,12 +492,14 @@ function SpeedGraderTab({ sectionId }: { sectionId: string }) {
     queryKey: queryKeys.pendingTasmi(sectionId),
     queryFn: () => api.getPendingTasmi(sectionId).then((r) => r.data),
   });
-  const pending = useMemo(() => pendingQuery.data ?? [], [pendingQuery.data]);
+  const all = useMemo(() => pendingQuery.data ?? [], [pendingQuery.data]);
+  const [filter, setFilter] = useState<'all' | 'new' | 'repeat'>('all');
+  const pending = all.filter((p) => filter === 'all' || (filter === 'repeat' ? p.attempt > 1 : p.attempt === 1));
   const selected = pending.find((p) => p.id === selectedId) ?? pending[0] ?? null;
 
   if (pendingQuery.isLoading) return <Spinner />;
   if (pendingQuery.isError) return <LoadError onRetry={() => pendingQuery.refetch()} />;
-  if (pending.length === 0) {
+  if (all.length === 0) {
     return (
       <Card><CardContent className="py-10 text-center space-y-2">
         <CheckCircle2 className="w-10 h-10 text-state-positive mx-auto" />
@@ -508,8 +511,17 @@ function SpeedGraderTab({ sectionId }: { sectionId: string }) {
   return (
     <div className="grid lg:grid-cols-3 gap-4">
       <Card className="lg:col-span-1">
-        <CardHeader><CardTitle>بانتظار التقييم ({toArabicDigits(pending.length)})</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>بانتظار التقييم ({toArabicDigits(all.length)})</CardTitle>
+          <select aria-label="تصفية" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}
+            className="mt-2 w-full rounded-xl border border-divider bg-surface-elevated px-3 py-2 text-sm">
+            <option value="all">الكل</option>
+            <option value="new">تسجيل أول</option>
+            <option value="repeat">إعادة تسجيل</option>
+          </select>
+        </CardHeader>
         <CardContent>
+          {pending.length === 0 && <p className="text-sm text-text-secondary">لا شيء في هذه التصفية.</p>}
           <ul className="space-y-2">
             {pending.map((p) => (
               <li key={p.id}>
@@ -520,6 +532,10 @@ function SpeedGraderTab({ sectionId }: { sectionId: string }) {
                 >
                   <p className="font-medium text-text-primary">{p.studentName}</p>
                   <p className="text-sm text-text-secondary">{formatAyahRange(p.startRef, p.endRef)}</p>
+                  <span className="mt-1 flex items-center gap-2 flex-wrap">
+                    <Badge className={TASMI_STATUS[p.status].tone}>{TASMI_STATUS[p.status].label}</Badge>
+                    {p.attempt > 1 && <Badge className="bg-amber-50 text-amber-900">{attemptLabel(p.attempt)}</Badge>}
+                  </span>
                   {(p.disputedCount ?? 0) > 0 && (
                     <Badge className="mt-1 bg-amber-50 text-amber-900">اعتراض على الفحص الآلي</Badge>
                   )}
@@ -580,6 +596,8 @@ function ReviewForm({ submission, onDone }: { submission: TasmiSubmission; onDon
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
+        {submission.attempt > 1 && <PreviousAttempts id={submission.id} />}
+
         <AiPanel submission={submission} decisions={decisions} onDecide={(id, d) => setDecisions((c) => ({ ...c, [id]: d }))} />
 
         <TasmiAudio id={submission.id} hasAudio={submission.hasAudio} />
@@ -623,6 +641,29 @@ function ReviewForm({ submission, onDone }: { submission: TasmiSubmission; onDon
         <Button onClick={() => submit.mutate()} loading={submit.isPending}>اعتماد التقييم</Button>
       </CardContent>
     </Card>
+  );
+}
+
+/** What the teacher said about the earlier attempts at these verses, so she can judge the new one against it. */
+function PreviousAttempts({ id }: { id: string }) {
+  const history = useQuery({ queryKey: queryKeys.tasmiHistory(id), queryFn: () => api.getTasmiHistory(id).then((r) => r.data) });
+  const earlier = (history.data ?? []).filter((a) => a.id !== id && a.reviewVerdict);
+  if (earlier.length === 0) return null;
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2 text-sm" data-testid="previous-attempts">
+      <p className="font-medium text-amber-900">إعادة تسجيل — ما سبق:</p>
+      <ul className="space-y-2">
+        {earlier.map((a) => (
+          <li key={a.id}>
+            <p className="text-amber-900">
+              {attemptLabel(a.attempt) || 'المحاولة الأولى'}
+              {a.reviewWeightedTotal != null && <> · الدرجة <b className="tabular-nums">{toArabicDigits(Math.round(a.reviewWeightedTotal))}</b></>}
+            </p>
+            {a.reviewNotes && <p className="text-text-primary whitespace-pre-wrap">{a.reviewNotes}</p>}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
