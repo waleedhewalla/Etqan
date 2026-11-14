@@ -9,6 +9,7 @@ import {
   CalendarCheck, Copy, UserPlus, X, Target, Radio,
 } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
+import { NotificationBell } from '@/components/NotificationBell';
 import { AccountPanel } from '@/components/AccountPanel';
 import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 import { WeeklyReportView } from '@/components/WeeklyReportView';
@@ -161,6 +162,7 @@ export default function TeacherDashboard() {
       activeId={activeTab}
       onSelect={(id) => setActiveTab(id as TeacherTab)}
       homeHref="/dashboard/teacher"
+      headerAction={<NotificationBell />}
       userInitials={user?.displayNameAr?.replace(/^أ\.\s*/, '').slice(0, 2) || 'م'}
       trailing={section ? <SectionCard name={section.nameAr} joinCode={section.joinCode} /> : null}
     >

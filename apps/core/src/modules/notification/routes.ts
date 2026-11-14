@@ -1,9 +1,17 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { eq, and, isNull, desc } from 'drizzle-orm';
+import { eq, and, isNull, desc, count, lt } from 'drizzle-orm';
 import { getDb } from '../../db';
 import { notifications, users } from '../../db/schema';
 import { isStaff } from '../../lib/access';
+
+const idParam = z.object({ id: z.string().uuid() });
+const listQuery = z.object({
+  unread: z.enum(['true', 'false']).optional(),
+  /** Older than this time (the `sentAt` of the last one already shown). */
+  before: z.string().datetime().optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(50),
+});
 
 const sendNotificationSchema = z.object({
   userId: z.string().uuid(),
@@ -16,34 +24,40 @@ const sendNotificationSchema = z.object({
 export async function notificationRoutes(app: FastifyInstance) {
   const db = getDb();
 
-  // GET /v1/notifications — Get user's notifications
+  // GET /v1/notifications — the user's notifications, newest first; `before` pages back through older ones
   app.get('/notifications', {
+    schema: { querystring: listQuery },
     preHandler: [app.authenticate],
   }, async (request) => {
     const userId = request.user.sub;
-    const { unread } = request.query as { unread?: string };
-
-    if (unread === 'true') {
-      return db.select()
-        .from(notifications)
-        .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)))
-        .orderBy(desc(notifications.sentAt))
-        .limit(50);
-    }
-
+    const { unread, before, limit } = request.query as z.infer<typeof listQuery>;
     return db.select()
       .from(notifications)
-      .where(eq(notifications.userId, userId))
+      .where(and(
+        eq(notifications.userId, userId),
+        unread === 'true' ? isNull(notifications.readAt) : undefined,
+        before ? lt(notifications.sentAt, new Date(before)) : undefined,
+      ))
       .orderBy(desc(notifications.sentAt))
-      .limit(50);
+      .limit(limit);
+  });
+
+  // GET /v1/notifications/count — how many are unread: cheap enough to ask every minute for the bell
+  app.get('/notifications/count', {
+    preHandler: [app.authenticate],
+  }, async (request) => {
+    const [row] = await db.select({ n: count() }).from(notifications)
+      .where(and(eq(notifications.userId, request.user.sub), isNull(notifications.readAt)));
+    return { unread: row?.n ?? 0 };
   });
 
   // POST /v1/notifications/read/:id — Mark as read
   app.post('/notifications/read/:id', {
+    schema: { params: idParam },
     preHandler: [app.authenticate],
   }, async (request) => {
     const userId = request.user.sub;
-    const { id } = request.params as { id: string };
+    const { id } = request.params as z.infer<typeof idParam>;
 
     await db.update(notifications)
       .set({ readAt: new Date() })

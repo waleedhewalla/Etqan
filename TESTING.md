@@ -228,6 +228,19 @@ says live lessons are not set up and nothing else changes.
   `PUT /v1/live/:id/participants/:userId/speak`, `POST /v1/live/:id/end`, `GET /v1/live/:id/attendance`.
 - The API tests replace the media server with a recorder (`setLiveGateway`), so they need no LiveKit.
 
+### The notification bell
+
+- Students and teachers have a **bell** beside the brand (in the sidebar on a laptop, in the top bar on a phone) with the
+  number of unread notifications, asked for every minute. Pressing it opens the list, newest first, 20 at a time with
+  «عرض الأقدم». Unread ones are bold with a dot. Pressing one marks it read; a live-lesson reminder also opens the lesson.
+  «تعليم الكل كمقروء» clears them. Escape or a click outside closes the panel.
+- Try: schedule a lesson 7 minutes ahead as the teacher; within a minute the server's reminder sweep writes a notification for each
+  student and the teacher, and the bell shows ١. Press it, then the reminder: the lesson's waiting page opens and the count drops to 0.
+- With the institution's «الإشعارات» module off the bell is gone and `/v1/notifications*` answer `403 MODULE_DISABLED`.
+- API: `GET /v1/notifications` (`?unread=true`, `?before=<sentAt>`, `?limit=`), `GET /v1/notifications/count`,
+  `POST /v1/notifications/read/:id`, `POST /v1/notifications/read-all`.
+- The scheduled-lesson form now reads the time as **Cairo time** whatever the browser's zone is (the form says so).
+
 ### Scheduled lessons and the synced mushaf
 
 - **Schedule:** in the teacher's «الدرس المباشر» tab tick «جدولة الدرس لوقت لاحق», pick a time (not sooner than five minutes,

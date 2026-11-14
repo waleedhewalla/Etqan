@@ -591,6 +591,8 @@ export interface AppNotification {
   bodyAr: string;
   readAt: string | null;
   sentAt: string;
+  /** What the notification is about, when it has a place to go: `{ type: 'live_reminder', sessionId }`. */
+  data?: { type?: string; sessionId?: string } | null;
 }
 
 /** Arabic error text from an API error, with a fallback. */
@@ -1160,8 +1162,20 @@ class ApiClient {
   }
 
   // Notifications
-  getNotifications() {
-    return this.client.get<AppNotification[]>('/notifications');
+  getNotifications(params: { unread?: boolean; before?: string; limit?: number } = {}) {
+    return this.client.get<AppNotification[]>('/notifications', { params: { ...params, unread: params.unread ? 'true' : undefined } });
+  }
+
+  getNotificationCount() {
+    return this.client.get<{ unread: number }>('/notifications/count');
+  }
+
+  markNotificationRead(id: string) {
+    return this.client.post(`/notifications/read/${id}`);
+  }
+
+  markAllNotificationsRead() {
+    return this.client.post('/notifications/read-all');
   }
 }
 
@@ -1224,4 +1238,6 @@ export const queryKeys = {
   guardianStudents: ['guardian', 'students'] as const,
   ayat: (source: string) => ['ayat', source] as const,
   notifications: ['notifications'] as const,
+  notificationCount: ['notifications', 'count'] as const,
+  notificationList: ['notifications', 'list'] as const,
 } as const;
