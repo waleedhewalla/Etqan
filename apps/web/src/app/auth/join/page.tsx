@@ -35,6 +35,7 @@ export default function JoinPage() {
 
   const whatsapp = normalizePhone(phone);
   const joinCode = sectionCode.trim().toUpperCase();
+  const [devCode, setDevCode] = useState<string | null>(null);
 
   const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +53,7 @@ export default function JoinPage() {
     }
 
     try {
-      await api.requestOtp(whatsapp, joinCode);
+      setDevCode((await api.requestOtp(whatsapp, joinCode)).data.devCode ?? null);
       setOtpSent(true);
       setResendTimer(60);
       setStep(2);
@@ -270,6 +271,11 @@ export default function JoinPage() {
                   autoFocus
                   disabled={loading}
                 />
+                {devCode && (
+                  <p data-testid="dev-code" className="text-sm text-center rounded-lg bg-amber-50 text-amber-900 px-3 py-2">
+                    وضع التجربة: لم يُرسَل شيء. الرمز هو <b dir="ltr">{devCode}</b>
+                  </p>
+                )}
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-text-secondary">
                     لم تصلي الرمز؟{' '}
@@ -278,7 +284,7 @@ export default function JoinPage() {
                       disabled={resendTimer > 0 || loading}
                       onClick={async () => {
                         try {
-                          await api.requestOtp(whatsapp, joinCode);
+                          setDevCode((await api.requestOtp(whatsapp, joinCode)).data.devCode ?? null);
                           setResendTimer(60);
                           toast.success('أُعيد إرسال الرمز');
                         } catch {

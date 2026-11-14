@@ -1,6 +1,11 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+/**
+ * Where the browser reaches the API. Set at build time for a deployment. Left empty in development, the browser
+ * calls this site's own `/v1`, which Next forwards to the API (see next.config.js): that works from any address
+ * the site is opened at, not only http://localhost.
+ */
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export const TOKEN_KEY = 'itqan_token';
 export const REFRESH_KEY = 'itqan_refresh_token';
@@ -476,7 +481,7 @@ class ApiClient {
 
   // Auth
   requestOtp(whatsapp: string, joinCode?: string) {
-    return this.client.post<{ expiresIn: number }>('/auth/otp/request', { whatsapp, joinCode });
+    return this.client.post<{ expiresIn: number; devCode?: string }>('/auth/otp/request', { whatsapp, joinCode });
   }
 
   verifyOtp(whatsapp: string, code: string, joinCode?: string) {
@@ -484,7 +489,7 @@ class ApiClient {
   }
 
   magicLink(email: string) {
-    return this.client.post('/auth/magic-link', { email });
+    return this.client.post<{ devLink?: string }>('/auth/magic-link', { email });
   }
 
   verifyMagicLink(token: string) {

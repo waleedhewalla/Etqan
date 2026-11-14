@@ -31,12 +31,14 @@ export default function LoginPage() {
   }, [resendIn]);
 
   const whatsapp = normalizePhone(phone);
+  const [devCode, setDevCode] = useState<string | null>(null);
 
   const sendCode = async () => {
     setError(null);
     setLoading(true);
     try {
-      await api.requestOtp(whatsapp);
+      const res = await api.requestOtp(whatsapp);
+      setDevCode(res.data.devCode ?? null);
       setStep('code');
       setResendIn(60);
     } catch (err) {
@@ -115,6 +117,11 @@ export default function LoginPage() {
             ) : (
               <form onSubmit={verify} className="space-y-4">
                 <OTPInput length={4} value={otp} onChange={setOtp} autoFocus disabled={loading} />
+                {devCode && (
+                  <p data-testid="dev-code" className="text-sm text-center rounded-lg bg-amber-50 text-amber-900 px-3 py-2">
+                    وضع التجربة: لم يُرسَل شيء. الرمز هو <b dir="ltr">{devCode}</b>
+                  </p>
+                )}
                 <Button type="submit" className="w-full" size="lg" loading={loading}>
                   دخول
                 </Button>

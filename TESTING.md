@@ -239,14 +239,21 @@ pnpm --filter @itqan/core dev      # http://localhost:4000
 pnpm --filter @itqan/web dev       # http://localhost:9050
 ```
 
-With `WHATSAPP_API_KEY` and `SENDGRID_API_KEY` empty, login codes, magic links
-and absence alerts are written to the API terminal instead of being sent.
+With `WHATSAPP_API_KEY` and `SENDGRID_API_KEY` empty, nothing is sent. In development (`NODE_ENV=development`)
+the sign-in page shows the code itself («وضع التجربة»), and a teacher's or dean's link opens straight away; they
+are also written to the API terminal, as are absence alerts. This never happens in production, where an unsent
+code is an error.
+
+The browser calls the web app's own address (`/v1/...`) and Next forwards it to the API at
+`API_PROXY_TARGET` (default `http://localhost:4000`), so the app works from `localhost`, `127.0.0.1`, another
+device on the network, or a tunnel. If a page says «تعذّر الاتصال بالخادم», the API is not running: start it with
+`pnpm --filter @itqan/core dev`. A deployment sets `NEXT_PUBLIC_API_URL` instead and nothing is forwarded.
 
 | Sign in as | Where | How |
 | --- | --- | --- |
-| Student | `/auth/login` | `010 0000 0101` (to `…0104`), code from the API log |
+| Student | `/auth/login` | `010 0000 0101` (to `…0104`), the code is shown on the page |
 | Guardian | `/auth/login` | `010 0000 0201` (linked to مريم علي) |
-| Teacher | `/auth/login/faculty` | `teacher@itqan.local`, open the link from the API log |
+| Teacher | `/auth/login/faculty` | `teacher@itqan.local`, you are signed in straight away |
 | Dean | `/auth/login/faculty` | `dean@itqan.local` |
 | New student | `/auth/join` | join code `AZH001` and any other number |
 
