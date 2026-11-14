@@ -456,6 +456,20 @@ For deans, operators and superadmins only (advisors see the console but not thes
 institution. An email address belongs to one account across all institutions. A dean cannot stop her own access
 or another dean's. API: `GET /v1/admin/setup`, `POST|PATCH /v1/admin/staff`, `POST|PATCH /v1/admin/halaqat`.
 
+## Role change, data export and deletion requests
+
+- **Change a staff member's role** (dean, Users tab → إدارة → الدور → تغيير الدور): between teacher, tahfeez teacher, reviewer and advisor.
+  It applies at once, even to a signed-in session. Not for yourself; the dean role only by an operator; an advisor cannot
+  hold halaqat (409 while she leads one).
+- **My data** (account page, and the guardian page): «تنزيل بياناتي» downloads a JSON file (no audio); «طلب حذف بياناتي»
+  sends a request the dean decides, «سحب الطلب» withdraws it while it is pending. A dean can also export a user's data and
+  record a request on someone's behalf (for the existing /data-deletion page).
+- **Dean queue** (Users tab): approve with a mode: **تجهيل الهوية** (default: name and contact gone, grades, period results and
+  attendance stay without a name) or **حذف كل شيء** (students and guardians only). Approval stops the account immediately;
+  the data is removed after `DATA_DELETION_GRACE_DAYS` (14) by an hourly job; «إلغاء الطلب» before then restores the account.
+  Staff can only be anonymized, and not while leading an active halaqa (409).
+- Automated: `apps/core/src/__tests__/privacy.test.ts` (13 tests) and a role-change test in `admin-users.test.ts`.
+
 ## Pilot metrics
 
 The admin console (**/admin**) shows the pilot's four questions week by week (`GET /v1/admin/pilot?weeks=4`, weeks start on Saturday):

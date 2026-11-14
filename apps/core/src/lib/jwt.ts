@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { isStopped } from './active-users';
+import { accountState } from './active-users';
 import fp from 'fastify-plugin';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
@@ -73,8 +73,10 @@ async function jwtPluginImpl(app: FastifyInstance) {
         detail: 'Invalid or expired token',
       });
     }
-    // A stopped account is refused at once, not when its token (which lasts weeks) runs out.
-    if (await isStopped(payload.sub)) {
+    // A stopped account is refused at once, not when its token (which lasts weeks) runs out; and the role the account has now
+    // wins over the one the token was issued with, so a changed role applies at once.
+    const account = await accountState(payload.sub);
+    if (account && !account.active) {
       return reply.code(401).send({
         type: 'https://itqan.link/errors/unauthorized',
         title: 'Unauthorized',
@@ -82,6 +84,7 @@ async function jwtPluginImpl(app: FastifyInstance) {
         detail: 'Account is no longer active',
       });
     }
+    if (account && account.role !== payload.role) payload = { ...payload, role: account.role };
     request.user = payload;
   });
 

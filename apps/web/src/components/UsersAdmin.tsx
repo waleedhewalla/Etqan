@@ -11,6 +11,8 @@ import { CREATABLE, ROLE_LABEL, isStaffRole } from '@/lib/admin-labels';
 import { toArabicDigits } from '@/lib/quran';
 import { useAuth } from '@/lib/auth-context';
 import { LoadError, Spinner } from '@/components/LoadState';
+import { DataRequests } from '@/components/DataRequests';
+import { saveBlob } from '@/lib/download';
 
 const field = 'rounded-xl border border-divider bg-surface-elevated px-3 py-2 text-sm';
 const INVITATION = {
@@ -105,6 +107,7 @@ export function UsersAdmin() {
         <AddUser halaqat={halaqat} onChange={refresh} />
         <BulkStudents halaqat={halaqat} onChange={refresh} />
       </div>
+      <DataRequests />
     </section>
   );
 }
@@ -165,7 +168,19 @@ function UserPanel({ user: u, halaqat, isMe, onChange }: { user: DirectoryUser; 
     onSuccess: () => { setGuardian({ name: '', number: '' }); done('رُبط ولي الأمر.')(); },
   });
   const unlink = useMutation({ mutationFn: (id: string) => api.unlinkUserGuardian(u.id, id).then((r) => r.data), onSuccess: done('فُكّ الربط. يبقى حساب ولي الأمر.') });
-  const error = save.error ?? toggle.error ?? join.error ?? leave.error ?? link.error ?? unlink.error;
+  const { user: me } = useAuth();
+  const isOperator = me?.role === 'operator' || me?.role === 'superadmin';
+  const [role, setRole] = useState(u.role);
+  const changeRole = useMutation({
+    mutationFn: () => api.editUser(u.id, { role: role as 'lecturer' }).then((r) => r.data),
+    onSuccess: done('تغيّر الدور وسرى فوراً.'),
+  });
+  const exportData = useMutation({
+    mutationFn: () => api.downloadUserData(u.id).then((r) => r.data),
+    onSuccess: (blob) => { saveBlob(blob, `itqan-${u.id.slice(0, 8)}.json`); setNotice('نُزّل ملف بياناتها.'); },
+  });
+  const askDeletion = useMutation({ mutationFn: () => api.createDataRequest(u.id), onSuccess: done('سُجّل طلب الحذف: تجدينه في «طلبات حذف البيانات» أسفل الصفحة.') });
+  const error = save.error ?? toggle.error ?? join.error ?? leave.error ?? link.error ?? unlink.error ?? changeRole.error ?? exportData.error ?? askDeletion.error;
   const free = halaqat.filter((h) => !u.halaqat.some((x) => x.id === h.id));
 
   return (
@@ -219,7 +234,23 @@ function UserPanel({ user: u, halaqat, isMe, onChange }: { user: DirectoryUser; 
       )}
       {u.role === 'mahram' && u.children.length > 0 && <p className="text-sm text-text-secondary">أولياء أمر: {u.children.map((c) => c.displayNameAr).join('، ')}</p>}
 
+      {staff && !isMe && (
+        <div className="flex flex-wrap items-end gap-2" data-testid="change-role">
+          <label className="text-sm">
+            <span className="block text-text-secondary mb-1">الدور</span>
+            <select aria-label="الدور" className={field} value={role} onChange={(e) => setRole(e.target.value as typeof role)}>
+              {CREATABLE.filter((r) => isStaffRole(r.role) && (!r.operatorOnly || isOperator || u.role === r.role)).map((r) => <option key={r.role} value={r.role}>{ROLE_LABEL[r.role]}</option>)}
+            </select>
+          </label>
+          <Button size="sm" variant="outline" disabled={role === u.role} loading={changeRole.isPending}
+            onClick={() => { setNotice(''); if (window.confirm(`تغيير دور ${u.displayNameAr} إلى «${ROLE_LABEL[role]}»؟ يسري فوراً حتى على جلستها المفتوحة.`)) changeRole.mutate(); }}>تغيير الدور</Button>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-3 border-t border-divider pt-3">
+        <Button size="sm" variant="ghost" loading={exportData.isPending} onClick={() => { setNotice(''); exportData.mutate(); }}>تصدير بياناتها</Button>
+        {!isMe && <Button size="sm" variant="ghost" loading={askDeletion.isPending}
+          onClick={() => { setNotice(''); if (window.confirm(`تسجيل طلب حذف بيانات ${u.displayNameAr}؟ لا يُنفَّذ قبل أن تعتمديه.`)) askDeletion.mutate(); }}>تسجيل طلب حذف</Button>}
         {isMe ? (
           <p className="text-xs text-text-secondary">هذا حسابكِ: لا يمكنكِ إيقاف دخولكِ.</p>
         ) : (

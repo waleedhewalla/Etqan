@@ -25,6 +25,8 @@ import { badgeRoutes } from './modules/badges/routes';
 import { adminRoutes } from './modules/admin/routes';
 import { adminModulesRoutes } from './modules/admin/modules-routes';
 import { moduleForPath, requireModule } from './lib/modules';
+import { privacyRoutes } from './modules/privacy/routes';
+import { executeDueDeletions } from './lib/data-deletion';
 import { adminUsersRoutes } from './modules/admin/users-routes';
 import { programRoutes } from './modules/program/routes';
 import { periodTestRoutes } from './modules/program/period-tests';
@@ -169,6 +171,7 @@ async function buildApp() {
   await app.register(adminRoutes, { prefix: '/v1' });
   await app.register(adminSetupRoutes, { prefix: '/v1' });
   await app.register(adminUsersRoutes, { prefix: '/v1' });
+  await app.register(privacyRoutes, { prefix: '/v1' });
   await app.register(adminModulesRoutes, { prefix: '/v1' });
   await app.register(programRoutes, { prefix: '/v1' });
   await app.register(periodTestRoutes, { prefix: '/v1' });
@@ -236,6 +239,11 @@ async function start() {
     const remind = () => sendDueReminders(getDb()).catch((e) => app.log.error(e, 'live reminders failed'));
     void remind();
     setInterval(remind, 60_000).unref();
+
+    // Carry out data-deletion requests whose grace period is over (see lib/data-deletion.ts).
+    const privacy = () => executeDueDeletions(getDb()).catch((e) => app.log.error(e, 'data deletion failed'));
+    void privacy();
+    setInterval(privacy, 60 * 60_000).unref();
 
     // Delete recordings that have outlived their purpose (see lib/retention.ts).
     const purge = () => purgeExpiredAudio(getDb()).catch((e) => app.log.error(e, 'audio retention failed'));
