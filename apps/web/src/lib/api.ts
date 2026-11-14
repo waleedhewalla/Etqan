@@ -405,6 +405,40 @@ export interface SetupHalaqa {
 }
 export interface InstitutionSetup { staff: SetupStaff[]; halaqat: SetupHalaqa[] }
 
+/** Someone in the institution, as the admin's directory shows them. */
+export type AdminRole = 'student' | 'mahram' | 'lecturer' | 'muhaffiza' | 'sheikh_reviewer' | 'advisor' | 'dean' | 'alumna' | 'committee_member' | 'sama_committee_member';
+export interface DirectoryUser {
+  id: string;
+  displayNameAr: string;
+  role: AdminRole;
+  email: string | null;
+  whatsappE164: string | null;
+  active: boolean;
+  createdAt: string;
+  /** A student's halaqat, or the halaqat a teacher leads. */
+  halaqat: { id: string; nameAr: string }[];
+  /** A student's guardians. */
+  guardians: { id: string; displayNameAr: string; whatsappE164: string | null }[];
+  /** A guardian's children. */
+  children: { id: string; displayNameAr: string }[];
+}
+export interface UserDirectory { users: DirectoryUser[]; total: number; offset: number; pageSize: number; counts: Record<string, number> }
+export type NewUser =
+  | { role: 'student'; displayNameAr: string; whatsapp: string; sectionId?: string; guardian?: { displayNameAr: string; whatsapp: string } }
+  | { role: 'mahram'; displayNameAr: string; whatsapp: string; studentId?: string }
+  | { role: 'lecturer' | 'muhaffiza' | 'sheikh_reviewer' | 'advisor' | 'dean'; displayNameAr: string; email: string };
+export type BulkStatus = 'created' | 'enrolled' | 'exists' | 'invalid' | 'full' | 'plan_limit';
+export interface BulkStudentsResult {
+  results: { row: number; displayNameAr: string; whatsapp: string; status: BulkStatus }[];
+  created: number; enrolled: number; exists: number; failed: number;
+}
+export interface AuditEntry {
+  id: string; at: string; action: string; resource: string; resourceId: string | null;
+  details: Record<string, unknown> | null;
+  actorId: string | null; actorName: string | null; actorRole: string | null;
+}
+export interface AuditPage { entries: AuditEntry[]; nextBefore: string | null; actions: string[] }
+
 /** One period of a memorization program, with the size and weeks worked out from its verses and pace. */
 export interface ProgramPeriod {
   id?: string;
@@ -533,6 +567,21 @@ export interface AppNotification {
 }
 
 /** Arabic error text from an API error, with a fallback. */
+/** What the admin's people screens tell her when the server refuses, by the start of the server's reason. */
+const ADMIN_DETAILS: [string, string][] = [
+  ['This number already has an account', 'هذا الرقم مسجّل لحساب آخر.'],
+  ['This email already has an account', 'هذا البريد مسجّل لحساب آخر.'],
+  ['This halaqa is full', 'الحلقة ممتلئة.'],
+  ['The guardian needs her own number', 'ولي الأمر يحتاج رقمه الخاص، غير رقم الطالبة.'],
+  ['The guardian\'s number belongs to another kind of account', 'رقم ولي الأمر مسجّل لحساب من نوع آخر.'],
+  ['This number belongs to another kind of account', 'هذا الرقم مسجّل لحساب من نوع آخر.'],
+  ['Only the platform operator', 'هذا الإجراء لمشغّل المنصة فقط.'],
+  ['You cannot stop your own access', 'لا يمكنكِ إيقاف دخولكِ أنتِ.'],
+  ['Only an active student joins a halaqa', 'لا تُضاف إلى حلقة إلا طالبة نشطة.'],
+  ['Choose a student of this institution', 'اختاري طالبة من هذه المؤسسة.'],
+  ['This account signs in with', 'لا يُعدَّل هذا الحقل لهذا الحساب.'],
+];
+
 export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاولي مرة أخرى') {
   const e = err as AxiosError<{ detail?: string; message?: string; code?: string }>;
   const code = e?.response?.data?.code;
@@ -546,6 +595,9 @@ export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاول�
   if (code === 'ACCOUNT_NOT_FOUND') return 'لا يوجد حساب بهذا الرقم. اطلبي رمز الحلقة من معلمتك.';
   if (e?.response?.status === 429) return 'محاولات كثيرة. انتظري قليلاً ثم حاولي مرة أخرى.';
   if (!e?.response) return 'تعذّر الاتصال بالخادم. تحققي من الإنترنت.';
+  const detail = e.response.data?.detail ?? e.response.data?.message ?? '';
+  const known = ADMIN_DETAILS.find(([text]) => detail.startsWith(text));
+  if (known) return known[1];
   // The site answered but the API behind it did not (not running, or restarting): its own errors are JSON.
   if (e.response.status >= 500 && typeof e.response.data !== 'object') {
     return process.env.NODE_ENV === 'development'
@@ -776,6 +828,43 @@ class ApiClient {
 
   editHalaqa(id: string, data: { nameAr?: string; teacherId?: string; maxStudents?: number; active?: boolean }) {
     return this.client.patch<SetupHalaqa>(`/admin/halaqat/${id}`, data);
+  }
+
+  // People and the audit log
+  getUsers(params: { role?: string; q?: string; active?: 'true' | 'false' | 'all'; offset?: number }) {
+    return this.client.get<UserDirectory>('/admin/users', { params });
+  }
+
+  createUser(data: NewUser) {
+    return this.client.post<DirectoryUser & { invitation?: 'sent' | 'skipped' | 'failed' }>('/admin/users', data);
+  }
+
+  editUser(id: string, data: { displayNameAr?: string; email?: string; whatsapp?: string; active?: boolean }) {
+    return this.client.patch<DirectoryUser>(`/admin/users/${id}`, data);
+  }
+
+  addUserToHalaqa(id: string, sectionId: string) {
+    return this.client.put<DirectoryUser>(`/admin/users/${id}/halaqat/${sectionId}`);
+  }
+
+  removeUserFromHalaqa(id: string, sectionId: string) {
+    return this.client.delete<DirectoryUser>(`/admin/users/${id}/halaqat/${sectionId}`);
+  }
+
+  linkUserGuardian(id: string, guardian: { displayNameAr: string; whatsapp: string }) {
+    return this.client.post<DirectoryUser>(`/admin/users/${id}/guardians`, guardian);
+  }
+
+  unlinkUserGuardian(id: string, guardianId: string) {
+    return this.client.delete<DirectoryUser>(`/admin/users/${id}/guardians/${guardianId}`);
+  }
+
+  addStudentsInBulk(students: { displayNameAr: string; whatsapp: string }[], sectionId?: string) {
+    return this.client.post<BulkStudentsResult>('/admin/users/students/bulk', { students, sectionId });
+  }
+
+  getAuditLog(params: { action?: string; actorId?: string; before?: string; limit?: number }) {
+    return this.client.get<AuditPage>('/admin/audit', { params });
   }
 
   // Memorization programs
@@ -1063,6 +1152,8 @@ export const queryKeys = {
   adminOverview: (tenantId?: string) => ['admin', 'overview', tenantId ?? 'own'] as const,
   adminTenants: ['admin', 'tenants'] as const,
   adminPrograms: ['admin', 'programs'] as const,
+  adminUsers: (filter: object) => ['admin', 'users', filter] as const,
+  adminAudit: (filter: object) => ['admin', 'audit', filter] as const,
   sectionProgram: (sectionId: string) => ['sections', sectionId, 'program'] as const,
   adminSetup: ['admin', 'setup'] as const,
   pilot: (tenantId?: string) => ['admin', 'pilot', tenantId ?? 'own'] as const,

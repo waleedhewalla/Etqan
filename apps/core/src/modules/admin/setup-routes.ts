@@ -3,11 +3,11 @@ import { z } from 'zod';
 import { and, asc, count, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../../db';
 import { sectionEnrollments, sections, users } from '../../db/schema';
-import { config } from '../../config';
 import { TEACHER_ROLES } from '../../lib/access';
 import type { TokenPayload } from '../../lib/jwt';
 import { assertCanAddHalaqa } from '../../lib/plan';
-import { sendEmail } from '../../lib/email';
+import { inviteStaff } from '../../lib/staff-invite';
+import { forgetStopped } from '../../lib/active-users';
 import { auditLog } from '../audit/service';
 import { generateJoinCode } from '../section/routes';
 
@@ -97,11 +97,7 @@ export async function adminSetupRoutes(app: FastifyInstance) {
 
     const [teacher] = await db.insert(users)
       .values({ tenantId, role: body.role, displayNameAr: body.displayNameAr, email: body.email }).returning();
-    const invite = await sendEmail({
-      to: body.email,
-      subject: 'أُضيفتِ إلى إتقان',
-      text: `السلام عليكم ${body.displayNameAr}،\n\nأُضيف حسابك معلمةً في إتقان. للدخول افتحي الصفحة التالية واكتبي بريدك هذا، وسيصلك رابط الدخول:\n${config.FRONTEND_URL}/auth/login/faculty`,
-    });
+    const invite = await inviteStaff(body.email, body.displayNameAr, body.role);
     if (invite.status === 'failed') request.log.error({ error: invite.error }, 'Teacher invitation email failed');
     await auditLog({
       actorId: request.user.sub, actorRole: request.user.role, action: 'staff.added',
@@ -132,6 +128,7 @@ export async function adminSetupRoutes(app: FastifyInstance) {
       ...(body.active !== undefined ? { active: body.active } : {}),
       updatedAt: new Date(),
     }).where(eq(users.id, id));
+    if (body.active !== undefined) forgetStopped(id);
     if (body.active !== undefined && body.active !== target.active) {
       await auditLog({
         actorId: request.user.sub, actorRole: request.user.role, action: body.active ? 'staff.restored' : 'staff.stopped',

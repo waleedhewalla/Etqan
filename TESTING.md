@@ -123,6 +123,31 @@ dashboard, قائمة الطالبات → «الخطة والتقرير» opens
 
 API: `GET|POST|DELETE /v1/sections/:id/students/:studentId/plan` and `PUT …/plan/pace`, for whoever manages the halaqa.
 
+## People and the audit log (admin)
+
+Sign in as `dean@itqan.local`, open «لوحة الإدارة». The page now has four tabs: **نظرة عامة**, **الإعداد: الحلقات والبرنامج**
+(teachers, halaqat and the memorization program), **المستخدمون** and **سجل العمليات**. Advisors see the overview only.
+
+- **المستخدمون** lists everyone in the institution (50 a page) with their halaqat, guardians or children. Search by name,
+  WhatsApp number or email; filter by type and by active or stopped. The platform operator's own account is never listed.
+- **إدارة** on a row: correct the name and the contact the account signs in with (WhatsApp number for students and
+  guardians, email for staff); stop or restore the account; for a student, put her in a halaqa or take her out (her record
+  stays) and link or unlink guardians. A number or email can belong to one account only.
+- **Stopping an account takes effect at once**, even for someone already signed in (their token is refused within about
+  15 seconds on a deployed server, immediately when the same process stops them). Before this, a stopped account kept its
+  session for up to 30 days. You cannot stop your own account, and only the platform operator changes a dean.
+- **إضافة مستخدم:** a student (optionally into a halaqa, with her guardian), a guardian, or a member of staff
+  (معلمة، محفّظة، شيخة مراجِعة، مرشدة). A dean is added by the platform operator only. Staff get an email telling them to
+  sign in from «دخول هيئة التدريس»; students and guardians sign in with a code sent to their WhatsApp number. Numbers are
+  taken as typed: `010 1234 5678` becomes `+201012345678`.
+- **إضافة طالبات دفعة واحدة:** paste «الاسم، الرقم» one per line (up to 100), optionally choosing a halaqa. Each row
+  succeeds or fails on its own: a repeated number, an existing account, a bad number, a full halaqa or the plan limit is
+  listed beside the rows that were added.
+- **سجل العمليات:** who did what in this institution, newest first, with a filter by action. Read-only.
+- API: `GET|POST /v1/admin/users`, `PATCH /v1/admin/users/:id`, `PUT|DELETE /v1/admin/users/:id/halaqat/:sectionId`,
+  `POST /v1/admin/users/:id/guardians`, `DELETE /v1/admin/users/:id/guardians/:guardianId`,
+  `POST /v1/admin/users/students/bulk`, `GET /v1/admin/audit`. Deans, operators and superadmins only.
+
 ## Memorization program (admin)
 
 The dean sets what must be memorized, period by period. Sign in as `dean@itqan.local` and open «لوحة الإدارة»: under the
