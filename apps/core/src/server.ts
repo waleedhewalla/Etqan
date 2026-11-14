@@ -32,6 +32,7 @@ import { lessonRoutes } from './modules/lessons/routes';
 import { liveRoutes } from './modules/live/routes';
 import { sweepPendingChecks } from './lib/asr/runner';
 import { purgeExpiredAudio } from './lib/retention';
+import { sendDueReminders } from './lib/live-reminders';
 import { assessmentRoutes } from './modules/assessment/routes';
 import { reportingRoutes } from './modules/reporting/routes';
 import { notificationRoutes } from './modules/notification/routes';
@@ -228,6 +229,11 @@ async function start() {
     const sweep = () => sweepPendingChecks(getDb()).catch((e) => app.log.error(e, 'ASR sweep failed'));
     void sweep();
     setInterval(sweep, 60_000).unref();
+
+    // Remind students of scheduled live lessons (see lib/live-reminders.ts).
+    const remind = () => sendDueReminders(getDb()).catch((e) => app.log.error(e, 'live reminders failed'));
+    void remind();
+    setInterval(remind, 60_000).unref();
 
     // Delete recordings that have outlived their purpose (see lib/retention.ts).
     const purge = () => purgeExpiredAudio(getDb()).catch((e) => app.log.error(e, 'audio retention failed'));

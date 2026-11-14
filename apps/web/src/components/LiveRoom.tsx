@@ -10,6 +10,8 @@ import { api, errorMessage, homeFor, queryKeys, type LiveSession } from '@/lib/a
 import { useAuth } from '@/lib/auth-context';
 import { formatAyahRange, toArabicDigits } from '@/lib/quran';
 import { VerseText } from '@/components/VerseText';
+import { SyncedMushaf } from '@/components/SyncedMushaf';
+import { lessonTime } from '@/lib/live-time';
 import { canRecordLesson, startLessonRecorder, type LessonRecorder } from '@/lib/lesson-recorder';
 
 type Phase = 'lobby' | 'connecting' | 'live' | 'ended' | 'failed';
@@ -63,7 +65,8 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
     queryKey: queryKeys.liveState(sessionId),
     queryFn: () => api.getLiveState(sessionId).then((r) => r.data),
     enabled: phase === 'live' || phase === 'lobby',
-    refetchInterval: phase === 'live' ? 3000 : false,
+    // In the room, every three seconds; in the lobby of a lesson not yet started, now and then, so the door opens when it starts.
+    refetchInterval: (q) => (phase === 'live' ? 3000 : phase === 'lobby' && q.state.data?.session.status === 'scheduled' ? 10000 : false),
   });
   const info = session ?? state.data?.session ?? null;
   const canSpeak = role === 'host' || (state.data?.me.canSpeak ?? false);
@@ -221,6 +224,11 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
   };
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.liveState(sessionId) });
+  /** The host starts a lesson that was scheduled, from its lobby; the room opens when it has started. */
+  const begin = useMutation({
+    mutationFn: () => api.startScheduledLive(sessionId),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['live'] }); refresh(); void enter(); },
+  });
   const hand = useMutation({ mutationFn: (raised: boolean) => api.setLiveHand(sessionId, raised), onSuccess: refresh });
   const speak = useMutation({
     mutationFn: (v: { userId: string; canSpeak: boolean }) => api.setLiveSpeak(sessionId, v.userId, v.canSpeak),
@@ -239,6 +247,7 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
 
   if (phase !== 'live') {
     const ended = phase === 'ended' || state.data?.session.status === 'ended';
+    const status = state.data?.session.status;
     return (
       <main dir="rtl" className="min-h-screen bg-surface-canvas flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -248,6 +257,19 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
               <p role="alert" className="text-sm text-red-800">هذا الدرس غير متاح لكِ، أو أنه غير موجود.</p>
             ) : ended ? (
               <p className="text-sm text-text-secondary" data-testid="live-ended">انتهى الدرس. بارك الله فيكِ.</p>
+            ) : status === 'cancelled' ? (
+              <p className="text-sm text-text-secondary" data-testid="live-cancelled">أُلغي هذا الدرس.</p>
+            ) : status === 'scheduled' ? (
+              <div className="space-y-3" data-testid="live-scheduled">
+                {verses && <p className="text-sm text-text-secondary">{formatAyahRange(verses.start, verses.end)}</p>}
+                <p className="text-sm text-text-primary">لم يبدأ الدرس بعد. موعده <b>{lessonTime(state.data!.session.scheduledAt!)}</b>.</p>
+                {state.data?.role === 'host' ? (
+                  <Button className="w-full" loading={begin.isPending} onClick={() => begin.mutate()}>ابدئي الدرس الآن</Button>
+                ) : (
+                  <p className="text-sm text-text-secondary">اتركي هذه الصفحة مفتوحة، فيظهر زر الدخول عندما تبدأ المعلمة.</p>
+                )}
+                {begin.isError && <p role="alert" className="text-sm text-red-800">{errorMessage(begin.error, 'تعذّر بدء الدرس.')}</p>}
+              </div>
             ) : (
               <>
                 {verses && <p className="text-sm text-text-secondary">{formatAyahRange(verses.start, verses.end)}</p>}
@@ -359,9 +381,12 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
           {problem && <p role="alert" className="text-sm text-red-800">{problem}</p>}
           {recordingNote && <p role="status" className="text-sm text-text-secondary" data-testid="live-recording-note">{recordingNote}</p>}
 
+          {(verses || s?.session.focusRef || role === 'host') && (
+            <SyncedMushaf sessionId={sessionId} focusRef={s?.session.focusRef ?? null} startRef={info?.startRef ?? null} isHost={role === 'host'} />
+          )}
           {verses && (
             <details className="rounded-2xl border border-divider bg-surface-elevated p-3">
-              <summary className="cursor-pointer text-sm font-medium">{formatAyahRange(verses.start, verses.end)}</summary>
+              <summary className="cursor-pointer text-sm font-medium">نص الدرس كاملاً: {formatAyahRange(verses.start, verses.end)}</summary>
               <div className="mt-3 max-h-64 overflow-y-auto"><VerseText start={verses.start} end={verses.end} /></div>
             </details>
           )}

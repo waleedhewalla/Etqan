@@ -220,13 +220,18 @@ GET    /v1/tasmi/:id/history                the attempt chain for a lesson
 
 See "Recorded live lessons" in `TESTING.md`.
 
-**Phase D — refinements.** Synced mushaf view; attempt limit per institution; scheduled-session reminders over WhatsApp.
+**Phase D — refinements.** **Built**, except the TURN relay:
+
+- **Synced mushaf view.** The teacher says which verse she is on (`PUT /v1/live/:id/focus`); the room shows the verses around it with that one marked and follows her. Only a few lines of text travel, so it stays sharp and light on a phone however she shares her screen. The room follows through the three-second state poll, not a media data channel, so it lags by up to three seconds.
+- **Scheduled lessons and reminders.** A lesson can be set for a later time (five minutes to two months ahead). It is listed as upcoming for the halaqa, cannot be joined until the teacher starts it, and can be cancelled. A reminder goes out the day before (only if the lesson was set more than a day ahead) and fifteen minutes before, to the students (and the teacher, for the second), as an in-app notification and over WhatsApp to students who agreed to messages. A lesson nobody started is closed three hours after its time. The WhatsApp template `itqan_live_reminder` must be approved first (see `docs/DEPLOY.md`).
+- **Attempt limit per institution.** Built with the module settings in the admin console («مرات إعادة التسميع»).
+- **Not built:** a TURN relay for students on networks that block both UDP and TCP 7881; it is a deployment change (LiveKit's built-in TURN with its own DNS name), described in `docs/DEPLOY.md`. Reminders to guardians are not sent.
 
 ## 10. Risks and open decisions
 
 | Risk | Mitigation |
 |---|---|
-| Home bandwidth in Egypt is uneven | Audio-first design; low frame-rate screen share; the synced mushaf view in Phase D |
+| Home bandwidth in Egypt is uneven | Audio-first design; low frame-rate screen share; the synced mushaf view (built in Phase D) |
 | A teacher cannot share her screen from a phone browser | Teachers run sessions from a laptop; say so in the teacher guide |
 | Running a media server is new operational work | Phase A delivers value without it; consider LiveKit's hosted service for the pilot only if the institution accepts media leaving its server |
 | Recording storage grows quickly | Record teacher audio and screen only; 90-day retention; show usage in the admin console |
