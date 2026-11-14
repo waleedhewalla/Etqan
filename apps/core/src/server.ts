@@ -23,6 +23,7 @@ import { mutashabihatRoutes } from './modules/mutashabihat/routes';
 import { voiceProxyRoutes } from './modules/voice-proxy/routes';
 import { badgeRoutes } from './modules/badges/routes';
 import { adminRoutes } from './modules/admin/routes';
+import { adminUsersRoutes } from './modules/admin/users-routes';
 import { programRoutes } from './modules/program/routes';
 import { adminSetupRoutes } from './modules/admin/setup-routes';
 import { lessonRoutes } from './modules/lessons/routes';
@@ -153,6 +154,7 @@ async function buildApp() {
   await app.register(badgeRoutes, { prefix: '/v1' });
   await app.register(adminRoutes, { prefix: '/v1' });
   await app.register(adminSetupRoutes, { prefix: '/v1' });
+  await app.register(adminUsersRoutes, { prefix: '/v1' });
   await app.register(programRoutes, { prefix: '/v1' });
   await app.register(lessonRoutes, { prefix: '/v1' });
   await app.register(liveRoutes, { prefix: '/v1' });

@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { isStopped } from './active-users';
 import fp from 'fastify-plugin';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
@@ -70,6 +71,15 @@ async function jwtPluginImpl(app: FastifyInstance) {
         title: 'Unauthorized',
         status: 401,
         detail: 'Invalid or expired token',
+      });
+    }
+    // A stopped account is refused at once, not when its token (which lasts weeks) runs out.
+    if (await isStopped(payload.sub)) {
+      return reply.code(401).send({
+        type: 'https://itqan.link/errors/unauthorized',
+        title: 'Unauthorized',
+        status: 401,
+        detail: 'Account is no longer active',
       });
     }
     request.user = payload;

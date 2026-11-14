@@ -13,8 +13,14 @@ import { EmptyState } from '@/components/EmptyState';
 import { PilotMetrics } from '@/components/PilotMetrics';
 import { InstitutionSetup } from '@/components/InstitutionSetup';
 import { HifzProgramSetup } from '@/components/HifzProgramSetup';
+import { UsersAdmin } from '@/components/UsersAdmin';
+import { AuditLog } from '@/components/AuditLog';
 
 const SETUP_ROLES = ['dean', 'operator', 'superadmin'];
+const TABS = [
+  { id: 'overview', label: 'نظرة عامة' }, { id: 'setup', label: 'الإعداد: الحلقات والبرنامج' },
+  { id: 'users', label: 'المستخدمون' }, { id: 'audit', label: 'سجل العمليات' },
+] as const;
 
 const ADMIN_ROLES = ['dean', 'advisor', 'operator', 'superadmin'] as const;
 
@@ -36,6 +42,7 @@ export default function AdminDashboard() {
   const { user, ready } = useRequireRole([...ADMIN_ROLES], '/auth/login/faculty');
   const isSuper = user?.role === 'superadmin';
   const [tenantId, setTenantId] = useState<string | undefined>(undefined);
+  const [tab, setTab] = useState<'overview' | 'setup' | 'users' | 'audit'>('overview');
 
   const tenants = useQuery({ queryKey: queryKeys.adminTenants, queryFn: () => api.getAdminTenants().then((r) => r.data), enabled: ready && isSuper });
   const overview = useQuery({
@@ -46,6 +53,8 @@ export default function AdminDashboard() {
 
   if (!ready) return <FullPageSpinner />;
   const data = overview.data;
+  /** The setup, people and audit-log sections: for the institution's own managers, not for advisors or a superadmin looking at another institution. */
+  const canManage = Boolean(user && SETUP_ROLES.includes(user.role) && (!tenantId || tenantId === user.tenantId));
 
   return (
     <div dir="rtl" className="min-h-screen bg-surface-canvas">
@@ -90,8 +99,21 @@ export default function AdminDashboard() {
               <Badge variant={data.institution.active ? 'green' : 'gold'} size="sm">{data.institution.active ? 'مفعّلة' : 'متوقفة'}</Badge>
             </section>
 
-            {user && SETUP_ROLES.includes(user.role) && (!tenantId || tenantId === user.tenantId) && <InstitutionSetup />}
-            {user && SETUP_ROLES.includes(user.role) && (!tenantId || tenantId === user.tenantId) && <HifzProgramSetup />}
+            {canManage && (
+              <nav className="flex flex-wrap gap-2" aria-label="أقسام لوحة الإدارة" role="tablist">
+                {TABS.map((t) => (
+                  <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} id={`admin-tab-${t.id}`} onClick={() => setTab(t.id)}
+                    className={`rounded-xl border px-4 py-2 text-sm font-medium transition ${tab === t.id ? 'border-brand-primary bg-brand-primary text-text-inverse' : 'border-divider bg-surface-elevated text-text-secondary hover:border-brand-primary/40'}`}>
+                    {t.label}
+                  </button>
+                ))}
+              </nav>
+            )}
+            {canManage && tab === 'setup' && <><InstitutionSetup /><HifzProgramSetup /></>}
+            {canManage && tab === 'users' && <UsersAdmin />}
+            {canManage && tab === 'audit' && <AuditLog />}
+
+            {(!canManage || tab === 'overview') && (<>
 
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" aria-label="مؤشرات">
               <Stat icon={<Users className="w-5 h-5" />} label="الطالبات في الحلقات" value={toArabicDigits(data.usage.students)} note={`في ${toArabicDigits(data.usage.halaqat)} حلقة نشطة`} />
@@ -182,6 +204,7 @@ export default function AdminDashboard() {
                 يُتحكم به من <Link className="text-brand-primary underline" href="/dashboard/teacher">تبويب «التسميع والتقييم»</Link> في لوحة الحلقات.
               </CardContent>
             </Card>
+            </>)}
           </>
         )}
       </main>
