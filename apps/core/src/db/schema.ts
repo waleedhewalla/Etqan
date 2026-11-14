@@ -451,7 +451,8 @@ export const recitationLessons = pgTable('recitation_lessons', {
 
 // ── Live lessons ──
 
-export const liveSessionStatusEnum = pgEnum('live_session_status', ['live', 'ended']);
+/** scheduled: set for a later time and not started; live; ended; cancelled: scheduled and then cancelled, or never started. */
+export const liveSessionStatusEnum = pgEnum('live_session_status', ['live', 'ended', 'scheduled', 'cancelled']);
 
 /** A live lesson a teacher holds for her halaqa. The audio and video go through the media server, not this database. */
 export const liveSessions = pgTable('live_sessions', {
@@ -465,8 +466,16 @@ export const liveSessions = pgTable('live_sessions', {
   status: liveSessionStatusEnum('status').default('live').notNull(),
   /** Random, so a room cannot be guessed from the halaqa. */
   roomName: varchar('room_name', { length: 64 }).notNull().unique(),
+  /** When it was made, and then (for a scheduled lesson) when it actually started. */
   startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
   endedAt: timestamp('ended_at', { withTimezone: true }),
+  /** When a scheduled lesson is to begin; kept after it starts. */
+  scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+  /** Reminders already sent: 0 none, 1 the day before, 2 shortly before. */
+  remindersSent: integer('reminders_sent').default(0).notNull(),
+  /** The verse the teacher is on, which the room follows. */
+  focusRef: varchar('focus_ref', { length: 12 }),
+  focusAt: timestamp('focus_at', { withTimezone: true }),
   /** null = never recorded; recording → ready | failed; deleted once removed by a teacher or by retention. */
   recordingStatus: varchar('recording_status', { length: 12 }),
   /** Pieces received so far while recording; the next piece must carry this number. */

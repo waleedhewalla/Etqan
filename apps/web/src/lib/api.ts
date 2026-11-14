@@ -338,9 +338,14 @@ export interface LiveSession {
   title: string;
   startRef: string | null;
   endRef: string | null;
-  status: 'live' | 'ended';
+  status: 'scheduled' | 'live' | 'ended' | 'cancelled';
   startedAt: string;
   endedAt: string | null;
+  /** When a scheduled lesson is to begin (kept after it starts). */
+  scheduledAt: string | null;
+  /** The verse the teacher is on, which the room follows. */
+  focusRef: string | null;
+  focusAt: string | null;
   /** null when the lesson was never recorded. Only `ready` can be watched. */
   recordingStatus: 'recording' | 'ready' | 'failed' | 'deleted' | null;
   recordingBytes: number | null;
@@ -612,6 +617,7 @@ export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاول�
   if (e?.response?.status === 415) return 'تعذّر قبول هذا التسجيل. جرّبي متصفحاً آخر.';
   if (code === 'MODULE_DISABLED') return 'هذه الوحدة موقوفة في مؤسستكم. تواصلي مع العميدة.';
   if (code === 'RECORDING_NOT_ALLOWED') return 'تسجيل الدروس غير مسموح به في مؤسستكم.';
+  if (code === 'LESSON_NOT_STARTED') return 'لم يبدأ الدرس بعد. ستبدأ المعلمة الدرس في موعده.';
   if (code === 'LIVE_NOT_CONFIGURED') return 'الدروس المباشرة غير مفعّلة على هذا الخادم بعد.';
   if (e?.response?.status === 410) return 'انتهى هذا الدرس.';
   if (code === 'PLAN_LIMIT_REACHED') return 'بلغت المؤسسة حدّ ترخيصها (الطالبات أو الحلقات) أو انتهى ترخيصها. تواصلي مع إدارة المؤسسة.';
@@ -968,12 +974,31 @@ class ApiClient {
   }
 
   // Live lessons
-  startLive(sectionId: string, data: { title: string; startRef?: string; endRef?: string }) {
+  startLive(sectionId: string, data: { title: string; startRef?: string; endRef?: string; scheduledAt?: string }) {
     return this.client.post<LiveSession>(`/sections/${sectionId}/live`, data);
   }
 
   getSectionLive(sectionId: string) {
     return this.client.get<{ enabled: boolean; sessions: (LiveSession & { attended: number })[] }>(`/sections/${sectionId}/live`);
+  }
+
+  /** Starts a lesson that was scheduled, now. */
+  startScheduledLive(id: string) {
+    return this.client.post<LiveSession>(`/live/${id}/start`);
+  }
+
+  cancelLive(id: string) {
+    return this.client.post<LiveSession>(`/live/${id}/cancel`);
+  }
+
+  /** The host says which verse she is on; the room follows. */
+  setLiveFocus(id: string, ref: string | null) {
+    return this.client.put<LiveSession>(`/live/${id}/focus`, { ref });
+  }
+
+  /** Scheduled lessons of the caller's halaqat, soonest first. */
+  getLiveUpcoming() {
+    return this.client.get<(LiveSession & { sectionName: string; teacherName: string | null })[]>('/live/upcoming');
   }
 
   getLiveNow() {
@@ -1175,6 +1200,7 @@ export const queryKeys = {
   monthly: (studentId: string, month: string) => ['reports', 'monthly', studentId, month] as const,
   tasmiHistory: (id: string) => ['tasmi', 'history', id] as const,
   liveNow: ['live', 'now'] as const,
+  liveUpcoming: ['live', 'upcoming'] as const,
   liveRecordings: ['live', 'recordings'] as const,
   sectionLive: (sectionId: string) => ['live', 'section', sectionId] as const,
   liveState: (id: string) => ['live', 'state', id] as const,

@@ -19,7 +19,7 @@ Only Caddy listens on the internet. Postgres is not published at all, and record
 | **Two DNS names** pointing at the server's address, e.g. `app.example.org` and `api.example.org` | HTTPS certificates are issued per name. Ports 80 and 443 must be open. |
 | **HTTPS** (Caddy does it) | browsers allow the microphone and the offline mode only on HTTPS |
 | A **SendGrid** API key | staff sign in by an emailed link. Without it the API refuses to send links, so no teacher or dean can sign in. |
-| **360dialog (WhatsApp)** credentials and the two **approved** message templates (`itqan_otp`, `itqan_absence_alert`) | students sign in with a code sent on WhatsApp, and guardians get absence alerts. Template approval by WhatsApp can take days: start early. |
+| **360dialog (WhatsApp)** credentials and the **approved** message templates (`itqan_otp`, `itqan_absence_alert`, and `itqan_live_reminder` if you use scheduled live lessons) | students sign in with a code sent on WhatsApp, and guardians get absence alerts. Template approval by WhatsApp can take days: start early. |
 
 Decide **where the server is**. Student data (names, phone numbers, recordings) is stored on it; choose a region that
 satisfies your data-protection obligations (Egypt's PDPL, and your institution's own rules).
@@ -95,8 +95,13 @@ What to know:
 - Teachers should hold lessons from a laptop: phone browsers cannot share the screen.
 - Size the server for it: a lesson with one teacher sharing her screen to 30 listeners needs roughly 30–60 Mbit/s
   of upload from the server while it runs. Measure a real lesson before relying on this figure.
-- No TURN relay is configured. A student on a network that blocks both UDP and outbound TCP to port 7881 will
+- No TURN relay is configured (LiveKit has one built in: enable `turn` in `livekit.yaml` with its own DNS name and certificate when a pilot student cannot connect). A student on a network that blocks both UDP and outbound TCP to port 7881 will
   not hear the lesson. If that happens, the next step is LiveKit's built-in TURN on port 443 with its own DNS name.
+- **Scheduled lessons.** A teacher can set a lesson for later; students get a reminder the day before and 15 minutes before,
+  in the app and over WhatsApp (only students who agreed to messages, and only when 360dialog is configured). Register a
+  WhatsApp template named `itqan_live_reminder` (or set `WHATSAPP_TEMPLATE_LIVE`), language `ar`, category *utility*, with
+  three body parameters, for example: «تذكير: درس «{{1}}» في {{3}}، {{2}}.» Without it the in-app reminders still work and
+  WhatsApp ones are skipped. The server checks for due reminders every minute.
 - **Recording.** A teacher can record her lesson and share it with the halaqa. Her browser makes the recording
   (her voice and her screen only) and uploads it while the lesson runs, so it needs no extra service, but it needs
   disk: about 200 MB per hour of lesson. Recordings are kept for `LIVE_RECORDING_RETENTION_DAYS` (default 90) and a

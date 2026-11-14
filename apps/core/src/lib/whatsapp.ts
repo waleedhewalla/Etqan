@@ -8,7 +8,7 @@ import { config } from '../config';
  * its own Arabic templates without a code change.
  */
 
-export type WhatsAppTemplate = 'otp' | 'absence_alert';
+export type WhatsAppTemplate = 'otp' | 'absence_alert' | 'live_reminder';
 
 export interface WhatsAppMessage {
   to: string;
@@ -30,7 +30,8 @@ export function isWhatsAppConfigured(): boolean {
 }
 
 function templateName(template: WhatsAppTemplate): string {
-  return template === 'otp' ? config.WHATSAPP_TEMPLATE_OTP : config.WHATSAPP_TEMPLATE_ABSENCE;
+  if (template === 'otp') return config.WHATSAPP_TEMPLATE_OTP;
+  return template === 'live_reminder' ? config.WHATSAPP_TEMPLATE_LIVE : config.WHATSAPP_TEMPLATE_ABSENCE;
 }
 
 /** Builds the 360dialog Cloud API request body for a template message. */

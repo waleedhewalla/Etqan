@@ -6,7 +6,7 @@
 import { randomBytes } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
 import { compareRefs, parseRef } from '@itqan/quran';
 import { getDb } from '../../db';
 import { liveSessions, sectionEnrollments, sections, sessionParticipants, sessionQuestions, users } from '../../db/schema';
@@ -24,10 +24,15 @@ import { auditLog } from '../audit/service';
 
 const MAX_LISTED = 30;
 const ref = z.string().refine((r) => parseRef(r) !== null, 'Unknown verse');
+/** A lesson may be set for a later time: not sooner than five minutes, not further than two months. */
+const SCHEDULE_MIN_MS = 5 * 60_000;
+const SCHEDULE_MAX_MS = 60 * 24 * 3_600_000;
 const startSchema = z.object({
   title: z.string().trim().min(2).max(120),
   startRef: ref.optional(),
   endRef: ref.optional(),
+  /** ISO time with its offset. Without it the lesson starts now. */
+  scheduledAt: z.string().datetime({ offset: true }).optional(),
 }).refine((b) => Boolean(b.startRef) === Boolean(b.endRef), 'Give both verses or neither')
   .refine((b) => !b.startRef || !b.endRef || compareRefs(parseRef(b.startRef)!, parseRef(b.endRef)!) <= 0, 'The range ends before it starts');
 const questionSchema = z.object({ text: z.string().trim().min(1).max(500) });
@@ -40,7 +45,8 @@ type Session = typeof liveSessions.$inferSelect;
 const RECORDING_LINK_TTL = '4h';
 const finishSchema = z.object({ durationMs: z.number().int().min(0).max(24 * 3_600_000).optional() });
 /** What clients see: never the room name, which is as good as a key to the room, nor where the recording is kept. */
-const serialize = ({ roomName, recordingKey, recordingChunks, ...rest }: Session) => rest;
+const serialize = ({ roomName, recordingKey, recordingChunks, remindersSent, ...rest }: Session) => rest;
+const focusSchema = z.object({ ref: ref.nullable() });
 
 export async function liveRoutes(app: FastifyInstance) {
   const db = getDb();
@@ -79,18 +85,26 @@ export async function liveRoutes(app: FastifyInstance) {
     if (!isLiveConfigured()) throw new ItqanError('Live lessons are not set up on this server', 'LIVE_NOT_CONFIGURED', 503);
     const body = request.body as z.infer<typeof startSchema>;
 
-    // One live lesson per halaqa at a time.
-    const [running] = await db.select().from(liveSessions)
-      .where(and(eq(liveSessions.sectionId, id), eq(liveSessions.status, 'live'))).limit(1);
-    if (running) return request.server.httpErrors.conflict('This halaqa already has a live lesson');
+    const scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null;
+    if (scheduledAt) {
+      const ahead = scheduledAt.getTime() - Date.now();
+      if (ahead < SCHEDULE_MIN_MS) return request.server.httpErrors.badRequest('Set the lesson at least five minutes ahead');
+      if (ahead > SCHEDULE_MAX_MS) return request.server.httpErrors.badRequest('Set the lesson no more than two months ahead');
+    } else {
+      // One live lesson per halaqa at a time.
+      const [running] = await db.select().from(liveSessions)
+        .where(and(eq(liveSessions.sectionId, id), eq(liveSessions.status, 'live'))).limit(1);
+      if (running) return request.server.httpErrors.conflict('This halaqa already has a live lesson');
+    }
 
     const [session] = await db.insert(liveSessions).values({
       sectionId: id, teacherId: user.sub, title: body.title, startRef: body.startRef, endRef: body.endRef,
       roomName: `itqan-${randomBytes(18).toString('hex')}`,
+      ...(scheduledAt ? { status: 'scheduled' as const, scheduledAt } : {}),
     }).returning();
     await auditLog({
-      actorId: user.sub, actorRole: user.role, action: 'session.started', targetType: 'section', targetId: id,
-      metadata: { sessionId: session.id },
+      actorId: user.sub, actorRole: user.role, action: scheduledAt ? 'session.scheduled' : 'session.started', targetType: 'section', targetId: id,
+      metadata: { sessionId: session.id, ...(scheduledAt ? { scheduledAt: scheduledAt.toISOString() } : {}) },
     });
     return reply.code(201).send(serialize(session));
   });
@@ -139,6 +153,7 @@ export async function liveRoutes(app: FastifyInstance) {
     const entered = await enter(request);
     if ('error' in entered) return entered.error;
     const { session, role } = entered;
+    if (session.status === 'scheduled') throw new ItqanError('This lesson has not started yet', 'LESSON_NOT_STARTED', 409);
     if (session.status !== 'live') return request.server.httpErrors.gone('This lesson has ended');
     if (!isLiveConfigured()) throw new ItqanError('Live lessons are not set up on this server', 'LIVE_NOT_CONFIGURED', 503);
 
@@ -151,6 +166,76 @@ export async function liveRoutes(app: FastifyInstance) {
       });
     const token = await live().joinToken(session.roomName, request.user.sub, me?.name ?? '', role);
     return { url: liveUrl(), token, role, session: serialize(session) };
+  });
+
+  // POST /v1/live/:id/start — the host starts a scheduled lesson now
+  app.post('/live/:id/start', { preHandler: [app.authenticate] }, async (request) => {
+    const entered = await enter(request);
+    if ('error' in entered) return entered.error;
+    const { session, role } = entered;
+    if (role !== 'host') return request.server.httpErrors.forbidden('Only the host starts the lesson');
+    if (session.status === 'live') return serialize(session);
+    if (session.status !== 'scheduled') return request.server.httpErrors.gone('This lesson was cancelled or has ended');
+    if (!isLiveConfigured()) throw new ItqanError('Live lessons are not set up on this server', 'LIVE_NOT_CONFIGURED', 503);
+    const [running] = await db.select({ id: liveSessions.id }).from(liveSessions)
+      .where(and(eq(liveSessions.sectionId, session.sectionId), eq(liveSessions.status, 'live'))).limit(1);
+    if (running) return request.server.httpErrors.conflict('This halaqa already has a live lesson');
+    const [started] = await db.update(liveSessions).set({ status: 'live', startedAt: new Date() })
+      .where(and(eq(liveSessions.id, session.id), eq(liveSessions.status, 'scheduled'))).returning();
+    if (!started) return request.server.httpErrors.conflict('This lesson is no longer scheduled');
+    await auditLog({
+      actorId: request.user.sub, actorRole: request.user.role, action: 'session.started', targetType: 'section', targetId: session.sectionId,
+      metadata: { sessionId: session.id, scheduled: true },
+    });
+    return serialize(started);
+  });
+
+  // POST /v1/live/:id/cancel — whoever manages the halaqa cancels a scheduled lesson
+  app.post('/live/:id/cancel', { preHandler: [app.authenticate] }, async (request) => {
+    const session = await find((request.params as { id: string }).id);
+    if (!session || !(await loadManagedSection(db, request.user, session.sectionId))) {
+      return request.server.httpErrors.notFound('Session not found');
+    }
+    if (session.status === 'cancelled') return serialize(session);
+    if (session.status !== 'scheduled') return request.server.httpErrors.conflict('Only a lesson that has not started can be cancelled');
+    const [cancelled] = await db.update(liveSessions).set({ status: 'cancelled', endedAt: new Date() })
+      .where(and(eq(liveSessions.id, session.id), eq(liveSessions.status, 'scheduled'))).returning();
+    await auditLog({
+      actorId: request.user.sub, actorRole: request.user.role, action: 'session.cancelled', targetType: 'section', targetId: session.sectionId,
+      metadata: { sessionId: session.id },
+    });
+    return serialize(cancelled ?? session);
+  });
+
+  // PUT /v1/live/:id/focus — the host says which verse she is on; everyone in the room follows it
+  app.put('/live/:id/focus', { schema: { body: focusSchema }, preHandler: [app.authenticate] }, async (request) => {
+    const entered = await hosting(request);
+    if ('error' in entered) return entered.error;
+    if (entered.session.status !== 'live') return request.server.httpErrors.gone('The lesson has ended');
+    const { ref: focus } = request.body as z.infer<typeof focusSchema>;
+    const [updated] = await db.update(liveSessions).set({ focusRef: focus, focusAt: focus ? new Date() : null })
+      .where(eq(liveSessions.id, entered.session.id)).returning();
+    return serialize(updated);
+  });
+
+  // GET /v1/live/upcoming — scheduled lessons of the caller's halaqat, soonest first
+  app.get('/live/upcoming', { preHandler: [app.authenticate] }, async (request) => {
+    const user = request.user;
+    const sectionIds = isStaff(user)
+      ? (await db.select({ id: sections.id }).from(sections)
+        .where(isTenantAdmin(user)
+          ? eq(sections.tenantId, user.facultyId!)
+          : and(eq(sections.tenantId, user.facultyId!), eq(sections.teacherId, user.sub)))).map((s) => s.id)
+      : (await db.select({ id: sectionEnrollments.sectionId }).from(sectionEnrollments)
+        .where(and(eq(sectionEnrollments.studentId, user.sub), isNull(sectionEnrollments.droppedAt)))).map((s) => s.id);
+    if (sectionIds.length === 0) return [];
+    const rows = await db.select({ session: liveSessions, sectionName: sections.nameAr, teacherName: users.displayNameAr })
+      .from(liveSessions)
+      .innerJoin(sections, eq(liveSessions.sectionId, sections.id))
+      .leftJoin(users, eq(liveSessions.teacherId, users.id))
+      .where(and(inArray(liveSessions.sectionId, sectionIds), eq(liveSessions.status, 'scheduled'), gt(liveSessions.scheduledAt, new Date(Date.now() - 3 * 3_600_000))))
+      .orderBy(asc(liveSessions.scheduledAt)).limit(20);
+    return rows.map((r) => ({ ...serialize(r.session), sectionName: r.sectionName, teacherName: r.teacherName }));
   });
 
   // GET /v1/live/:id/state — polled by everyone in the room: is it still live, who is here, what was asked
@@ -262,6 +347,7 @@ export async function liveRoutes(app: FastifyInstance) {
       return request.server.httpErrors.notFound('Session not found');
     }
     if (session.status === 'ended') return serialize(session);
+    if (session.status !== 'live') return request.server.httpErrors.conflict('This lesson has not started: cancel it instead');
     await db.update(liveSessions).set({ status: 'ended', endedAt: new Date() }).where(eq(liveSessions.id, session.id));
     // A recording the teacher's browser did not close itself is closed with what it sent.
     const [current] = await db.select().from(liveSessions).where(eq(liveSessions.id, session.id)).limit(1);

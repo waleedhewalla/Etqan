@@ -4,12 +4,13 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input } from '@itqan/ui';
-import { Radio, Trash2 } from 'lucide-react';
+import { CalendarClock, Radio, Trash2 } from 'lucide-react';
 import { AYAH_COUNTS } from '@itqan/quran';
 import { api, errorMessage, queryKeys, type LiveSession } from '@/lib/api';
 import { formatAyahRange, SURAH_NAMES, toArabicDigits } from '@/lib/quran';
 import { LoadError, Spinner } from '@/components/LoadState';
 import { RecordingPlayer, lessonLength } from '@/components/LessonRecordings';
+import { lessonTime, localInputValue } from '@/lib/live-time';
 
 const field = 'rounded-xl border border-divider bg-surface-elevated px-3 py-2';
 const when = (iso: string) => new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
@@ -28,6 +29,12 @@ export function TeacherLive({ sectionId }: { sectionId: string }) {
   const [from, setFrom] = useState(1);
   const [to, setTo] = useState(5);
   const [notice, setNotice] = useState('');
+  /** Set for a later time instead of starting now. */
+  const [later, setLater] = useState(false);
+  const [at, setAt] = useState(() => localInputValue(24 * 60));
+  const whenIso = Number.isNaN(Date.parse(at)) ? null : new Date(at).toISOString();
+  const minutesAhead = whenIso ? (Date.parse(whenIso) - Date.now()) / 60_000 : 0;
+  const validWhen = !later || (whenIso !== null && minutesAhead >= 5 && minutesAhead <= 60 * 24 * 60);
   const count = AYAH_COUNTS[sura - 1];
   const validVerses = !withVerses || (from >= 1 && to <= count && from <= to);
 
@@ -35,8 +42,25 @@ export function TeacherLive({ sectionId }: { sectionId: string }) {
     mutationFn: () => api.startLive(sectionId, {
       title: title.trim(),
       ...(withVerses ? { startRef: `${sura}:${from}`, endRef: `${sura}:${to}` } : {}),
+      ...(later && whenIso ? { scheduledAt: whenIso } : {}),
     }).then((r) => r.data),
+    onSuccess: (session) => {
+      queryClient.invalidateQueries({ queryKey: ['live'] });
+      if (session.status === 'scheduled') {
+        setTitle('');
+        setNotice(`جُدول الدرس ${lessonTime(session.scheduledAt!)}. تصل الطالبات تذكيرات قبله، وتبدئينه من هنا حين يحين موعده.`);
+        return;
+      }
+      window.location.assign(`/live/${session.id}`);
+    },
+  });
+  const startNow = useMutation({
+    mutationFn: (id: string) => api.startScheduledLive(id).then((r) => r.data),
     onSuccess: (session) => { queryClient.invalidateQueries({ queryKey: ['live'] }); window.location.assign(`/live/${session.id}`); },
+  });
+  const cancel = useMutation({
+    mutationFn: (id: string) => api.cancelLive(id).then((r) => r.data),
+    onSuccess: () => { setNotice('أُلغي الدرس المجدول.'); queryClient.invalidateQueries({ queryKey: ['live'] }); },
   });
   const removeRecording = useMutation({
     mutationFn: (id: string) => api.deleteLiveRecording(id),
@@ -65,6 +89,7 @@ export function TeacherLive({ sectionId }: { sectionId: string }) {
   if (!list.data) return <LoadError onRetry={() => list.refetch()} />;
   const { enabled, sessions } = list.data;
   const running = sessions.find((s) => s.status === 'live');
+  const upcoming = sessions.filter((s) => s.status === 'scheduled').sort((a, b) => Date.parse(a.scheduledAt!) - Date.parse(b.scheduledAt!));
 
   return (
     <div className="space-y-4">
@@ -89,7 +114,7 @@ export function TeacherLive({ sectionId }: { sectionId: string }) {
               <Link href={`/live/${running.id}`}><Button>ادخلي الدرس</Button></Link>
             </div>
           ) : (
-            <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (title.trim().length >= 2 && validVerses) start.mutate(); }}>
+            <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); setNotice(''); if (title.trim().length >= 2 && validVerses && validWhen) start.mutate(); }}>
               <Input id="live-title" label="عنوان الدرس" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="مثال: درس سورة الملك" required minLength={2} maxLength={120} />
               <label className="flex items-center gap-2 text-sm">
                 <input id="live-with-verses" type="checkbox" checked={withVerses} onChange={(e) => setWithVerses(e.target.checked)} />
@@ -115,12 +140,52 @@ export function TeacherLive({ sectionId }: { sectionId: string }) {
                 </div>
               )}
               {!validVerses && <p role="alert" className="text-sm text-red-800">تحققي من أرقام الآيات: في السورة {toArabicDigits(count)} آية.</p>}
-              <Button type="submit" loading={start.isPending} disabled={!validVerses}>ابدئي الدرس الآن</Button>
+              <label className="flex items-center gap-2 text-sm">
+                <input id="live-later" type="checkbox" checked={later} onChange={(e) => setLater(e.target.checked)} />
+                جدولة الدرس لوقت لاحق (يصل الطالبات تذكير)
+              </label>
+              {later && (
+                <div className="space-y-1">
+                  <label className="text-sm block">
+                    <span className="block text-text-secondary mb-1">موعد الدرس</span>
+                    <input id="live-when" type="datetime-local" className={field} value={at} onChange={(e) => setAt(e.target.value)} />
+                  </label>
+                  {validWhen && whenIso
+                    ? <p className="text-xs text-text-secondary">يوافق {lessonTime(whenIso)} بتوقيت القاهرة.</p>
+                    : <p role="alert" className="text-sm text-red-800">اختاري موعداً بعد خمس دقائق على الأقل، وخلال شهرين.</p>}
+                </div>
+              )}
+              <Button type="submit" loading={start.isPending} disabled={!validVerses || !validWhen}>{later ? 'جدولة الدرس' : 'ابدئي الدرس الآن'}</Button>
             </form>
           )}
           {start.isError && <p role="alert" className="text-sm text-red-800">{errorMessage(start.error, 'تعذّر بدء الدرس.')}</p>}
         </CardContent>
       </Card>
+
+      {upcoming.length > 0 && (
+        <Card data-testid="upcoming-live">
+          <CardHeader><CardTitle className="flex items-center gap-2"><CalendarClock className="w-5 h-5 text-brand-primary" />الدروس القادمة</CardTitle></CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-divider">
+              {upcoming.map((s) => (
+                <li key={s.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-text-primary">{s.title}</p>
+                    <p className="text-sm text-text-secondary">{lessonTime(s.scheduledAt!)}{s.startRef && s.endRef && ` · ${formatAyahRange(s.startRef, s.endRef)}`}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" loading={startNow.isPending && startNow.variables === s.id} disabled={Boolean(running)} onClick={() => startNow.mutate(s.id)}>ابدئي الآن</Button>
+                    <Button size="sm" variant="outline" loading={cancel.isPending && cancel.variables === s.id}
+                      onClick={() => { if (window.confirm(`إلغاء درس «${s.title}»؟`)) cancel.mutate(s.id); }}>إلغاء</Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {running && <p className="mt-2 text-xs text-text-secondary">أنهي الدرس الجاري قبل أن تبدئي درساً مجدولاً.</p>}
+            {(startNow.isError || cancel.isError) && <p role="alert" className="mt-2 text-sm text-red-800">{errorMessage(startNow.error ?? cancel.error, 'تعذّر تنفيذ الطلب.')}</p>}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader><CardTitle>الدروس السابقة</CardTitle></CardHeader>

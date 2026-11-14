@@ -228,6 +228,25 @@ says live lessons are not set up and nothing else changes.
   `PUT /v1/live/:id/participants/:userId/speak`, `POST /v1/live/:id/end`, `GET /v1/live/:id/attendance`.
 - The API tests replace the media server with a recorder (`setLiveGateway`), so they need no LiveKit.
 
+### Scheduled lessons and the synced mushaf
+
+- **Schedule:** in the teacher's «الدرس المباشر» tab tick «جدولة الدرس لوقت لاحق», pick a time (not sooner than five minutes,
+  not later than two months; the line under the box shows the time in Cairo) and «جدولة الدرس». It appears under
+  **الدروس القادمة** with «ابدئي الآن» and «إلغاء», and on each student's «اليوم» tab as «درس قادم».
+- **Before the start:** opening the lesson shows «لم يبدأ الدرس بعد» and its time; a student's page opens its door by itself
+  within ten seconds of the teacher starting it. `POST /v1/live/:id/join` answers `409 LESSON_NOT_STARTED`.
+- **Starting:** «ابدئي الآن» (only the teacher, and only when the halaqa has no other lesson running). A lesson nobody starts
+  is closed three hours after its time.
+- **Reminders** (every minute, once each): the day before (only if the lesson was set more than a day ahead) and 15 minutes
+  before (the teacher too). In-app notifications go to every active student of the halaqa; WhatsApp only to students who
+  granted «whatsapp_notifications», only when 360dialog is configured and the `itqan_live_reminder` template exists. Nothing is
+  sent when the live or notifications modules are off for the institution (WhatsApp is separate from notifications).
+- **Synced mushaf:** inside a lesson the teacher sees «المصحف المتزامن»: arrows move one verse at a time, or choose a sura and
+  a verse and «انتقال». Students see the same verses, the teacher's verse marked, following her within about three seconds; a
+  lesson with verses starts at its first verse. The full lesson text stays below it.
+- API: `POST /v1/sections/:id/live` takes `scheduledAt`; `POST /v1/live/:id/start`, `POST /v1/live/:id/cancel`,
+  `PUT /v1/live/:id/focus`, `GET /v1/live/upcoming`.
+
 ### Recorded live lessons
 
 - **Teacher:** at the door of the lesson «سجّلي الدرس وشاركيه مع الحلقة» is ticked. Enter: «يُسجَّل» shows beside «مباشر»

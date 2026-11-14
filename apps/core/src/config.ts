@@ -88,6 +88,8 @@ const envSchema = z.object({
   WHATSAPP_TEMPLATE_NAMESPACE: optional(z.string()),
   WHATSAPP_TEMPLATE_OTP: z.string().default('itqan_otp'),
   WHATSAPP_TEMPLATE_ABSENCE: z.string().default('itqan_absence_alert'),
+  /** Three parameters: the lesson's title, when it starts, and the halaqa. */
+  WHATSAPP_TEMPLATE_LIVE: z.string().default('itqan_live_reminder'),
   WHATSAPP_TEMPLATE_LANGUAGE: z.string().default('ar'),
 
   // Email (SendGrid) for staff magic links
