@@ -129,6 +129,7 @@ export function HifzProgramSetup() {
             <Settings key={program.id} program={program} onChange={refresh} onDeleted={() => setChosen('')} />
             <Periods key={`${program.id}-${program.periods.map((p) => p.id).join()}-${program.hifzDaysPerWeek}`} program={program} onChange={refresh} />
             <Summary program={program} />
+            {(program.inUse || program.hasResults) && <Results program={program} />}
             <Assignment program={program} halaqat={halaqat} programs={programs} today={data.data.today} onChange={refresh} />
           </>
         ) : (
@@ -202,7 +203,7 @@ function Settings({ program, onChange, onDeleted }: { program: HifzProgram; onCh
         </label>
         <Button type="submit" loading={save.isPending} disabled={sum !== 100 || pass < 50 || pass > 100 || min < 0 || min > 100 || name.trim().length < 2}>حفظ الإعدادات</Button>
         <Button type="button" variant="ghost" loading={archive.isPending} onClick={() => archive.mutate()}>{program.active ? 'أرشفة البرنامج' : 'إعادة التفعيل'}</Button>
-        {!program.inUse && (
+        {!program.inUse && !program.hasResults && (
           <Button type="button" variant="ghost" loading={remove.isPending}
             onClick={() => { if (window.confirm(`حذف «${program.nameAr}» وفتراته؟ لا يمكن التراجع.`)) remove.mutate(); }}>
             <Trash2 className="w-4 h-4 ml-1" /> حذف
@@ -452,6 +453,33 @@ function Assignment({ program, halaqat, programs, today, onChange }: {
       {program.periods.length === 0 && <p className="text-xs text-amber-800">أضيفي فترة واحدة على الأقل قبل إسناد هذا البرنامج إلى حلقة.</p>}
       {notice && <p role="status" className="text-sm text-text-primary">{notice}</p>}
       {save.isError && <p role="alert" className="text-sm text-red-800">{errorMessage(save.error, 'تعذّر الحفظ.')}</p>}
+    </div>
+  );
+}
+
+/** How the students are doing in each period: those who passed it, those repeating it, and the attempts that did not pass. */
+function Results({ program }: { program: HifzProgram }) {
+  const results = useQuery({ queryKey: queryKeys.programResults(program.id), queryFn: () => api.getProgramResults(program.id).then((r) => r.data) });
+  if (!results.data || results.data.students === 0) return null;
+  return (
+    <div className="space-y-3" data-testid="program-results">
+      <h3 className="font-heading font-semibold text-text-primary">نتائج اختبارات الفترات</h3>
+      <div className="overflow-x-auto rounded-2xl border border-divider">
+        <table className="w-full text-sm">
+          <thead className="bg-surface-canvas text-text-secondary">
+            <tr><th className="text-right p-2.5">الفترة</th><th className="text-right p-2.5">اجتازتها</th><th className="text-right p-2.5">تعيدها الآن</th><th className="text-right p-2.5">محاولات لم تنجح</th></tr>
+          </thead>
+          <tbody className="divide-y divide-divider">
+            {results.data.periods.map((p) => (
+              <tr key={p.index}>
+                <td className="p-2.5 font-medium">{p.nameAr}</td><td className="p-2.5">{toArabicDigits(p.passed)}</td>
+                <td className="p-2.5">{toArabicDigits(p.repeating)}</td><td className="p-2.5">{toArabicDigits(p.failedAttempts)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-text-secondary">من اختُبرت من طالبات الحلقات التي تتبع هذا البرنامج: {toArabicDigits(results.data.students)}. إن عدّلتِ فترات برنامج بدأ اختباره فتغيّر ترتيبها، فراجعي النتائج: تُربط بموضع الفترة في البرنامج.</p>
     </div>
   );
 }

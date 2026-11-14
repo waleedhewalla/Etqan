@@ -37,3 +37,6 @@ export function studentsText(n: number, of = false): string {
   if (n === 2) return of ? 'طالبتين' : 'طالبتان';
   return `${toArabicDigits(n)} ${n <= 10 ? 'طالبات' : 'طالبة'}`;
 }
+
+export const CRITERION_LABEL = { hifz: 'الحفظ', tajweed: 'التجويد', review: 'المراجعة', retention: 'التثبيت' } as const;
+export const CRITERIA = ['hifz', 'tajweed', 'review', 'retention'] as const;

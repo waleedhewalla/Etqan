@@ -406,6 +406,8 @@ export interface MonthlyRecord {
   attendance: { present: number; absent: number };
   /** The teacher's written appraisal for the month. */
   appraisal: { note: string; teacherName: string | null; updatedAt: string } | null;
+  /** Period tests she took this month. */
+  periodTests: { periodName: string; attempt: number; outcome: PeriodOutcome; total: number; at: string }[];
   items: {
     id: string; startRef: string; endRef: string; submittedAt: string;
     verdict: 'approved' | 'redo' | 'flagged' | null; total: number | null; notes: string | null; hasVoiceReply: boolean;
@@ -498,6 +500,8 @@ export interface HifzProgram {
   totals: { pages: number; weeks: number; hifzWeeks: number };
   warnings: ProgramWarning[];
   inUse: boolean;
+  /** Students have been tested on it: it can be archived but not deleted. */
+  hasResults: boolean;
 }
 export interface AdminPrograms {
   programs: HifzProgram[];
@@ -522,8 +526,52 @@ export interface ProgramSettingsInput {
   minCriterionPct?: number;
   active?: boolean;
 }
+export type Criterion = 'hifz' | 'tajweed' | 'review' | 'retention';
+export type PeriodOutcome = 'passed' | 'repeat';
+/** One attempt at a period, as a teacher sees it. */
+export interface PeriodResult {
+  id: string; periodIndex: number; periodName: string; attempt: number; outcome: PeriodOutcome; total: number;
+  scores: Record<Criterion, number | null>; weights: Record<Criterion, number>; passScore: number; minCriterionPct: number;
+  failed: ({ rule: 'total' } | { rule: 'criterion'; criterion: Criterion })[]; note: string | null;
+  proposals: Partial<Record<Criterion, { score: number; basis: { kind: 'recitations' | 'reviews'; n: number } } | null>> | null; createdAt: string;
+}
+export interface PeriodStandingRow {
+  studentId: string; name: string; passed: number; currentIndex: number; currentName: string | null; failures: number; behind: boolean;
+  status: 'finished' | 'ready' | 'retest_due' | 'retest_waiting' | 'working'; canTest: boolean; retestOn: string | null; slowdown: boolean;
+  last: { outcome: PeriodOutcome; total: number; periodName: string; attempt: number; at: string } | null;
+}
+export interface PeriodStandings {
+  program: { id: string; nameAr: string };
+  position: { status: 'not_started' | 'running' | 'finished'; index: number; phase: 'hifz' | 'assessment' | 'consolidation'; periodName: string };
+  periods: { index: number; nameAr: string; kind: 'hifz' | 'consolidation' }[];
+  students: PeriodStandingRow[];
+}
+export interface PeriodTestForm {
+  student: { id: string; name: string };
+  period: { index: number; nameAr: string; kind: 'hifz' | 'consolidation'; startRef: string | null; endRef: string | null };
+  weights: Record<Criterion, number>; reviewApplies: boolean; passScore: number; minCriterionPct: number;
+  proposals: PeriodResult['proposals'];
+  canTest: boolean; reason: 'not_started' | 'not_reached' | 'finished' | 'retest_waiting' | null; retestOn: string | null;
+  attempts: PeriodResult[]; latest: PeriodResult | null;
+  standing: { passed: number; finished: boolean; failures: number };
+}
+export interface PeriodTestInput { periodIndex: number; scores: { hifz: number; tajweed: number; review?: number | null; retention: number }; note?: string }
+export interface ProgramResults {
+  program: { id: string; nameAr: string }; students: number;
+  periods: { index: number; nameAr: string; passed: number; failedAttempts: number; repeating: number }[];
+}
+/** What a student sees of where she stands in her halaqa's program. */
+export interface MyProgress {
+  passed: number; periodCount: number; finished: boolean; currentIndex: number; behind: boolean; failures: number;
+  retestOn: string | null; retestWaiting: boolean; slowdown: boolean;
+  current: { nameAr: string; goalAr: string | null; startRef: string | null; endRef: string | null; kind: 'hifz' | 'consolidation'; pages: number; pagesPerDay: number; weeks: number; hifzWeeks: number } | null;
+  last: { periodIndex: number; periodName: string; attempt: number; outcome: PeriodOutcome; total: number; weakest: Criterion | null; createdAt: string } | null;
+}
+
 /** What the halaqa is required to memorize now. `program` is null when it follows none. */
 export type SectionProgram = { program: null } | {
+  /** A student's own standing; null for staff. */
+  mine: MyProgress | null;
   program: { id: string; nameAr: string; weights: ProgramWeights; passScore: number; minCriterionPct: number; hifzDaysPerWeek: number };
   status: 'not_started' | 'running' | 'finished';
   week: number;
@@ -619,6 +667,7 @@ export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاول�
   if (e?.response?.status === 415) return 'تعذّر قبول هذا التسجيل. جرّبي متصفحاً آخر.';
   if (code === 'MODULE_DISABLED') return 'هذه الوحدة موقوفة في مؤسستكم. تواصلي مع العميدة.';
   if (code === 'RECORDING_NOT_ALLOWED') return 'تسجيل الدروس غير مسموح به في مؤسستكم.';
+  if (code === 'RETEST_TOO_SOON') return 'لا يُعاد الاختبار قبل مضي أسبوع العلاج. يظهر أول يوم للإعادة في بطاقة الطالبة.';
   if (code === 'LESSON_NOT_STARTED') return 'لم يبدأ الدرس بعد. ستبدأ المعلمة الدرس في موعده.';
   if (code === 'LIVE_NOT_CONFIGURED') return 'الدروس المباشرة غير مفعّلة على هذا الخادم بعد.';
   if (e?.response?.status === 410) return 'انتهى هذا الدرس.';
@@ -935,13 +984,34 @@ class ApiClient {
     return this.client.put<{ id: string; programId: string | null; startDate: string | null }>(`/admin/halaqat/${sectionId}/program`, { programId, startDate });
   }
 
+  getPeriodStandings(sectionId: string) {
+    return this.client.get<PeriodStandings>(`/sections/${sectionId}/program/standings`);
+  }
+
+  getPeriodTestForm(sectionId: string, studentId: string) {
+    return this.client.get<PeriodTestForm>(`/sections/${sectionId}/program/students/${studentId}/test`);
+  }
+
+  recordPeriodTest(sectionId: string, studentId: string, body: PeriodTestInput) {
+    return this.client.post<{ result: PeriodResult; assessment: { failed: PeriodResult['failed']; weakest: Criterion | null }; standing: { passed: number; finished: boolean; failures: number; retestOn: string | null; slowdown: boolean; next: string | null } }>(
+      `/sections/${sectionId}/program/students/${studentId}/results`, body);
+  }
+
+  voidPeriodTest(sectionId: string, studentId: string, resultId: string, reason: string) {
+    return this.client.post(`/sections/${sectionId}/program/students/${studentId}/results/${resultId}/void`, { reason });
+  }
+
+  getProgramResults(programId: string) {
+    return this.client.get<ProgramResults>(`/admin/programs/${programId}/results`);
+  }
+
   getSectionProgram(sectionId: string) {
     return this.client.get<SectionProgram>(`/sections/${sectionId}/program`);
   }
 
   /** Puts the current period's verses in every student's plan as new memorization. */
   applySectionProgram(sectionId: string) {
-    return this.client.post<{ ayat: number; students: number; added: number }>(`/sections/${sectionId}/program/apply`);
+    return this.client.post<{ ayat: number; students: number; skipped: number; added: number }>(`/sections/${sectionId}/program/apply`);
   }
 
   getPilotReport(tenantId?: string, weeks = 4) {
@@ -1227,6 +1297,9 @@ export const queryKeys = {
   adminTenants: ['admin', 'tenants'] as const,
   adminPrograms: ['admin', 'programs'] as const,
   adminModules: ['admin', 'modules'] as const,
+  periodStandings: (sectionId: string) => ['sections', sectionId, 'program', 'standings'] as const,
+  periodTestForm: (sectionId: string, studentId: string) => ['sections', sectionId, 'program', 'test', studentId] as const,
+  programResults: (programId: string) => ['admin', 'programs', programId, 'results'] as const,
   adminUsers: (filter: object) => ['admin', 'users', filter] as const,
   adminAudit: (filter: object) => ['admin', 'audit', filter] as const,
   sectionProgram: (sectionId: string) => ['sections', sectionId, 'program'] as const,

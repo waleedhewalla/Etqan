@@ -8,13 +8,13 @@ import { z } from 'zod';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { compareRefs, countAyat, parseRef } from '@itqan/quran';
 import { getDb } from '../../db';
-import { hifzProgramPeriods, hifzPrograms, sectionEnrollments, sections } from '../../db/schema';
+import { hifzPeriodResults, hifzProgramPeriods, hifzPrograms, sectionEnrollments, sections } from '../../db/schema';
 import { loadManagedSection } from '../../lib/access';
 import { localDate } from '../../lib/dates';
 import { addToPlan } from '../../lib/hifz-plan';
-import {
-  MAX_PERIOD_AYAT, type Measure, type PeriodConfig, ayatOf, measureRange, planPeriods, positionOn, programWarnings, sundayOf,
-} from '../../lib/hifz-program';
+import { MAX_PERIOD_AYAT, ayatOf, sundayOf } from '../../lib/hifz-program';
+import { type Program, programView, sectionStanding } from '../../lib/program-load';
+import { describeStanding, loadAttempts, studentResult } from '../../lib/period-tests';
 import type { TokenPayload } from '../../lib/jwt';
 import { auditLog } from '../audit/service';
 
@@ -77,43 +77,13 @@ const assignSchema = z.object({
 });
 const idParam = z.object({ id: z.string().uuid() });
 
-type Program = typeof hifzPrograms.$inferSelect;
-type PeriodRow = typeof hifzProgramPeriods.$inferSelect;
-
-const toConfig = (p: PeriodRow): PeriodConfig => ({
-  id: p.id, nameAr: p.nameAr, goalAr: p.goalAr, startRef: p.startRef, endRef: p.endRef,
-  pagesPerDay: p.pagesPerDay, extraPct: p.extraPct, fixedWeeks: p.fixedWeeks,
-});
-
 export async function programRoutes(app: FastifyInstance) {
   const db = getDb();
 
   const tenantOf = (user: TokenPayload) => (MANAGER_ROLES.includes(user.role) && user.facultyId ? user.facultyId : null);
   const forbidden = (request: { server: FastifyInstance }) => request.server.httpErrors.forbidden('Institution managers only');
 
-  const measureAll = (periods: PeriodConfig[]): (Measure | null)[] =>
-    periods.map((p) => (p.startRef && p.endRef ? measureRange(p.startRef, p.endRef) : null));
-
-  /** A program as the admin sees it: its settings, its periods with their weeks, and what to look at. */
-  const view = async (program: Program) => {
-    const rows = await db.select().from(hifzProgramPeriods).where(eq(hifzProgramPeriods.programId, program.id)).orderBy(asc(hifzProgramPeriods.sortOrder));
-    const configs = rows.map(toConfig);
-    const periods = planPeriods(configs, program.hifzDaysPerWeek, measureAll(configs));
-    const [used] = await db.select({ n: sections.id }).from(sections).where(eq(sections.hifzProgramId, program.id)).limit(1);
-    return {
-      id: program.id, nameAr: program.nameAr, active: program.active, hifzDaysPerWeek: program.hifzDaysPerWeek,
-      weights: { hifz: program.weightHifz, tajweed: program.weightTajweed, review: program.weightReview, retention: program.weightRetention },
-      passScore: program.passScore, minCriterionPct: program.minCriterionPct,
-      periods,
-      totals: {
-        pages: Math.round(periods.reduce((n, p) => n + p.pages, 0) * 10) / 10,
-        weeks: periods.reduce((n, p) => n + p.weeks, 0),
-        hifzWeeks: periods.reduce((n, p) => n + p.hifzWeeks, 0),
-      },
-      warnings: programWarnings(periods),
-      inUse: Boolean(used),
-    };
-  };
+  const view = (program: Program) => programView(db, program);
 
   const findProgram = async (tenantId: string, id: string) =>
     (await db.select().from(hifzPrograms).where(and(eq(hifzPrograms.id, id), eq(hifzPrograms.tenantId, tenantId))).limit(1))[0];
@@ -208,6 +178,8 @@ export async function programRoutes(app: FastifyInstance) {
     if (!program) return request.server.httpErrors.notFound('Program not found');
     const [used] = await db.select({ id: sections.id }).from(sections).where(eq(sections.hifzProgramId, id)).limit(1);
     if (used) return request.server.httpErrors.conflict('A halaqa follows this program; change it first, or archive the program');
+    const [tested] = await db.select({ id: hifzPeriodResults.id }).from(hifzPeriodResults).where(eq(hifzPeriodResults.programId, id)).limit(1);
+    if (tested) return request.server.httpErrors.conflict('Students have been tested on this program; archive it instead');
     await db.delete(hifzPrograms).where(eq(hifzPrograms.id, id));
     await auditLog({ actorId: request.user.sub, actorRole: request.user.role, action: 'program.deleted', targetType: 'hifz_program', targetId: id });
     return reply.code(204).send();
@@ -253,15 +225,9 @@ export async function programRoutes(app: FastifyInstance) {
     return section ? { section, manages: false } : null;
   };
 
-  /** The halaqa's program and where it is in it, or null when it follows none. */
   const standing = async (section: typeof sections.$inferSelect) => {
-    if (!section.hifzProgramId || !section.hifzProgramStart) return null;
-    const [program] = await db.select().from(hifzPrograms).where(eq(hifzPrograms.id, section.hifzProgramId)).limit(1);
-    if (!program) return null;
-    const full = await view(program);
-    if (full.periods.length === 0) return null;
-    const position = positionOn(full.periods, section.hifzProgramStart, localDate());
-    return { full, position };
+    const found = await sectionStanding(db, section);
+    return found ? { full: found.full, position: found.position } : null;
   };
 
   // GET /v1/sections/:id/program — the required memorization of the period the halaqa is in
@@ -273,7 +239,26 @@ export async function programRoutes(app: FastifyInstance) {
     if (!s) return { program: null };
     const { full, position } = s;
     const next = full.periods[position.index + 1] ?? null;
+
+    // A student also sees where she herself stands: the period she is on (which may be behind the halaqa's), her last result, and what to do next.
+    let mine = null;
+    if (!found.manages) {
+      const results = (await loadAttempts(db, [request.user.sub], full.id)).get(request.user.sub)!;
+      const st = describeStanding(results, full.periods, full.hifzDaysPerWeek);
+      const on = full.periods[st.current] ?? null;
+      mine = {
+        passed: st.passed, periodCount: full.periods.length, finished: st.finished, currentIndex: st.current,
+        behind: !st.finished && st.current < position.index,
+        failures: st.failures, retestOn: st.retestOn, retestWaiting: st.retestWaiting, slowdown: st.slowdown,
+        current: on && {
+          nameAr: on.nameAr, goalAr: on.goalAr, startRef: on.startRef, endRef: on.endRef, kind: on.kind, pages: on.pages,
+          pagesPerDay: st.personal?.pagesPerDay ?? on.pagesPerDay, weeks: st.personal?.weeks ?? on.weeks, hifzWeeks: st.personal?.hifzWeeks ?? on.hifzWeeks,
+        },
+        last: st.last ? studentResult(st.last) : null,
+      };
+    }
     return {
+      mine,
       program: {
         id: full.id, nameAr: full.nameAr, weights: full.weights, passScore: full.passScore, minCriterionPct: full.minCriterionPct,
         hifzDaysPerWeek: full.hifzDaysPerWeek,
@@ -312,12 +297,15 @@ export async function programRoutes(app: FastifyInstance) {
     const ayat = ayatOf(position.period.startRef, position.period.endRef);
     const students = (await db.select({ id: sectionEnrollments.studentId }).from(sectionEnrollments)
       .where(and(eq(sectionEnrollments.sectionId, id), isNull(sectionEnrollments.droppedAt)))).map((r) => r.id);
+    // A student who has not passed an earlier period is still on it: she does not get this period's verses until she does.
+    const attempts = await loadAttempts(db, students, s.full.id);
+    const onPeriod = students.filter((studentId) => describeStanding(attempts.get(studentId) ?? [], s.full.periods, s.full.hifzDaysPerWeek).current === position.index);
     let added = 0;
-    for (const studentId of students) added += (await addToPlan(db, studentId, ayat, 'new')).added;
+    for (const studentId of onPeriod) added += (await addToPlan(db, studentId, ayat, 'new')).added;
     await auditLog({
       actorId: request.user.sub, actorRole: request.user.role, action: 'program.applied', targetType: 'section', targetId: id,
-      metadata: { period: position.index + 1, ayat: ayat.length, students: students.length, added },
+      metadata: { period: position.index + 1, ayat: ayat.length, students: onPeriod.length, skipped: students.length - onPeriod.length, added },
     });
-    return { ayat: ayat.length, students: students.length, added };
+    return { ayat: ayat.length, students: onPeriod.length, skipped: students.length - onPeriod.length, added };
   });
 }

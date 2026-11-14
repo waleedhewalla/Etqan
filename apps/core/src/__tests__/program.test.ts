@@ -287,7 +287,7 @@ describe.skipIf(!process.env.DATABASE_URL)('configuring programs', () => {
     expect((await call('student', 'POST', `/sections/${ids.section}/program/apply`)).statusCode).toBe(404);
     expect((await call('otherTeacher', 'POST', `/sections/${ids.section}/program/apply`)).statusCode).toBe(404);
     const res = await call('teacher', 'POST', `/sections/${ids.section}/program/apply`);
-    expect(res.json()).toEqual({ ayat: 15, students: 2, added: 30 });
+    expect(res.json()).toEqual({ ayat: 15, students: 2, skipped: 0, added: 30 });
     const cards = await getDb().select().from(studentCards).where(and(eq(studentCards.studentId, ids.student), eq(studentCards.state, 'new')));
     expect(cards.map((c) => c.ayahRef).sort()).toContain('112:1');
     expect(cards).toHaveLength(15);
