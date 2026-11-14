@@ -11,6 +11,7 @@ import { auditLogs, guardianLinks, sectionEnrollments, sections, users } from '.
 import { forgetStopped } from '../../lib/active-users';
 import type { TokenPayload } from '../../lib/jwt';
 import { assertCanAddStudent } from '../../lib/plan';
+import { activeHalaqatLed } from '../../lib/data-deletion';
 import { inviteStaff } from '../../lib/staff-invite';
 import { auditLog } from '../audit/service';
 import { enrollStudent } from '../auth/routes';
@@ -39,6 +40,8 @@ const createSchema = z.discriminatedUnion('role', [
 ]);
 const editSchema = z.object({
   displayNameAr: name.optional(),
+  /** A member of staff moves to another staff role (a dean only by the platform operator); students and guardians do not change role. */
+  role: z.enum(STAFF_ROLES).optional(),
   email: email.optional(),
   whatsapp: whatsapp.optional(),
   active: z.boolean().optional(),
@@ -226,6 +229,17 @@ export async function adminUsersRoutes(app: FastifyInstance) {
     const { target } = found;
 
     if (body.active === false && id === request.user.sub) return errors.badRequest('You cannot stop your own access');
+    const changingRole = body.role !== undefined && body.role !== target.role;
+    if (changingRole) {
+      if (!isStaffRole(target.role)) return errors.badRequest('Only staff change role: a student or guardian is added again with the right role');
+      if (id === request.user.sub) return errors.badRequest('You cannot change your own role');
+      if (!canGovern(request.user, body.role!)) return errors.forbidden('Only the platform operator makes someone a dean');
+      // An advisor does not lead halaqat: hand them to another teacher first.
+      if (body.role === 'advisor') {
+        const led = await activeHalaqatLed(db, id);
+        if (led > 0) return errors.conflict(`She leads ${led} halaqa: hand them to another teacher first`);
+      }
+    }
     // Staff sign in by email and everyone else by WhatsApp: the other contact is not editable.
     if (body.email !== undefined && !isStaffRole(target.role)) return errors.badRequest('This account signs in with a WhatsApp number');
     if (body.whatsapp !== undefined && isStaffRole(target.role)) return errors.badRequest('This account signs in with an email');
@@ -234,13 +248,20 @@ export async function adminUsersRoutes(app: FastifyInstance) {
 
     await db.update(users).set({
       ...(body.displayNameAr !== undefined ? { displayNameAr: body.displayNameAr } : {}),
+      ...(changingRole ? { role: body.role } : {}),
       ...(body.email !== undefined ? { email: body.email } : {}),
       ...(body.whatsapp !== undefined ? { whatsappE164: body.whatsapp } : {}),
       ...(body.active !== undefined ? { active: body.active } : {}),
       updatedAt: new Date(),
     }).where(eq(users.id, id));
-    if (body.active !== undefined) forgetStopped(id);
-    const changed = Object.keys(body).filter((k) => k !== 'active');
+    if (body.active !== undefined || changingRole) forgetStopped(id);
+    if (changingRole) {
+      await auditLog({
+        actorId: request.user.sub, actorRole: request.user.role, tenantId, action: 'user.role_changed', targetType: 'user', targetId: id,
+        metadata: { from: target.role, to: body.role },
+      });
+    }
+    const changed = Object.keys(body).filter((k) => k !== 'active' && k !== 'role');
     if (changed.length) {
       await auditLog({
         actorId: request.user.sub, actorRole: request.user.role, tenantId, action: 'user.updated', targetType: 'user', targetId: id,

@@ -468,6 +468,14 @@ export interface AuditEntry {
 }
 export interface AuditPage { entries: AuditEntry[]; nextBefore: string | null; actions: string[] }
 
+/** A request to delete a person's data, and what became of it. */
+export interface DataRequest {
+  id: string; userId: string; subjectName: string | null; subjectRole: string;
+  status: 'pending' | 'scheduled' | 'done' | 'rejected' | 'cancelled'; mode: 'anonymize' | 'erase' | null; source: 'self' | 'admin';
+  requestedAt: string; decidedAt: string | null; decisionNote: string | null; scheduledFor: string | null; completedAt: string | null; error: string | null;
+}
+export type AdminDataRequest = DataRequest & { leadsHalaqat: number; erasable: boolean };
+
 /** One period of a memorization program, with the size and weeks worked out from its verses and pace. */
 export interface ProgramPeriod {
   id?: string;
@@ -657,6 +665,12 @@ const ADMIN_DETAILS: [string, string][] = [
   ['Only an active student joins a halaqa', 'لا تُضاف إلى حلقة إلا طالبة نشطة.'],
   ['Choose a student of this institution', 'اختاري طالبة من هذه المؤسسة.'],
   ['This account signs in with', 'لا يُعدَّل هذا الحقل لهذا الحساب.'],
+  ['There is already an open request', 'يوجد طلب مفتوح لهذا الحساب.'],
+  ['She leads', 'تقود حلقة: أسندي حلقاتها إلى معلمة أخرى أولاً.'],
+  ['A member of staff can only be anonymized', 'لا يُحذف حساب هيئة التدريس كلياً: ما كتبته وقيّمته ملك للمؤسسة. اختاري تجهيل الهوية.'],
+  ['Only staff change role', 'يُغيَّر دور هيئة التدريس فقط. أمّا الطالبة وولي الأمر فيُضافان من جديد بالدور الصحيح.'],
+  ['You cannot change your own role', 'لا يمكنكِ تغيير دوركِ أنتِ.'],
+  
 ];
 
 export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاولي مرة أخرى') {
@@ -930,7 +944,7 @@ class ApiClient {
     return this.client.post<DirectoryUser & { invitation?: 'sent' | 'skipped' | 'failed' }>('/admin/users', data);
   }
 
-  editUser(id: string, data: { displayNameAr?: string; email?: string; whatsapp?: string; active?: boolean }) {
+  editUser(id: string, data: { displayNameAr?: string; email?: string; whatsapp?: string; active?: boolean; role?: 'lecturer' | 'muhaffiza' | 'sheikh_reviewer' | 'advisor' | 'dean' }) {
     return this.client.patch<DirectoryUser>(`/admin/users/${id}`, data);
   }
 
@@ -956,6 +970,48 @@ class ApiClient {
 
   getAuditLog(params: { action?: string; actorId?: string; before?: string; limit?: number }) {
     return this.client.get<AuditPage>('/admin/audit', { params });
+  }
+
+  // Her data
+  /** The file of everything the app keeps about the signed-in user. */
+  downloadMyData() {
+    return this.client.get<Blob>('/me/export', { responseType: 'blob' });
+  }
+
+  getMyDataRequest() {
+    return this.client.get<{ request: DataRequest | null; graceDays: number }>('/me/data-request');
+  }
+
+  createMyDataRequest() {
+    return this.client.post<{ request: DataRequest; graceDays: number }>('/me/data-request');
+  }
+
+  cancelMyDataRequest() {
+    return this.client.delete('/me/data-request');
+  }
+
+  getDataRequests(status: 'open' | 'done' = 'open') {
+    return this.client.get<{ requests: AdminDataRequest[]; graceDays: number }>('/admin/data-requests', { params: { status } });
+  }
+
+  createDataRequest(userId: string) {
+    return this.client.post<DataRequest>('/admin/data-requests', { userId });
+  }
+
+  approveDataRequest(id: string, mode: 'anonymize' | 'erase') {
+    return this.client.post<DataRequest>(`/admin/data-requests/${id}/approve`, { mode });
+  }
+
+  rejectDataRequest(id: string, reason: string) {
+    return this.client.post<DataRequest>(`/admin/data-requests/${id}/reject`, { reason });
+  }
+
+  cancelDataRequest(id: string) {
+    return this.client.post<DataRequest>(`/admin/data-requests/${id}/cancel`);
+  }
+
+  downloadUserData(userId: string) {
+    return this.client.get<Blob>(`/admin/users/${userId}/export`, { responseType: 'blob' });
   }
 
   // Memorization programs
@@ -1297,6 +1353,8 @@ export const queryKeys = {
   adminTenants: ['admin', 'tenants'] as const,
   adminPrograms: ['admin', 'programs'] as const,
   adminModules: ['admin', 'modules'] as const,
+  myDataRequest: ['me', 'data-request'] as const,
+  dataRequests: (status: string) => ['admin', 'data-requests', status] as const,
   periodStandings: (sectionId: string) => ['sections', sectionId, 'program', 'standings'] as const,
   periodTestForm: (sectionId: string, studentId: string) => ['sections', sectionId, 'program', 'test', studentId] as const,
   programResults: (programId: string) => ['admin', 'programs', programId, 'results'] as const,

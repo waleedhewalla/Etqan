@@ -7,6 +7,7 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@itqan/
 import { Bell, LogOut, Printer, Shield } from 'lucide-react';
 import { useAuth, useRequireRole } from '@/lib/auth-context';
 import { useModules } from '@/lib/modules';
+import { MyData } from '@/components/MyData';
 import { api, queryKeys } from '@/lib/api';
 import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 import { WeeklyReportView } from '@/components/WeeklyReportView';
@@ -126,6 +127,8 @@ export default function GuardianDashboard() {
             )}
           </CardContent>
         </Card>}
+
+        <div className="print:hidden"><MyData /></div>
       </main>
     </div>
   );

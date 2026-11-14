@@ -108,6 +108,9 @@ What to know:
   single one stops at `LIVE_RECORDING_MAX_MB` (default 600). Thirty one-hour lessons a month kept for 90 days is
   about 18 GB: check the audio volume (or bucket) has room, and that your backup covers it or deliberately does not.
   The teacher's own upload needs about 0.5 Mbit/s on top of the lesson.
+- **Deletion requests.** Approved requests are carried out by an hourly job inside the API after `DATA_DELETION_GRACE_DAYS`
+  (default 14). Recordings (lesson-recitation audio) are removed from storage first; if storage is unreachable the request
+  stays scheduled with the reason and is retried. Take backups' retention into account when you tell people their data is gone.
 - Keep the `livekit/livekit-server` image version in `compose.live.yml` in step with `livekit-client` in
   `apps/web/package.json`. A much older server accepts connections but cannot publish audio from a newer client.
 - This overlay is **not exercised by CI**. Its Caddy and LiveKit configuration files were validated with the real

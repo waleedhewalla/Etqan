@@ -4,6 +4,7 @@ import { SUPPORT_EMAIL } from '@/lib/site';
 import { useRouter } from 'next/navigation';
 import { Button, Card, CardContent } from '@itqan/ui';
 import { useAuth } from '@/lib/auth-context';
+import { MyData } from '@/components/MyData';
 
 const ROLE_LABELS: Record<string, string> = {
   student: 'حساب طالبة',
@@ -69,6 +70,7 @@ export function AccountPanel() {
           </CardContent>
         </Card>
       </div>
+      <MyData />
     </section>
   );
 }

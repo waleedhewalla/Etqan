@@ -169,6 +169,32 @@ describe.skipIf(!process.env.DATABASE_URL)('managing users', () => {
     expect((await call('dean', 'PATCH', `/admin/users/${ids.operator}`, { active: false })).statusCode).toBe(404); // the platform's own
   });
 
+  it('changes a staff member’s role, and it applies at once, to a session already open', async () => {
+    const role = (who: string, id: string, to: string) => call(who, 'PATCH', `/admin/users/${id}`, { role: to });
+    expect((await call('advisor', 'GET', '/admin/users')).statusCode).toBe(403);
+    expect((await role('dean', ids.teacher, 'advisor')).statusCode).toBe(409); // she leads halaqat: hand them over first
+    expect((await role('dean', ids.student, 'advisor')).statusCode).toBe(400); // students and guardians do not change role
+    expect((await role('dean', ids.dean, 'lecturer')).statusCode).toBe(400); // not your own
+    expect((await call('dean', 'PATCH', `/admin/users/${ids.teacher}`, { role: 'superadmin' })).statusCode).toBe(400); // not a role to give
+    expect((await role('dean', ids.teacher, 'dean')).statusCode).toBe(403); // only the operator makes a dean
+    // The operator makes the advisor a dean: her old token (which says advisor) opens the admin screens straight away.
+    const [advisor] = await getDb().select().from(users).where(and(eq(users.displayNameAr, 'المرشدة'), eq(users.tenantId, ids.tenant)));
+    const promoted = await role('operator', advisor.id, 'dean');
+    expect(promoted.json().role).toBe('dean');
+    expect((await call('advisor', 'GET', '/admin/users')).statusCode).toBe(200);
+    // And back: the dean's access goes as fast.
+    expect((await role('dean', advisor.id, 'lecturer')).statusCode).toBe(403); // a dean is changed by the operator only
+    expect((await role('operator', advisor.id, 'advisor')).json().role).toBe('advisor');
+    expect((await call('advisor', 'GET', '/admin/users')).statusCode).toBe(403);
+    // A role to a teaching role needs no hand-over, and the same role changes nothing.
+    expect((await role('dean', advisor.id, 'muhaffiza')).json().role).toBe('muhaffiza');
+    expect((await role('dean', advisor.id, 'muhaffiza')).statusCode).toBe(200);
+    const entries = (await call('dean', 'GET', '/admin/audit?action=user.role_changed')).json().entries;
+    expect(entries).toHaveLength(3);
+    expect(entries[0].details).toMatchObject({ from: 'advisor', to: 'muhaffiza' });
+    await role('operator', advisor.id, 'advisor');
+  });
+
   it('puts a student in a halaqa and takes her out, keeping her record', async () => {
     const db = getDb();
     const joined = await call('dean', 'PUT', `/admin/users/${ids.basma}/halaqat/${ids.small}`);

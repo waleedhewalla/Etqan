@@ -15,6 +15,7 @@ import {
   primaryKey,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 // ── Enums ──
 
@@ -259,6 +260,38 @@ export const hifzPeriodResults = pgTable('hifz_period_results', {
 }, (t) => ({
   studentIdx: index('hifz_period_results_student_idx').on(t.studentId, t.programId, t.createdAt),
   sectionIdx: index('hifz_period_results_section_idx').on(t.sectionId),
+}));
+
+/**
+ * A person's request to have her data deleted, and what became of it. The subject's id is not a foreign key: the request
+ * outlives the account when the account is erased, as the record that it was done. Her name is wiped when it completes.
+ */
+export const dataRequests = pgTable('data_requests', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  tenantId: uuid('tenant_id').references(() => tenants.id).notNull(),
+  userId: uuid('user_id').notNull(),
+  subjectName: text('subject_name'),
+  subjectRole: varchar('subject_role', { length: 24 }).notNull(),
+  /** pending → scheduled (approved, waiting out the grace period) → done; or rejected or cancelled. */
+  status: varchar('status', { length: 12 }).$type<'pending' | 'scheduled' | 'done' | 'rejected' | 'cancelled'>().default('pending').notNull(),
+  /** anonymize: the account and what the institution must keep stay, without a name or any contact; erase: everything goes. */
+  mode: varchar('mode', { length: 10 }).$type<'anonymize' | 'erase'>(),
+  /** self: asked for by the person; admin: entered by an admin on her behalf. */
+  source: varchar('source', { length: 6 }).$type<'self' | 'admin'>().notNull(),
+  requestedBy: uuid('requested_by'),
+  requestedAt: timestamp('requested_at', { withTimezone: true }).defaultNow().notNull(),
+  decidedBy: uuid('decided_by'),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  decisionNote: text('decision_note'),
+  scheduledFor: timestamp('scheduled_for', { withTimezone: true }),
+  /** The account was active and approving stopped it; cancelling restores it. */
+  stoppedByRequest: boolean('stopped_by_request').default(false).notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  summary: jsonb('summary').$type<Record<string, unknown>>(),
+}, (t) => ({
+  tenantIdx: index('data_requests_tenant_idx').on(t.tenantId, t.status),
+  // One open request per person.
+  openIdx: uniqueIndex('data_requests_open_idx').on(t.userId).where(sql`${t.status} in ('pending', 'scheduled')`),
 }));
 
 export const sections = pgTable('sections', {
