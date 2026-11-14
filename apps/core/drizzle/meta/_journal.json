@@ -57,6 +57,13 @@
       "when": 1794646075364,
       "tag": "0007_fantastic_loa",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1794648714171,
+      "tag": "0008_lively_mercury",
+      "breakpoints": true
     }
   ]
 }

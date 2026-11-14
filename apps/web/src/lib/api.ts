@@ -301,6 +301,25 @@ export interface TasmiSubmission {
   disputedCount?: number;
 }
 
+/** Verses a teacher recorded for her halaqa to listen to and memorize («آيات للحفظ»). */
+export interface Lesson {
+  id: string;
+  sectionId: string;
+  startRef: string;
+  endRef: string;
+  note: string | null;
+  durationMs: number | null;
+  createdAt: string;
+}
+/** A lesson as its teacher sees it: how many of the halaqa's students have recited it back. */
+export interface TeacherLesson extends Lesson { students: number; recited: number }
+/** A lesson as a student sees it, with her own latest recitation of it. */
+export interface StudentLesson extends Lesson {
+  teacherName: string | null;
+  sectionName: string;
+  myRecitation: { id: string; submittedAt: string; verdict: 'approved' | 'redo' | 'flagged' | null; total: number | null } | null;
+}
+
 export type MonthlyGrade = 'excellent' | 'very_good' | 'good' | 'pass' | 'weak';
 export type MonthlyIssue =
   | { kind: 'no_recitations' }
@@ -670,6 +689,28 @@ class ApiClient {
     return this.client.get<{ url: string }>(`/tasmi/${id}/audio-link`);
   }
 
+  // «آيات للحفظ»
+  /** Multipart with startRef, endRef, note, durationMs, addToPlan and the `audio` file. */
+  createLesson(sectionId: string, form: FormData) {
+    return this.client.post<Lesson & { planned: number }>(`/sections/${sectionId}/lessons`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  }
+
+  getSectionLessons(sectionId: string) {
+    return this.client.get<TeacherLesson[]>(`/sections/${sectionId}/lessons`);
+  }
+
+  getMyLessons() {
+    return this.client.get<StudentLesson[]>('/lessons/mine');
+  }
+
+  getLessonAudioLink(id: string) {
+    return this.client.get<{ url: string }>(`/lessons/${id}/audio-link`);
+  }
+
+  deleteLesson(id: string) {
+    return this.client.delete(`/lessons/${id}`);
+  }
+
   /** The teacher's reply to a recording: text, a recorded voice message, or both. */
   replyToTasmi(id: string, reply: { text?: string; audio?: Blob; durationMs?: number }) {
     const form = new FormData();
@@ -772,6 +813,8 @@ export const queryKeys = {
   guardians: (sectionId: string, studentId: string) => ['sections', sectionId, 'guardians', studentId] as const,
   plan: (sectionId: string, studentId: string) => ['sections', sectionId, 'plan', studentId] as const,
   monthly: (studentId: string, month: string) => ['reports', 'monthly', studentId, month] as const,
+  myLessons: ['lessons', 'mine'] as const,
+  sectionLessons: (sectionId: string) => ['lessons', 'section', sectionId] as const,
   myTasmi: ['tasmi', 'mine'] as const,
   voiceStatus: ['voice', 'status'] as const,
   badges: ['badges'] as const,

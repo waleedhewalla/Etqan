@@ -16,6 +16,7 @@ import { VerseText } from '@/components/VerseText';
 import { TasmiAudio } from '@/components/TasmiAudio';
 import { RecitationRecorder, type Recording } from '@/components/RecitationRecorder';
 import { MonthlyRecord } from '@/components/MonthlyRecord';
+import { TeacherLessons } from '@/components/TeacherLessons';
 import { FlaggedVerse } from '@/components/FlaggedVerse';
 import { AiCheckingSwitch } from '@/components/AiCheckingSwitch';
 import { MutashabihatAuthoring } from '@/components/MutashabihatAuthoring';
@@ -27,7 +28,7 @@ import {
 } from '@/lib/api';
 import { formatAyahRange, toArabicDigits } from '@/lib/quran';
 
-type TeacherTab = 'overview' | 'students' | 'attendance' | 'speedgrader' | 'mutashabihat' | 'cases' | 'account';
+type TeacherTab = 'overview' | 'students' | 'attendance' | 'lessons' | 'speedgrader' | 'mutashabihat' | 'cases' | 'account';
 
 const TEACHER_ROLES = ['lecturer', 'muhaffiza', 'sheikh_reviewer', 'advisor', 'dean', 'operator', 'superadmin'] as const;
 
@@ -84,6 +85,7 @@ export default function TeacherDashboard() {
     { id: 'students', label: 'قائمة الطالبات', icon: Users },
     { id: 'attendance', label: 'الحضور', icon: CalendarCheck },
     { id: 'speedgrader', label: 'التسميع والتقييم', icon: Mic },
+    { id: 'lessons', label: 'آيات للحفظ', icon: BookOpen },
     { id: 'mutashabihat', label: 'المتشابهات', icon: Target },
     { id: 'cases', label: 'بحاجة متابعة', icon: AlertCircle },
     { id: 'account', label: 'حسابي', icon: UserRound },
@@ -129,6 +131,8 @@ export default function TeacherDashboard() {
             <SpeedGraderTab sectionId={section.id} />
           </div>
         );
+      case 'lessons':
+        return <TeacherLessons sectionId={section.id} />;
       case 'mutashabihat':
         return <MutashabihatAuthoring role={user?.role ?? ''} />;
       case 'cases':
