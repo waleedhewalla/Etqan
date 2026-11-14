@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { mkdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Readable } from 'node:stream';
@@ -30,6 +30,8 @@ export class RangeNotSatisfiableError extends Error {
 
 export interface AudioStorage {
   put(key: string, body: Buffer, contentType: string): Promise<void>;
+  /** Stores a file already on disk (a long recording) without reading it into memory, and removes the original. */
+  putFile(key: string, path: string, contentType: string): Promise<void>;
   /** `range` is an HTTP Range header value such as "bytes=0-99". Returns null if the object does not exist. */
   get(key: string, range?: string): Promise<StoredObject | null>;
   delete(key: string): Promise<void>;
@@ -60,6 +62,11 @@ export class MemoryStorage implements AudioStorage {
 
   async put(key: string, body: Buffer, contentType: string) {
     this.objects.set(key, { data: Buffer.from(body), contentType });
+  }
+
+  async putFile(key: string, path: string, contentType: string) {
+    this.objects.set(key, { data: await readFile(path), contentType });
+    await unlink(path);
   }
 
   async get(key: string, range?: string): Promise<StoredObject | null> {
@@ -119,6 +126,21 @@ export class FileStorage implements AudioStorage {
     await rename(temp, file);
   }
 
+  async putFile(key: string, path: string, _contentType: string) {
+    const file = this.path(key);
+    await mkdir(dirname(file), { recursive: true });
+    try {
+      await rename(path, file);
+    } catch (err) {
+      // A different disk: copy beside the target, rename into place, then drop the original.
+      if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err;
+      const temp = `${file}.${randomUUID()}.tmp`;
+      await copyFile(path, temp);
+      await rename(temp, file);
+      await unlink(path);
+    }
+  }
+
   async get(key: string, range?: string): Promise<StoredObject | null> {
     const file = this.path(key);
     let size: number;
@@ -172,6 +194,15 @@ export class S3Storage implements AudioStorage {
   async put(key: string, body: Buffer, contentType: string) {
     await this.ensureBucket();
     await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }));
+  }
+
+  async putFile(key: string, path: string, contentType: string) {
+    await this.ensureBucket();
+    const { size } = await stat(path);
+    await this.client.send(new PutObjectCommand({
+      Bucket: this.bucket, Key: key, Body: createReadStream(path), ContentLength: size, ContentType: contentType,
+    }));
+    await unlink(path);
   }
 
   async get(key: string, range?: string): Promise<StoredObject | null> {

@@ -4,11 +4,12 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input } from '@itqan/ui';
-import { Radio } from 'lucide-react';
+import { Radio, Trash2 } from 'lucide-react';
 import { AYAH_COUNTS } from '@itqan/quran';
 import { api, errorMessage, queryKeys, type LiveSession } from '@/lib/api';
 import { formatAyahRange, SURAH_NAMES, toArabicDigits } from '@/lib/quran';
 import { LoadError, Spinner } from '@/components/LoadState';
+import { RecordingPlayer, lessonLength } from '@/components/LessonRecordings';
 
 const field = 'rounded-xl border border-divider bg-surface-elevated px-3 py-2';
 const when = (iso: string) => new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
@@ -36,6 +37,10 @@ export function TeacherLive({ sectionId }: { sectionId: string }) {
       ...(withVerses ? { startRef: `${sura}:${from}`, endRef: `${sura}:${to}` } : {}),
     }).then((r) => r.data),
     onSuccess: (session) => { queryClient.invalidateQueries({ queryKey: ['live'] }); window.location.assign(`/live/${session.id}`); },
+  });
+  const removeRecording = useMutation({
+    mutationFn: (id: string) => api.deleteLiveRecording(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['live'] }),
   });
   const attendance = useMutation({
     mutationFn: async (session: LiveSession) => {
@@ -125,20 +130,38 @@ export function TeacherLive({ sectionId }: { sectionId: string }) {
           ) : (
             <ul className="divide-y divide-divider" data-testid="past-live">
               {sessions.filter((s) => s.status === 'ended').map((s) => (
-                <li key={s.id} className="py-3 flex items-center justify-between gap-3 flex-wrap">
-                  <div>
-                    <p className="font-medium text-text-primary">{s.title}</p>
-                    <p className="text-sm text-text-secondary">
-                      {when(s.startedAt)}{s.startRef && s.endRef && ` · ${formatAyahRange(s.startRef, s.endRef)}`} · حضرت {toArabicDigits(s.attended)}
-                    </p>
+                <li key={s.id} className="py-3 space-y-2">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <p className="font-medium text-text-primary">{s.title}</p>
+                      <p className="text-sm text-text-secondary">
+                        {when(s.startedAt)}{s.startRef && s.endRef && ` · ${formatAyahRange(s.startRef, s.endRef)}`} · حضرت {toArabicDigits(s.attended)}
+                        {s.recordingStatus === 'ready' && ` · مسجَّل${s.recordingDurationMs ? ` (${lessonLength(s.recordingDurationMs)})` : ''}`}
+                        {s.recordingStatus === 'failed' && ' · لم يُحفظ التسجيل'}
+                        {s.recordingStatus === 'deleted' && ' · حُذف التسجيل'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" loading={attendance.isPending && attendance.variables?.id === s.id} onClick={() => attendance.mutate(s)}>
+                        تسجيل الحضور من الدرس
+                      </Button>
+                      {s.recordingStatus === 'ready' && (
+                        <Button size="sm" variant="ghost" loading={removeRecording.isPending && removeRecording.variables === s.id}
+                          onClick={() => { if (window.confirm('حذف تسجيل هذا الدرس؟ لن تتمكن الطالبات من مشاهدته بعد ذلك.')) removeRecording.mutate(s.id); }}>
+                          <Trash2 className="w-4 h-4 ml-1" /> حذف التسجيل
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <Button size="sm" variant="outline" loading={attendance.isPending && attendance.variables?.id === s.id} onClick={() => attendance.mutate(s)}>
-                    تسجيل الحضور من الدرس
-                  </Button>
+                  {s.recordingStatus === 'ready' && <RecordingPlayer id={s.id} />}
                 </li>
               ))}
             </ul>
           )}
+          {sessions.some((s) => s.recordingStatus === 'ready') && (
+            <p className="mt-3 text-xs text-text-secondary">تشاهد طالبات الحلقة الدروس المسجَّلة من صفحة «التسميع». يُحذف التسجيل تلقائياً بعد مدة الحفظ التي يحددها مسؤول النظام.</p>
+          )}
+          {removeRecording.isError && <p role="alert" className="mt-3 text-sm text-red-800">{errorMessage(removeRecording.error, 'تعذّر حذف التسجيل.')}</p>}
           {notice && <p role="status" className="mt-3 text-sm text-text-primary">{notice}</p>}
           {attendance.isError && <p role="alert" className="mt-3 text-sm text-red-800">{errorMessage(attendance.error, 'تعذّر تسجيل الحضور.')}</p>}
         </CardContent>

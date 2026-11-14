@@ -12,6 +12,7 @@ import { TasmiAudio } from '@/components/TasmiAudio';
 import { FlaggedVerse } from '@/components/FlaggedVerse';
 import { LoadError, Spinner } from '@/components/LoadState';
 import { StudentLessons } from '@/components/StudentLessons';
+import { LessonRecordings } from '@/components/LessonRecordings';
 import { TASMI_STATUS, attemptLabel } from '@/lib/tasmi-status';
 
 const MAX_AYAT = 60;
@@ -97,6 +98,20 @@ export function ReciteTab() {
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  /** Fills the form with the verses of a recorded live lesson. */
+  const reciteSession = (l: { sectionId: string; startRef: string | null; endRef: string | null }) => {
+    if (!l.startRef || !l.endRef) return;
+    const [s, a] = l.startRef.split(':').map(Number);
+    setSectionId(l.sectionId);
+    setSura(s);
+    setFrom(a);
+    setTo(Number(l.endRef.split(':')[1]));
+    setLesson(null);
+    setRevising(null);
+    setSent(false);
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   /** Fills the form to record the same verses again after «يُعاد». */
   const reviseTasmi = (t: TasmiSubmission) => {
     const [s, a] = t.startRef.split(':').map(Number);
@@ -130,6 +145,7 @@ export function ReciteTab() {
 
   return (
     <div className="space-y-4">
+      {sections.length > 0 && <LessonRecordings onRecite={reciteSession} maxAyat={MAX_AYAT} />}
       {sections.length > 0 && <StudentLessons onRecite={reciteLesson} selectedId={lesson?.id ?? null} />}
       <div ref={formRef} className="scroll-mt-20" />
       <Card>

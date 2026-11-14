@@ -321,7 +321,14 @@ export interface LiveSession {
   status: 'live' | 'ended';
   startedAt: string;
   endedAt: string | null;
+  /** null when the lesson was never recorded. Only `ready` can be watched. */
+  recordingStatus: 'recording' | 'ready' | 'failed' | 'deleted' | null;
+  recordingBytes: number | null;
+  recordingDurationMs: number | null;
+  recordingReadyAt: string | null;
 }
+/** A recorded lesson as listed for the halaqa. */
+export type LiveRecording = LiveSession & { sectionName: string; teacherName: string | null };
 /** What everyone in a live lesson polls: is it still on, who is here, what was asked. */
 export interface LiveState {
   session: LiveSession;
@@ -768,6 +775,37 @@ class ApiClient {
     return this.client.post<LiveSession>(`/live/${id}/end`);
   }
 
+  // Recording a live lesson (made in the teacher's browser, sent in pieces)
+  startLiveRecording(id: string) {
+    return this.client.post<LiveSession>(`/live/${id}/recording/start`);
+  }
+
+  /** Sends the next piece. A piece is sent again after a failure; the server takes it once. */
+  sendLiveRecordingChunk(id: string, seq: number, chunk: Blob) {
+    const form = new FormData();
+    form.append('seq', String(seq));
+    form.append('chunk', chunk, 'chunk');
+    return this.client.post<{ received: number }>(`/live/${id}/recording/chunks`, form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60_000 });
+  }
+
+  finishLiveRecording(id: string, durationMs?: number) {
+    return this.client.post<LiveSession>(`/live/${id}/recording/finish`, durationMs === undefined ? {} : { durationMs: Math.round(durationMs) });
+  }
+
+  /** Recorded lessons of the caller's halaqat. */
+  getLiveRecordings() {
+    return this.client.get<LiveRecording[]>('/live/recordings');
+  }
+
+  /** A link (path on the API) the browser can play for a few hours. */
+  getLiveRecordingLink(id: string) {
+    return this.client.get<{ url: string; contentType: string }>(`/live/${id}/recording-link`);
+  }
+
+  deleteLiveRecording(id: string) {
+    return this.client.delete<LiveSession>(`/live/${id}/recording`);
+  }
+
   getLiveAttendance(id: string) {
     return this.client.get<{ session: LiveSession; records: { studentId: string; name: string; present: boolean }[] }>(`/live/${id}/attendance`);
   }
@@ -903,6 +941,7 @@ export const queryKeys = {
   monthly: (studentId: string, month: string) => ['reports', 'monthly', studentId, month] as const,
   tasmiHistory: (id: string) => ['tasmi', 'history', id] as const,
   liveNow: ['live', 'now'] as const,
+  liveRecordings: ['live', 'recordings'] as const,
   sectionLive: (sectionId: string) => ['live', 'section', sectionId] as const,
   liveState: (id: string) => ['live', 'state', id] as const,
   myLessons: ['lessons', 'mine'] as const,

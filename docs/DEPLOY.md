@@ -97,7 +97,12 @@ What to know:
   of upload from the server while it runs. Measure a real lesson before relying on this figure.
 - No TURN relay is configured. A student on a network that blocks both UDP and outbound TCP to port 7881 will
   not hear the lesson. If that happens, the next step is LiveKit's built-in TURN on port 443 with its own DNS name.
-- Lessons are not recorded yet (see `docs/design/live-sessions.md`, Phase C).
+- **Recording.** A teacher can record her lesson and share it with the halaqa. Her browser makes the recording
+  (her voice and her screen only) and uploads it while the lesson runs, so it needs no extra service, but it needs
+  disk: about 200 MB per hour of lesson. Recordings are kept for `LIVE_RECORDING_RETENTION_DAYS` (default 90) and a
+  single one stops at `LIVE_RECORDING_MAX_MB` (default 600). Thirty one-hour lessons a month kept for 90 days is
+  about 18 GB: check the audio volume (or bucket) has room, and that your backup covers it or deliberately does not.
+  The teacher's own upload needs about 0.5 Mbit/s on top of the lesson.
 - Keep the `livekit/livekit-server` image version in `compose.live.yml` in step with `livekit-client` in
   `apps/web/package.json`. A much older server accepts connections but cannot publish audio from a newer client.
 - This overlay is **not exercised by CI**. Its Caddy and LiveKit configuration files were validated with the real

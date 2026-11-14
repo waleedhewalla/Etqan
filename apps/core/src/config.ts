@@ -40,6 +40,10 @@ const envSchema = z.object({
   LIVEKIT_API_URL: optional(z.string().url()),
   LIVEKIT_API_KEY: optional(z.string().min(3)),
   LIVEKIT_API_SECRET: optional(z.string().min(6)),
+  /** A lesson's recording stops growing at this size (about three hours at the bitrate the app records at). */
+  LIVE_RECORDING_MAX_MB: z.coerce.number().int().min(1).default(600),
+  /** Recorded lessons are deleted after this many days. */
+  LIVE_RECORDING_RETENTION_DAYS: z.coerce.number().int().min(1).default(90),
   JWT_EXPIRY: z.string().default('30d'),
   JWT_REFRESH_EXPIRY: z.string().default('90d'),
   
