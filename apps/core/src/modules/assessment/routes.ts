@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { eq, and, desc, isNull, inArray, sql } from 'drizzle-orm';
 import { AYAH_COUNTS, compareRefs, countAyat, parseRef } from '@itqan/quran';
 import { getDb, type Database } from '../../db';
-import { recitationLessons, sectionEnrollments, sections, tasmiSubmissions, users } from '../../db/schema';
+import { liveSessions, recitationLessons, sectionEnrollments, sections, tasmiSubmissions, users } from '../../db/schema';
 import { canViewStudent, isStaff, isTenantAdmin } from '../../lib/access';
 import { MAX_AUDIO_BYTES, sniffAudio } from '../../lib/audio';
 import { hasConsent } from '../../lib/consent';
@@ -39,6 +39,14 @@ function serializeTasmi(row: Submission, hasLaterAttempt: boolean, maxAttempts: 
     ...rest, hasAudio: Boolean(audioKey) && !row.audioDeletedAt, audioBytes, hasReplyAudio: Boolean(replyAudioKey),
     status: tasmiStatus(facts, maxAttempts), canRevise: canRevise(facts, maxAttempts), maxAttempts,
   };
+}
+
+/** The titles of the recorded lessons these submissions answer, by lesson id. */
+async function lessonTitles(db: Database, rows: Submission[]): Promise<Map<string, string>> {
+  const ids = [...new Set(rows.map((r) => r.liveSessionId).filter((id): id is string => Boolean(id)))];
+  if (ids.length === 0) return new Map();
+  const found = await db.select({ id: liveSessions.id, title: liveSessions.title }).from(liveSessions).where(inArray(liveSessions.id, ids));
+  return new Map(found.map((f) => [f.id, f.title]));
 }
 
 /** Of these submissions, the ones a later attempt has replaced. */
@@ -134,6 +142,20 @@ export async function assessmentRoutes(app: FastifyInstance) {
       lessonId = lesson.id;
     }
 
+    // A recitation of a recorded live lesson's verses: the lesson must be this halaqa's and the verses its own.
+    let liveSessionId: string | null = null;
+    if (fields.liveSessionId) {
+      if (lessonId) return errors.badRequest('Choose a lesson or a recorded lesson, not both');
+      const [session] = z.string().uuid().safeParse(fields.liveSessionId).success
+        ? await db.select().from(liveSessions).where(eq(liveSessions.id, fields.liveSessionId)).limit(1)
+        : [];
+      if (!session || session.sectionId !== fields.sectionId || session.status !== 'ended') {
+        return errors.badRequest('That lesson is not in this halaqa');
+      }
+      if (session.startRef !== fields.startRef || session.endRef !== fields.endRef) return errors.badRequest('Recite the verses of the lesson');
+      liveSessionId = session.id;
+    }
+
     // Recording again after «يُعاد»: the new attempt replaces the previous one and carries its lesson.
     let attempt = 1;
     let revisionOf: string | null = null;
@@ -154,6 +176,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
       attempt = previous.attempt + 1;
       revisionOf = previous.id;
       lessonId = previous.lessonId;
+      liveSessionId = previous.liveSessionId;
     }
 
     if (!audio || audio.length === 0) return errors.badRequest('No recording attached');
@@ -177,6 +200,7 @@ export async function assessmentRoutes(app: FastifyInstance) {
       audioBytes: audio.length,
       durationMs,
       lessonId,
+      liveSessionId,
       revisionOf,
       attempt,
       aiStatus: checkAi ? 'pending' : null,
@@ -252,7 +276,8 @@ export async function assessmentRoutes(app: FastifyInstance) {
       .limit(50);
     const replaced = await replacedIds(db, rows.map((r) => r.id));
     const { maxAttempts } = await limitsFor(request.user);
-    return rows.map((r) => serializeTasmi(r, replaced.has(r.id), maxAttempts));
+    const titles = await lessonTitles(db, rows);
+    return rows.map((r) => ({ ...serializeTasmi(r, replaced.has(r.id), maxAttempts), liveSessionTitle: titles.get(r.liveSessionId ?? '') ?? null }));
   });
 
   // GET /v1/tasmi/pending?sectionId= — unreviewed submissions in the reviewer's halaqat
@@ -281,8 +306,12 @@ export async function assessmentRoutes(app: FastifyInstance) {
 
     // Submissions the student disputed come first: they are the ones most likely to be wrong.
     const disputed = (s: Submission) => ((s.aiFlaggedErrors ?? []) as FlaggedWord[]).filter((f) => f.disputed).length;
+    const titles = await lessonTitles(db, rows.map((r) => r.submission));
     return rows
-      .map((r) => ({ ...serializeTasmi(r.submission, false, maxAttempts), studentName: r.studentName, disputedCount: disputed(r.submission) }))
+      .map((r) => ({
+        ...serializeTasmi(r.submission, false, maxAttempts), studentName: r.studentName, disputedCount: disputed(r.submission),
+        liveSessionTitle: titles.get(r.submission.liveSessionId ?? '') ?? null,
+      }))
       .sort((a, b) => b.disputedCount - a.disputedCount);
   });
 

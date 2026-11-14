@@ -101,7 +101,8 @@ What to know:
   in the app and over WhatsApp (only students who agreed to messages, and only when 360dialog is configured). Register a
   WhatsApp template named `itqan_live_reminder` (or set `WHATSAPP_TEMPLATE_LIVE`), language `ar`, category *utility*, with
   three body parameters, for example: «تذكير: درس «{{1}}» في {{3}}، {{2}}.» Without it the in-app reminders still work and
-  WhatsApp ones are skipped. The server checks for due reminders every minute.
+  WhatsApp ones are skipped. The server checks for due reminders every minute. Guardians of the halaqa's students get the same
+  reminders (the template has no student name, so it reads the same for them).
 - **Recording.** A teacher can record her lesson and share it with the halaqa. Her browser makes the recording
   (her voice and her screen only) and uploads it while the lesson runs, so it needs no extra service, but it needs
   disk: about 200 MB per hour of lesson. Recordings are kept for `LIVE_RECORDING_RETENTION_DAYS` (default 90) and a

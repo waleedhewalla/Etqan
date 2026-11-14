@@ -556,7 +556,7 @@ function SpeedGraderTab({ sectionId }: { sectionId: string }) {
                   className={`w-full text-right p-3 rounded-lg border ${selected?.id === p.id ? 'border-brand-primary bg-brand-primary/5' : 'border-divider bg-surface-canvas'}`}
                 >
                   <p className="font-medium text-text-primary">{p.studentName}</p>
-                  <p className="text-sm text-text-secondary">{formatAyahRange(p.startRef, p.endRef)}</p>
+                  <p className="text-sm text-text-secondary">{formatAyahRange(p.startRef, p.endRef)}{p.liveSessionTitle && ` · من درس «${p.liveSessionTitle}»`}</p>
                   <span className="mt-1 flex items-center gap-2 flex-wrap">
                     <Badge className={TASMI_STATUS[p.status].tone}>{TASMI_STATUS[p.status].label}</Badge>
                     {p.attempt > 1 && <Badge className="bg-amber-50 text-amber-900">{attemptLabel(p.attempt)}</Badge>}
@@ -618,6 +618,7 @@ function ReviewForm({ submission, onDone }: { submission: TasmiSubmission; onDon
         <CardTitle>{submission.studentName} — {formatAyahRange(submission.startRef, submission.endRef)}</CardTitle>
         <p className="text-sm text-text-secondary">
           أُرسل {new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(submission.submittedAt))}
+          {submission.liveSessionTitle && <> · تسمّع آيات الدرس المسجَّل «{submission.liveSessionTitle}»</>}
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
