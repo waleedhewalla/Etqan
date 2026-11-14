@@ -75,10 +75,12 @@ export interface QueueCard {
 
 export interface QueueItem {
   card: QueueCard;
-  reason: 'manzil' | 'sabqi' | 'sabaq';
+  reason: 'manzil' | 'sabqi' | 'sabaq' | 'test';
   estimatedMinutes: number;
   rationale: string;
 }
+
+export interface SurahProgress { sura: number; total: number; memorized: number; mastered: number; due: number }
 
 export interface Gatekeeper {
   locked: boolean;
@@ -1085,6 +1087,16 @@ class ApiClient {
     return this.client.get<BadgeProgress[]>('/badges');
   }
 
+  /** A random self-test over what she has memorized: `sura` limits it to one sura, `count` is how many verses. */
+  getSelfTest(options: { sura?: number; count?: number } = {}) {
+    return this.client.get<{ items: QueueItem[] }>('/scheduler/test', { params: options });
+  }
+
+  /** Per sura of her plan: how many verses, how many are memorized, solid (mastered) and due. */
+  getMemorizationMap() {
+    return this.client.get<{ surahs: SurahProgress[] }>('/scheduler/map');
+  }
+
   getStats() {
     return this.client.get<StatsResponse>('/scheduler/stats');
   }
@@ -1355,6 +1367,7 @@ export const queryKeys = {
   myLessons: ['lessons', 'mine'] as const,
   sectionLessons: (sectionId: string) => ['lessons', 'section', sectionId] as const,
   myTasmi: ['tasmi', 'mine'] as const,
+  memorizationMap: ['scheduler', 'map'] as const,
   voiceStatus: ['voice', 'status'] as const,
   badges: ['badges'] as const,
   adminOverview: (tenantId?: string) => ['admin', 'overview', tenantId ?? 'own'] as const,
