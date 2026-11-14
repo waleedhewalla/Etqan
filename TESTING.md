@@ -312,12 +312,31 @@ says live lessons are not set up and nothing else changes.
 - The recording is made by the teacher's browser (desktop Chrome, Edge or Firefox) and sent in ten-second pieces.
   Closing or reloading the page stops it; what was sent is kept, and re-entering says so. A browser that cannot record
   says so and the lesson goes on unrecorded.
+- **A dropped connection** does not end the recording: a piece that cannot be sent is tried again (waiting up to 15 seconds
+  between tries) while later pieces wait in the browser, and the recording only stops after five minutes without a piece
+  getting through, when sixty pieces (about ten minutes) are waiting, or when the server refuses a piece for good (too large,
+  no longer recording). A piece sent twice because the reply was lost is accepted once. Rules: `apps/web/src/lib/piece-sender.ts`.
 - A guardian, another halaqa's student or teacher gets 404 for the list entry and the link. The link lasts four hours.
 - `LIVE_RECORDING_MAX_MB` (default 600) stops a recording that grows too large; `LIVE_RECORDING_RETENTION_DAYS`
   (default 90) deletes old ones in the nightly job. While a lesson runs its pieces are in `AUDIO_DIR/.recording`.
 - API: `POST /v1/live/:id/recording/start`, `POST /v1/live/:id/recording/chunks` (multipart `seq`, `chunk`),
   `POST /v1/live/:id/recording/finish`, `GET /v1/live/recordings`, `GET /v1/live/:id/recording-link`,
   `GET /v1/live/:id/recording?token=`, `DELETE /v1/live/:id/recording`.
+
+### Checked in a real run (package E)
+
+Done with a real API process, a real LiveKit server and Chromium with a fake microphone and camera:
+- The lobby's «تسجيل الدرس» box is ticked by default and the badge shows for both teacher and student.
+- Teacher offline for 40 seconds in the middle of a recording: no failure notice, the buffered pieces arrived when the network
+  came back, the lesson ended as `ready` (about 1.1 MB for 79 seconds) and the file decodes cleanly with no gap over three seconds.
+- The reminder timer, in the running API process: a lesson set 14 minutes ahead produced the 15-minute reminder for every
+  student of the halaqa and for the teacher, once each, within a minute.
+- Storage: the same contract tests run against memory, files and an S3 emulator (`s3rver`).
+
+**Still needs real devices or accounts** (not possible from a build machine): Safari and iPhone as teacher (MP4 recording) and
+as student; a teacher's tab in the background for a whole lesson; a lesson of an hour or more; a real S3 bucket (not the emulator);
+real WhatsApp (templates `itqan_otp`, `itqan_absence_alert`, `itqan_live_reminder`) and email senders; students on mobile data
+behind a strict network (a TURN relay is the fix if they cannot hear).
 
 ## Verses to memorize, recorded by the teacher («آيات للحفظ»)
 

@@ -5,6 +5,8 @@
  * of any length never has to fit in memory and a crash loses seconds, not the lesson.
  */
 
+import { createPieceSender } from './piece-sender';
+
 const WIDTH = 1280;
 const HEIGHT = 720;
 const FPS = 5;
@@ -103,31 +105,18 @@ export function startLessonRecorder(options: {
   const recorder = new MediaRecorder(stream, { mimeType: pickType(), videoBitsPerSecond: 400_000, audioBitsPerSecond: 48_000 });
 
   const startedAt = Date.now();
-  let seq = 0;
   let failed = false;
   let stopped: Promise<void> | null = null;
-  // Pieces are sent one after another, each tried a few times before giving up on the recording.
-  let queue: Promise<void> = Promise.resolve();
-  const enqueue = (piece: Blob) => {
-    queue = queue.then(async () => {
-      if (failed) return;
-      const n = seq;
-      for (let attempt = 0; ; attempt++) {
-        try { await options.send(n, piece); seq = n + 1; return; }
-        catch (err) {
-          const status = (err as { response?: { status?: number } })?.response?.status;
-          // Refused for good (too large, no longer recording): trying again cannot help.
-          if (attempt >= 3 || (status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429)) {
-            failed = true;
-            if (recorder.state !== 'inactive') recorder.stop();
-            options.onFailure('upload');
-            return;
-          }
-          await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
-        }
-      }
-    });
-  };
+  // Pieces are sent one after another; a dropped connection is waited out for a few minutes before the recording gives up.
+  const sender = createPieceSender({
+    send: options.send,
+    onFailure: () => {
+      failed = true;
+      if (recorder.state !== 'inactive') recorder.stop();
+      options.onFailure('upload');
+    },
+  });
+  const enqueue = (piece: Blob) => sender.enqueue(piece);
 
   const release = () => {
     stopTicking();
@@ -145,9 +134,9 @@ export function startLessonRecorder(options: {
       stopped ??= (async () => {
         if (recorder.state !== 'inactive') recorder.stop();
         await ended;
-        await queue;
+        await sender.flush();
       })();
-      return stopped.then(() => ({ durationMs: Date.now() - startedAt, sent: seq }));
+      return stopped.then(() => ({ durationMs: Date.now() - startedAt, sent: sender.sent() }));
     },
   };
 }
