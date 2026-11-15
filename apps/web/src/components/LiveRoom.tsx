@@ -13,6 +13,7 @@ import { VerseText } from '@/components/VerseText';
 import { SyncedMushaf } from '@/components/SyncedMushaf';
 import { lessonTime } from '@/lib/live-time';
 import { canRecordLesson, startLessonRecorder, type LessonRecorder } from '@/lib/lesson-recorder';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 type Phase = 'lobby' | 'connecting' | 'live' | 'ended' | 'failed';
 
@@ -22,6 +23,7 @@ type Phase = 'lobby' | 'connecting' | 'live' | 'ended' | 'failed';
  * teacher's is ever offered.
  */
 export function LiveRoom({ sessionId }: { sessionId: string }) {
+  const confirm = useConfirm();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -333,7 +335,7 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
         </div>
         {role === 'host' ? (
           <Button variant="danger" size="sm" loading={end.isPending}
-            onClick={() => { if (window.confirm('إنهاء الدرس لجميع الطالبات؟')) end.mutate(); }}>
+            onClick={async () => { if (await confirm('إنهاء الدرس لجميع الطالبات؟')) end.mutate(); }}>
             <PhoneOff className="w-4 h-4 ml-1" /> إنهاء الدرس
           </Button>
         ) : (
@@ -369,8 +371,8 @@ export function LiveRoom({ sessionId }: { sessionId: string }) {
                   {camera ? <Video className="w-4 h-4 ml-1" /> : <VideoOff className="w-4 h-4 ml-1" />} {camera ? 'إيقاف الكاميرا' : 'الكاميرا'}
                 </Button>
                 {recordingHere && (
-                  <Button variant="outline" onClick={() => {
-                    if (window.confirm('إيقاف التسجيل؟ لا يمكن استئنافه في هذا الدرس.')) void stopRecording().then(() => setRecordingNote('أُوقف التسجيل وحُفظ.'));
+                  <Button variant="outline" onClick={async () => {
+                    if (await confirm('إيقاف التسجيل؟ لا يمكن استئنافه في هذا الدرس.')) void stopRecording().then(() => setRecordingNote('أُوقف التسجيل وحُفظ.'));
                   }}>
                     <Square className="w-4 h-4 ml-1" /> إيقاف التسجيل
                   </Button>

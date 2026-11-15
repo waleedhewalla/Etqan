@@ -3,6 +3,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { AuthProvider } from '@/lib/auth-context';
+import { ConfirmProvider } from '@/components/ConfirmProvider';
+import { DatabaseBehindBanner } from '@/components/DatabaseBehindBanner';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -21,7 +23,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>{children}</AuthProvider>
+      <AuthProvider><ConfirmProvider>{children}<DatabaseBehindBanner /></ConfirmProvider></AuthProvider>
     </QueryClientProvider>
   );
 }

@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth-context';
 import { LoadError, Spinner } from '@/components/LoadState';
 import { DataRequests } from '@/components/DataRequests';
 import { saveBlob } from '@/lib/download';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 const field = 'rounded-xl border border-divider bg-surface-elevated px-3 py-2 text-sm';
 const INVITATION = {
@@ -145,6 +146,7 @@ function UserRow({ user: u, halaqat, open, onToggle, onChange }: { user: Directo
 }
 
 function UserPanel({ user: u, halaqat, isMe, onChange }: { user: DirectoryUser; halaqat: SetupHalaqa[]; isMe: boolean; onChange: () => void }) {
+  const confirm = useConfirm();
   const staff = isStaffRole(u.role);
   const [name, setName] = useState(u.displayNameAr);
   const [contact, setContact] = useState(staff ? u.email ?? '' : u.whatsappE164 ?? '');
@@ -200,7 +202,7 @@ function UserPanel({ user: u, halaqat, isMe, onChange }: { user: DirectoryUser; 
               <li key={h.id} className="flex items-center gap-1.5 rounded-full border border-divider bg-surface-elevated px-3 py-1 text-sm">
                 {h.nameAr}
                 <button type="button" aria-label={`إخراج من ${h.nameAr}`} className="text-red-800" disabled={leave.isPending}
-                  onClick={() => { if (window.confirm(`إخراج ${u.displayNameAr} من «${h.nameAr}»؟ يبقى وردها وسجلّها.`)) { setNotice(''); leave.mutate(h.id); } }}>×</button>
+                  onClick={async () => { if (await confirm(`إخراج ${u.displayNameAr} من «${h.nameAr}»؟ يبقى وردها وسجلّها.`)) { setNotice(''); leave.mutate(h.id); } }}>×</button>
               </li>
             ))}
           </ul>
@@ -221,7 +223,7 @@ function UserPanel({ user: u, halaqat, isMe, onChange }: { user: DirectoryUser; 
               <li key={g.id} className="flex items-center justify-between gap-2 text-sm">
                 <span>{g.displayNameAr} <span dir="ltr" className="text-xs text-text-secondary">{g.whatsappE164}</span></span>
                 <button type="button" className="text-xs text-red-800 underline" disabled={unlink.isPending}
-                  onClick={() => { if (window.confirm(`فكّ ربط ${g.displayNameAr}؟`)) { setNotice(''); unlink.mutate(g.id); } }}>فك الربط</button>
+                  onClick={async () => { if (await confirm(`فكّ ربط ${g.displayNameAr}؟`)) { setNotice(''); unlink.mutate(g.id); } }}>فك الربط</button>
               </li>
             ))}
           </ul>
@@ -243,19 +245,19 @@ function UserPanel({ user: u, halaqat, isMe, onChange }: { user: DirectoryUser; 
             </select>
           </label>
           <Button size="sm" variant="outline" disabled={role === u.role} loading={changeRole.isPending}
-            onClick={() => { setNotice(''); if (window.confirm(`تغيير دور ${u.displayNameAr} إلى «${ROLE_LABEL[role]}»؟ يسري فوراً حتى على جلستها المفتوحة.`)) changeRole.mutate(); }}>تغيير الدور</Button>
+            onClick={async () => { setNotice(''); if (await confirm(`تغيير دور ${u.displayNameAr} إلى «${ROLE_LABEL[role]}»؟ يسري فوراً حتى على جلستها المفتوحة.`)) changeRole.mutate(); }}>تغيير الدور</Button>
         </div>
       )}
 
       <div className="flex flex-wrap items-center gap-3 border-t border-divider pt-3">
         <Button size="sm" variant="ghost" loading={exportData.isPending} onClick={() => { setNotice(''); exportData.mutate(); }}>تصدير بياناتها</Button>
         {!isMe && <Button size="sm" variant="ghost" loading={askDeletion.isPending}
-          onClick={() => { setNotice(''); if (window.confirm(`تسجيل طلب حذف بيانات ${u.displayNameAr}؟ لا يُنفَّذ قبل أن تعتمديه.`)) askDeletion.mutate(); }}>تسجيل طلب حذف</Button>}
+          onClick={async () => { setNotice(''); if (await confirm(`تسجيل طلب حذف بيانات ${u.displayNameAr}؟ لا يُنفَّذ قبل أن تعتمديه.`)) askDeletion.mutate(); }}>تسجيل طلب حذف</Button>}
         {isMe ? (
           <p className="text-xs text-text-secondary">هذا حسابكِ: لا يمكنكِ إيقاف دخولكِ.</p>
         ) : (
           <Button size="sm" variant={u.active ? 'outline' : 'primary'} loading={toggle.isPending}
-            onClick={() => { if (!u.active || window.confirm(`إيقاف حساب ${u.displayNameAr}؟ لن تستطيع الدخول حتى تُعيدي تفعيله. لا يُحذف شيء من سجلها.`)) { setNotice(''); toggle.mutate(); } }}>
+            onClick={async () => { if (!u.active || await confirm(`إيقاف حساب ${u.displayNameAr}؟ لن تستطيع الدخول حتى تُعيدي تفعيله. لا يُحذف شيء من سجلها.`)) { setNotice(''); toggle.mutate(); } }}>
             {u.active ? 'إيقاف الحساب' : 'إعادة تفعيل الحساب'}
           </Button>
         )}

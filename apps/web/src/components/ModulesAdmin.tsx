@@ -7,6 +7,7 @@ import { AlertTriangle, Blocks } from 'lucide-react';
 import { api, errorMessage, queryKeys, type ModuleKey, type ModuleSettingValue, type ModuleView } from '@/lib/api';
 import { toArabicDigits } from '@/lib/quran';
 import { LoadError, Spinner } from '@/components/LoadState';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 const field = 'rounded-xl border border-divider bg-surface-elevated px-3 py-2 text-sm';
 const GROUPS: { title: string; keys: ModuleKey[] }[] = [
@@ -54,6 +55,7 @@ export function ModulesAdmin() {
 }
 
 function ModuleCard({ module: m, all, onChange }: { module: ModuleView; all: Map<ModuleKey, ModuleView>; onChange: (modules: ModuleView[]) => void }) {
+  const confirm = useConfirm();
   const initial = Object.fromEntries(m.settings.map((s) => [s.key, s.value])) as Record<string, ModuleSettingValue>;
   const [values, setValues] = useState(initial);
   const [notice, setNotice] = useState('');
@@ -69,9 +71,9 @@ function ModuleCard({ module: m, all, onChange }: { module: ModuleView; all: Map
       setNotice(change.enabled === true ? 'فُعّلت الوحدة.' : change.enabled === false ? 'أُوقفت الوحدة.' : change.reset ? 'أُعيد الإعداد إلى الافتراضي.' : 'حُفظت الإعدادات.');
     },
   });
-  const toggle = () => {
+  const toggle = async () => {
     setNotice('');
-    if (m.requested && !window.confirm(`إيقاف «${m.labelAr}»؟ تختفي من شاشات المعلمات والطالبات${dependents(m, all)}، وتبقى بياناتها محفوظة.`)) return;
+    if (m.requested && !await confirm(`إيقاف «${m.labelAr}»؟ تختفي من شاشات المعلمات والطالبات${dependents(m, all)}، وتبقى بياناتها محفوظة.`)) return;
     mutation.mutate({ enabled: !m.requested });
   };
 

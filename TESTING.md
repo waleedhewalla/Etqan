@@ -20,6 +20,11 @@ The API reads `.env` from the project root (and `apps/core/.env` if you keep one
 uses the database that `docker compose up -d` starts. If the database is not running, or has no tables yet, the API
 says so when it starts and tells you which command to run.
 
+**After every `git pull`, run `pnpm db:migrate` and restart the API.** If the database is behind the code, the API
+prints a warning when it starts, `GET /v1/health` reports `status: "degraded"` with `migrations.pending`, and any
+screen that needs a missing column shows an amber banner (the API answers 503 `DATABASE_OUT_OF_DATE`) instead of a
+bare "تعذّر تحميل البيانات".
+
 ## Quran text
 
 The verse text is not stored in this repository. Load it into the database once:

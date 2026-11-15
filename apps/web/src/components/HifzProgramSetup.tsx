@@ -12,6 +12,7 @@ import { formatAyahRange, SURAH_NAMES, toArabicDigits } from '@/lib/quran';
 import { PACE_OPTIONS, paceLabel, programDay, weekRhythm, weeksText } from '@/lib/program';
 import { LoadError, Spinner } from '@/components/LoadState';
 import { useModules } from '@/lib/modules';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 const field = 'rounded-xl border border-divider bg-surface-elevated px-3 py-2 text-sm';
 const MAX_PERIOD_AYAT = 1500;
@@ -141,6 +142,7 @@ export function HifzProgramSetup() {
 }
 
 function Settings({ program, onChange, onDeleted }: { program: HifzProgram; onChange: () => void; onDeleted: () => void }) {
+  const confirm = useConfirm();
   const [name, setName] = useState(program.nameAr);
   const [days, setDays] = useState(program.hifzDaysPerWeek);
   const [weights, setWeights] = useState<ProgramWeights>(program.weights);
@@ -205,7 +207,7 @@ function Settings({ program, onChange, onDeleted }: { program: HifzProgram; onCh
         <Button type="button" variant="ghost" loading={archive.isPending} onClick={() => archive.mutate()}>{program.active ? 'أرشفة البرنامج' : 'إعادة التفعيل'}</Button>
         {!program.inUse && !program.hasResults && (
           <Button type="button" variant="ghost" loading={remove.isPending}
-            onClick={() => { if (window.confirm(`حذف «${program.nameAr}» وفتراته؟ لا يمكن التراجع.`)) remove.mutate(); }}>
+            onClick={async () => { if (await confirm(`حذف «${program.nameAr}» وفتراته؟ لا يمكن التراجع.`)) remove.mutate(); }}>
             <Trash2 className="w-4 h-4 ml-1" /> حذف
           </Button>
         )}

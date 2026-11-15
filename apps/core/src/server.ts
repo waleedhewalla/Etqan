@@ -25,6 +25,7 @@ import { adminRoutes } from './modules/admin/routes';
 import { adminModulesRoutes } from './modules/admin/modules-routes';
 import { moduleForPath, requireModule } from './lib/modules';
 import { privacyRoutes } from './modules/privacy/routes';
+import { readMigrationStatus } from './lib/migrations';
 import { executeDueDeletions } from './lib/data-deletion';
 import { adminUsersRoutes } from './modules/admin/users-routes';
 import { programRoutes } from './modules/program/routes';
@@ -222,6 +223,19 @@ async function start() {
       ].join('\n'));
       process.exit(1);
     }
+  }
+
+  // Say loudly, at start, when the database lacks migrations the code needs (the code was updated and db:migrate not run).
+  const { pending } = await readMigrationStatus(db);
+  if (pending) {
+    console.error([
+      '',
+      `The database is ${pending} migration${pending > 1 ? 's' : ''} behind the code, so some screens will fail to load.`,
+      config.NODE_ENV === 'production'
+        ? 'Run the migration step (docker compose -f compose.prod.yml run --rm migrate) and restart the api.'
+        : 'Run:  pnpm db:migrate   and restart the server.',
+      '',
+    ].join('\n'));
   }
 
   try {

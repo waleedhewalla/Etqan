@@ -7,6 +7,7 @@ import { Copy, GraduationCap, Pencil, UserPlus, UsersRound } from 'lucide-react'
 import { api, errorMessage, queryKeys, type SetupHalaqa, type SetupStaff } from '@/lib/api';
 import { toArabicDigits } from '@/lib/quran';
 import { LoadError, Spinner } from '@/components/LoadState';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 const field = 'rounded-xl border border-divider bg-surface-elevated px-3 py-2 text-sm';
 const INVITATION: Record<string, string> = {
@@ -38,6 +39,7 @@ export function InstitutionSetup() {
 }
 
 function Teachers({ staff, onChange }: { staff: SetupStaff[]; onChange: () => void }) {
+  const confirm = useConfirm();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [notice, setNotice] = useState('');
@@ -49,8 +51,8 @@ function Teachers({ staff, onChange }: { staff: SetupStaff[]; onChange: () => vo
     mutationFn: (s: SetupStaff) => api.editStaff(s.id, { active: !s.active }).then((r) => r.data),
     onSuccess: (s) => { add.reset(); setNotice(s.active ? `أُعيد دخول ${s.displayNameAr}.` : `أُوقف دخول ${s.displayNameAr}.`); onChange(); },
   });
-  const confirmToggle = (s: SetupStaff) => {
-    if (s.active && !window.confirm(`إيقاف دخول ${s.displayNameAr}؟ ${s.halaqat ? 'حلقاتها تبقى باسمها حتى تُسندي كلاً منها إلى معلمة أخرى.' : ''}`)) return;
+  const confirmToggle = async (s: SetupStaff) => {
+    if (s.active && !await confirm(`إيقاف دخول ${s.displayNameAr}؟ ${s.halaqat ? 'حلقاتها تبقى باسمها حتى تُسندي كلاً منها إلى معلمة أخرى.' : ''}`)) return;
     toggle.mutate(s);
   };
 
@@ -96,6 +98,7 @@ function Teachers({ staff, onChange }: { staff: SetupStaff[]; onChange: () => vo
 }
 
 function Halaqat({ halaqat, teachers, onChange }: { halaqat: SetupHalaqa[]; teachers: SetupStaff[]; onChange: () => void }) {
+  const confirm = useConfirm();
   const [name, setName] = useState('');
   const [teacherId, setTeacherId] = useState('');
   const [notice, setNotice] = useState('');
@@ -118,9 +121,9 @@ function Halaqat({ halaqat, teachers, onChange }: { halaqat: SetupHalaqa[]; teac
     mutationFn: ({ id, active }: { id: string; active: boolean }) => api.editHalaqa(id, { active }).then((r) => r.data),
     onSuccess: (h) => { setEditing(null); setNotice(h.active ? `أُعيد فتح «${h.nameAr}».` : `أُغلقت «${h.nameAr}». لم يُحذف شيء، ويمكن إعادة فتحها.`); onChange(); },
   });
-  const close = (h: SetupHalaqa) => {
+  const close = async (h: SetupHalaqa) => {
     const warn = h.students ? ` فيها ${toArabicDigits(h.students)} طالبة: لن تظهر الحلقة لهن ولا لمعلمتهن، ويبقى وردهن وسجلّهن.` : '';
-    if (window.confirm(`إغلاق «${h.nameAr}»؟${warn} لن يستطيع أحد الانضمام برمزها.`)) setActive.mutate({ id: h.id, active: false });
+    if (await confirm(`إغلاق «${h.nameAr}»؟${warn} لن يستطيع أحد الانضمام برمزها.`)) setActive.mutate({ id: h.id, active: false });
   };
   const busy = reassign.isPending || save.isPending || setActive.isPending;
   const copy = async (code: string) => {

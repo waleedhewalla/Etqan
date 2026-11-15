@@ -8,6 +8,7 @@ import { api, errorMessage, queryKeys, type AdminDataRequest } from '@/lib/api';
 import { ROLE_LABEL } from '@/lib/admin-labels';
 import { toArabicDigits } from '@/lib/quran';
 import { LoadError, Spinner } from '@/components/LoadState';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 const day = (iso: string) => new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Africa/Cairo' }).format(new Date(iso));
 const field = 'rounded-xl border border-divider bg-surface-elevated px-3 py-2 text-sm';
@@ -46,6 +47,7 @@ export function DataRequests() {
 }
 
 function RequestRow({ request: r, onChange }: { request: AdminDataRequest; onChange: (message: string) => void }) {
+  const confirm = useConfirm();
   const [mode, setMode] = useState<'anonymize' | 'erase'>('anonymize');
   const done = (message: string) => () => onChange(`${r.subjectName ?? 'الحساب'}: ${message}`);
   const approve = useMutation({ mutationFn: () => api.approveDataRequest(r.id, mode), onSuccess: done('اعتُمد الطلب، وتوقف الحساب.') });
@@ -80,14 +82,14 @@ function RequestRow({ request: r, onChange }: { request: AdminDataRequest; onCha
                 {r.erasable && <option value="erase">حذف كل شيء (الدرجات أيضاً)</option>}
               </select>
               <Button size="sm" loading={approve.isPending} disabled={r.leadsHalaqat > 0}
-                onClick={() => { if (window.confirm(mode === 'erase' ? 'حذف الحساب وكل ما يتعلق به بما فيه الدرجات؟ لا يمكن التراجع بعد التنفيذ.' : 'اعتماد الطلب؟ يتوقف الحساب فوراً وتُزال الهوية بعد مدة السماح.')) approve.mutate(); }}>اعتماد</Button>
+                onClick={async () => { if (await confirm(mode === 'erase' ? 'حذف الحساب وكل ما يتعلق به بما فيه الدرجات؟ لا يمكن التراجع بعد التنفيذ.' : 'اعتماد الطلب؟ يتوقف الحساب فوراً وتُزال الهوية بعد مدة السماح.')) approve.mutate(); }}>اعتماد</Button>
               <Button size="sm" variant="outline" loading={reject.isPending}
                 onClick={() => { const reason = window.prompt('سبب الرفض (تراه صاحبة الطلب):'); if (reason && reason.trim().length >= 3) reject.mutate(reason.trim()); }}>رفض</Button>
             </>
           )}
           {(r.status === 'pending' || r.status === 'scheduled') && (
             <Button size="sm" variant="ghost" loading={cancel.isPending}
-              onClick={() => { if (window.confirm('إلغاء الطلب؟ يُعاد تفعيل الحساب إن كان الاعتماد أوقفه.')) cancel.mutate(); }}>إلغاء الطلب</Button>
+              onClick={async () => { if (await confirm('إلغاء الطلب؟ يُعاد تفعيل الحساب إن كان الاعتماد أوقفه.')) cancel.mutate(); }}>إلغاء الطلب</Button>
           )}
         </div>
       </div>

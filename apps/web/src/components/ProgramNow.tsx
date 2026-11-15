@@ -7,12 +7,14 @@ import { BookOpenCheck } from 'lucide-react';
 import { api, errorMessage, queryKeys } from '@/lib/api';
 import { formatAyahRange, toArabicDigits } from '@/lib/quran';
 import { CRITERION_LABEL, PHASE_LABEL, paceLabel, programDay, weekRhythm, weeksText, studentsText } from '@/lib/program';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 /**
  * What the halaqa must memorize in the period it is in, from the program its institution set. A teacher can put
  * the period's verses in every student's plan; a student sees what is asked of her and how the period is assessed.
  */
 export function ProgramNow({ sectionId, sectionName }: { sectionId: string; sectionName?: string }) {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const now = useQuery({ queryKey: queryKeys.sectionProgram(sectionId), queryFn: () => api.getSectionProgram(sectionId).then((r) => r.data) });
   const [notice, setNotice] = useState('');
@@ -72,7 +74,7 @@ export function ProgramNow({ sectionId, sectionName }: { sectionId: string; sect
         {n.canApply && (
           <div className="pt-1 space-y-2">
             <Button size="sm" loading={apply.isPending}
-              onClick={() => { setNotice(''); if (window.confirm('إضافة آيات هذه الفترة إلى خطط جميع طالبات الحلقة كحفظ جديد؟')) apply.mutate(); }}>
+              onClick={async () => { setNotice(''); if (await confirm('إضافة آيات هذه الفترة إلى خطط جميع طالبات الحلقة كحفظ جديد؟')) apply.mutate(); }}>
               أضيفي آيات الفترة إلى خطط الطالبات
             </Button>
             {notice && <p role="status" className="text-text-primary">{notice}</p>}

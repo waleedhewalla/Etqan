@@ -9,6 +9,7 @@ import { api, errorMessage, queryKeys, type Criterion, type PeriodStandingRow, t
 import { toArabicDigits } from '@/lib/quran';
 import { CRITERIA, CRITERION_LABEL, PHASE_LABEL, programDay } from '@/lib/program';
 import { LoadError, Spinner } from '@/components/LoadState';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 const field = 'rounded-xl border border-divider bg-surface-elevated px-3 py-2 text-sm';
 const STATUS: Record<PeriodStandingRow['status'], { label: string; tone: 'green' | 'gold' | 'neutral' | 'info' }> = {
@@ -84,6 +85,7 @@ function TestPanel({ sectionId, studentId, onDone }: { sectionId: string; studen
 }
 
 function TestForm({ sectionId, studentId, form, onDone }: { sectionId: string; studentId: string; form: PeriodTestForm; onDone: () => void }) {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const criteria = CRITERIA.filter((c) => c !== 'review' || form.reviewApplies);
   const [values, setValues] = useState<Record<Criterion, string>>({ hifz: '', tajweed: '', review: '', retention: '' });
@@ -184,7 +186,7 @@ function TestForm({ sectionId, studentId, form, onDone }: { sectionId: string; s
       )}
       {form.latest && (
         <Button size="sm" variant="ghost" loading={undo.isPending}
-          onClick={() => { if (window.confirm(`التراجع عن آخر نتيجة (${form.latest!.periodName}، ${toArabicDigits(form.latest!.total)})؟ تبقى محفوظة في السجل وتُحتسب كأنها لم تكن.`)) undo.mutate(form.latest!.id); }}>
+          onClick={async () => { if (await confirm(`التراجع عن آخر نتيجة (${form.latest!.periodName}، ${toArabicDigits(form.latest!.total)})؟ تبقى محفوظة في السجل وتُحتسب كأنها لم تكن.`)) undo.mutate(form.latest!.id); }}>
           التراجع عن آخر نتيجة
         </Button>
       )}

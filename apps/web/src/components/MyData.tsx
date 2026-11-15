@@ -8,11 +8,13 @@ import { api, errorMessage, queryKeys } from '@/lib/api';
 import { saveBlob } from '@/lib/download';
 import { toArabicDigits } from '@/lib/quran';
 import { SUPPORT_EMAIL } from '@/lib/site';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 const day = (iso: string) => new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Africa/Cairo' }).format(new Date(iso));
 
 /** What the person may do with her own data: download everything the app keeps about her, or ask for it to be deleted. */
 export function MyData() {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const status = useQuery({ queryKey: queryKeys.myDataRequest, queryFn: () => api.getMyDataRequest().then((r) => r.data) });
   const [notice, setNotice] = useState('');
@@ -59,7 +61,7 @@ export function MyData() {
                 قد تحتفظ المؤسسة بدرجاتكِ وحضوركِ دون اسمكِ، لأنها سجلّ أكاديمي لها، ما لم تقرر الإدارة حذف كل شيء.
               </p>
               <Button variant="outline" size="sm" loading={ask.isPending}
-                onClick={() => { setNotice(''); if (window.confirm('طلب حذف بياناتكِ؟ إن اعتُمد الطلب يتوقف حسابكِ ولا تستطيعين الدخول.')) ask.mutate(); }}>
+                onClick={async () => { setNotice(''); if (await confirm('طلب حذف بياناتكِ؟ إن اعتُمد الطلب يتوقف حسابكِ ولا تستطيعين الدخول.')) ask.mutate(); }}>
                 طلب حذف بياناتي
               </Button>
               {ask.isError && <p role="alert" className="text-red-800">{errorMessage(ask.error, 'تعذّر إرسال الطلب.')}</p>}

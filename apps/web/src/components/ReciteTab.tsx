@@ -15,12 +15,14 @@ import { StudentLessons } from '@/components/StudentLessons';
 import { LessonRecordings } from '@/components/LessonRecordings';
 import { useModules } from '@/lib/modules';
 import { TASMI_STATUS, attemptLabel } from '@/lib/tasmi-status';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 const DEFAULT_MAX_AYAT = 60;
 
 
 /** Student records a recitation for her teacher and sees her earlier submissions. */
 export function ReciteTab() {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const { isOn, setting } = useModules();
   /** The longest recitation one recording may cover: the institution's setting. */
@@ -319,7 +321,7 @@ export function ReciteTab() {
                     <TasmiAudio id={t.id} hasAudio={t.hasAudio} />
                     {t.hasAudio && (
                       <Button variant="ghost" size="sm" loading={remove.isPending && remove.variables === t.id}
-                        onClick={() => { if (window.confirm('حذف هذا التسجيل نهائياً؟ تبقى درجتكِ وملاحظات معلمتكِ.')) remove.mutate(t.id); }}>
+                        onClick={async () => { if (await confirm('حذف هذا التسجيل نهائياً؟ تبقى درجتكِ وملاحظات معلمتكِ.')) remove.mutate(t.id); }}>
                         حذف التسجيل
                       </Button>
                     )}

@@ -11,6 +11,7 @@ import { formatAyahRange, SURAH_NAMES, toArabicDigits } from '@/lib/quran';
 import { LoadError, Spinner } from '@/components/LoadState';
 import { RecordingPlayer, lessonLength } from '@/components/LessonRecordings';
 import { institutionTimeToIso, lessonTime, localInputValue } from '@/lib/live-time';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 const field = 'rounded-xl border border-divider bg-surface-elevated px-3 py-2';
 const when = (iso: string) => new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
@@ -19,6 +20,7 @@ const dayOf = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Afr
 
 /** Where a teacher starts a live lesson for her halaqa, and finds the ones she has held. */
 export function TeacherLive({ sectionId }: { sectionId: string }) {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const key = queryKeys.sectionLive(sectionId);
   const list = useQuery({ queryKey: key, queryFn: () => api.getSectionLive(sectionId).then((r) => r.data), refetchInterval: 15000 });
@@ -70,7 +72,7 @@ export function TeacherLive({ sectionId }: { sectionId: string }) {
     mutationFn: async (session: LiveSession) => {
       const { data } = await api.getLiveAttendance(session.id);
       const absent = data.records.filter((r) => !r.present).length;
-      const ok = window.confirm(
+      const ok = await confirm(
         `تسجيل حضور ${dayOf(session.startedAt)} من هذا الدرس؟ حضرت ${data.records.length - absent} وغابت ${absent}.`
         + (absent ? ' يصل تنبيه إلى أولياء أمور الغائبات.' : ''),
       );
@@ -176,7 +178,7 @@ export function TeacherLive({ sectionId }: { sectionId: string }) {
                   <div className="flex gap-2">
                     <Button size="sm" loading={startNow.isPending && startNow.variables === s.id} disabled={Boolean(running)} onClick={() => startNow.mutate(s.id)}>ابدئي الآن</Button>
                     <Button size="sm" variant="outline" loading={cancel.isPending && cancel.variables === s.id}
-                      onClick={() => { if (window.confirm(`إلغاء درس «${s.title}»؟`)) cancel.mutate(s.id); }}>إلغاء</Button>
+                      onClick={async () => { if (await confirm(`إلغاء درس «${s.title}»؟`)) cancel.mutate(s.id); }}>إلغاء</Button>
                   </div>
                 </li>
               ))}
@@ -212,7 +214,7 @@ export function TeacherLive({ sectionId }: { sectionId: string }) {
                       </Button>
                       {s.recordingStatus === 'ready' && (
                         <Button size="sm" variant="ghost" loading={removeRecording.isPending && removeRecording.variables === s.id}
-                          onClick={() => { if (window.confirm('حذف تسجيل هذا الدرس؟ لن تتمكن الطالبات من مشاهدته بعد ذلك.')) removeRecording.mutate(s.id); }}>
+                          onClick={async () => { if (await confirm('حذف تسجيل هذا الدرس؟ لن تتمكن الطالبات من مشاهدته بعد ذلك.')) removeRecording.mutate(s.id); }}>
                           <Trash2 className="w-4 h-4 ml-1" /> حذف التسجيل
                         </Button>
                       )}

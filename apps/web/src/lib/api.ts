@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
+import { DATABASE_BEHIND_EVENT, databaseBehindText } from './database-behind';
 
 /**
  * Where the browser reaches the API. Set at build time for a deployment. Left empty in development, the browser
@@ -692,6 +693,7 @@ const ADMIN_DETAILS: [string, string][] = [
 export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاولي مرة أخرى') {
   const e = err as AxiosError<{ detail?: string; message?: string; code?: string }>;
   const code = e?.response?.data?.code;
+  if (code === 'DATABASE_OUT_OF_DATE') return databaseBehindText();
   if (code === 'CONSENT_REQUIRED') return 'نحتاج موافقتكِ على تسجيل الصوت أولاً.';
   if (e?.response?.status === 413) return 'التسجيل كبير جداً. سجّلي مقطعاً أقصر.';
   if (e?.response?.status === 415) return 'تعذّر قبول هذا التسجيل. جرّبي متصفحاً آخر.';
@@ -761,6 +763,9 @@ class ApiClient {
           }
           clearSession();
           if (typeof window !== 'undefined') window.location.href = '/auth/login';
+        }
+        if (typeof window !== 'undefined' && (error.response?.data as { code?: string } | undefined)?.code === 'DATABASE_OUT_OF_DATE') {
+          window.dispatchEvent(new Event(DATABASE_BEHIND_EVENT));
         }
         return Promise.reject(error);
       },
