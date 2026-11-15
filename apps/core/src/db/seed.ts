@@ -14,7 +14,7 @@ import '../env';
 import { eq } from 'drizzle-orm';
 import { closeDb, getDb } from './index';
 import {
-  tenants, users, sections, sectionEnrollments, guardianLinks, syllabi, syllabusPassages,
+  tenants, users, sections, sectionEnrollments, guardianLinks,
   studentCards, reviewLogs, streaks, attendance, tasmiSubmissions, assignments,
 } from './schema';
 import { addDays, localDate, startOfLocalDay } from '../lib/dates';
@@ -63,14 +63,6 @@ export async function seed() {
   const [section] = await db.insert(sections).values({
     tenantId: tenant.id, nameAr: 'حلقة سورة البقرة — أ', joinCode: SEED_JOIN_CODE, teacherId: teacher.id,
   }).returning();
-
-  const [syllabus] = await db.insert(syllabi).values({
-    tenantId: tenant.id, nameAr: 'سورة البقرة — الجزء الأول', createdBy: teacher.id,
-  }).returning();
-  await db.insert(syllabusPassages).values([
-    { syllabusId: syllabus.id, nameAr: 'البقرة ١–١٠', startRef: '2:1', endRef: '2:10', sortOrder: 1 },
-    { syllabusId: syllabus.id, nameAr: 'البقرة ١١–٢٥', startRef: '2:11', endRef: '2:25', sortOrder: 2 },
-  ]);
 
   const createdStudents: (typeof users.$inferSelect)[] = [];
   for (const s of STUDENTS) {

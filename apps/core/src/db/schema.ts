@@ -323,30 +323,6 @@ export const sectionEnrollments = pgTable('section_enrollments', {
   sectionStudentIdx: uniqueIndex('enrollments_section_student_idx').on(t.sectionId, t.studentId),
 }));
 
-// ── Syllabus ──
-
-export const syllabi = pgTable('syllabi', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  tenantId: uuid('tenant_id').references(() => tenants.id).notNull(),
-  nameAr: text('name_ar').notNull(),
-  nameEn: text('name_en'),
-  riwayahId: varchar('riwayah_id', { length: 32 }).default('hafs').notNull(),
-  createdBy: uuid('created_by').references(() => users.id),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
-
-export const syllabusPassages = pgTable('syllabus_passages', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  syllabusId: uuid('syllabus_id').references(() => syllabi.id, { onDelete: 'cascade' }).notNull(),
-  nameAr: text('name_ar').notNull(),
-  startRef: varchar('start_ref', { length: 12 }).notNull(),
-  endRef: varchar('end_ref', { length: 12 }).notNull(),
-  sortOrder: integer('sort_order').notNull(),
-}, (t) => ({
-  syllabusIdx: index('syllabus_passages_syllabus_idx').on(t.syllabusId),
-}));
-
 // ── Quran text ──
 
 // One row per ayah (Hafs). Words are derived by splitting on whitespace.
