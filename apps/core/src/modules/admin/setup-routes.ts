@@ -12,9 +12,9 @@ import { auditLog } from '../audit/service';
 import { generateJoinCode } from '../section/routes';
 
 /** Who may add teachers and halaqat. Advisors see the admin console but do not staff the institution. */
-const MANAGER_ROLES: readonly string[] = ['dean', 'operator', 'superadmin'];
-/** The staff a dean manages here: whoever can be given a halaqa. */
-const ASSIGNABLE_ROLES: readonly string[] = [...TEACHER_ROLES, 'dean'];
+const MANAGER_ROLES: readonly string[] = ['admin', 'operator', 'superadmin'];
+/** The staff an admin manages here: whoever can be given a halaqa. */
+const ASSIGNABLE_ROLES: readonly string[] = [...TEACHER_ROLES, 'admin'];
 
 const name = z.string().trim().min(2).max(120);
 const addStaffSchema = z.object({
@@ -119,8 +119,8 @@ export async function adminSetupRoutes(app: FastifyInstance) {
     const [target] = await db.select().from(users).where(and(eq(users.id, id), eq(users.tenantId, tenantId))).limit(1);
     if (!target || !ASSIGNABLE_ROLES.includes(target.role)) return request.server.httpErrors.notFound('Teacher not found');
     if (body.active === false && id === request.user.sub) return request.server.httpErrors.badRequest('You cannot stop your own access');
-    if (body.active !== undefined && target.role === 'dean' && id !== request.user.sub && request.user.role === 'dean') {
-      return request.server.httpErrors.forbidden('A dean cannot change another dean\'s access');
+    if (body.active !== undefined && target.role === 'admin' && id !== request.user.sub && request.user.role === 'admin') {
+      return request.server.httpErrors.forbidden('An admin cannot change another admin\'s access');
     }
 
     await db.update(users).set({

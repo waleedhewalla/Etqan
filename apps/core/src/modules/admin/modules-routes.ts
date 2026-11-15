@@ -15,7 +15,7 @@ import { MODULES, checkConfig, forgetModules, moduleDef, resolveModules, type Mo
 import { planIncludes } from '../../lib/plan';
 import { auditLog } from '../audit/service';
 
-const MANAGER_ROLES: readonly string[] = ['dean', 'operator', 'superadmin'];
+const MANAGER_ROLES: readonly string[] = ['admin', 'operator', 'superadmin'];
 const keyParam = z.object({ key: z.string().min(1).max(40) });
 const changeSchema = z.object({
   enabled: z.boolean().optional(),

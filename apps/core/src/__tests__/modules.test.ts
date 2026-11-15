@@ -97,9 +97,9 @@ describe.skipIf(!process.env.DATABASE_URL)('configuring modules', () => {
   const storage = new MemoryStorage();
   const call = (who: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', url: string, payload?: object) =>
     app.inject({ method, url: `/v1${url}`, headers: { authorization: `Bearer ${tokens[who]}` }, payload });
-  const put = (key: string, body: object, who = 'dean') => call(who, 'PUT', `/admin/modules/${key}`, body);
+  const put = (key: string, body: object, who = 'admin') => call(who, 'PUT', `/admin/modules/${key}`, body);
   const tok = (u: { id: string; role: string; tenantId: string | null }) => generateToken({ sub: u.id, role: u.role, facultyId: u.tenantId! });
-  const moduleOf = async (key: string, who = 'dean') => (await call(who, 'GET', '/admin/modules')).json().modules.find((m: { key: string }) => m.key === key);
+  const moduleOf = async (key: string, who = 'admin') => (await call(who, 'GET', '/admin/modules')).json().modules.find((m: { key: string }) => m.key === key);
   const multipart = (fields: Record<string, string>) => {
     const boundary = `----itqan${randomUUID()}`;
     const parts = Object.entries(fields).map(([k, v]) => `--${boundary}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`).join('') + `--${boundary}--\r\n`;
@@ -120,12 +120,12 @@ describe.skipIf(!process.env.DATABASE_URL)('configuring modules', () => {
     const [other] = await db.insert(tenants).values({ slug: `mox-${tag}`, nameAr: 'معهد آخر' }).returning();
     const mk = async (tenantId: string, role: typeof users.$inferInsert['role'], name: string) =>
       (await db.insert(users).values({ tenantId, role, displayNameAr: name }).returning())[0];
-    const dean = await mk(tenant.id, 'dean', 'العميدة');
+    const admin = await mk(tenant.id, 'admin', 'المسؤولة');
     const advisor = await mk(tenant.id, 'advisor', 'المرشدة');
     const teacher = await mk(tenant.id, 'lecturer', 'المعلمة');
     const student = await mk(tenant.id, 'student', 'أسماء');
     const guardian = await mk(tenant.id, 'mahram', 'ولي الأمر');
-    const otherDean = await mk(other.id, 'dean', 'عميدة أخرى');
+    const otherDean = await mk(other.id, 'admin', 'مسؤولة أخرى');
     const otherTeacher = await mk(other.id, 'lecturer', 'معلمة أخرى');
     const otherStudent = await mk(other.id, 'student', 'طالبة أخرى');
     const code = (p: string) => `${p}${tag.toUpperCase().slice(0, 6)}`;
@@ -135,7 +135,7 @@ describe.skipIf(!process.env.DATABASE_URL)('configuring modules', () => {
     await db.insert(guardianLinks).values({ studentId: student.id, guardianId: guardian.id });
     Object.assign(ids, { tenant: tenant.id, other: other.id, section: section.id, otherSection: otherSection.id, student: student.id, otherStudent: otherStudent.id, teacher: teacher.id, otherTeacher: otherTeacher.id });
     Object.assign(tokens, {
-      dean: tok(dean), advisor: tok(advisor), teacher: tok(teacher), student: tok(student), guardian: tok(guardian),
+      admin: tok(admin), advisor: tok(advisor), teacher: tok(teacher), student: tok(student), guardian: tok(guardian),
       otherDean: tok(otherDean), otherTeacher: tok(otherTeacher), otherStudent: tok(otherStudent),
     });
   });
@@ -155,7 +155,7 @@ describe.skipIf(!process.env.DATABASE_URL)('configuring modules', () => {
   });
 
   it('lists every module with its state and settings', async () => {
-    const res = (await call('dean', 'GET', '/admin/modules')).json();
+    const res = (await call('admin', 'GET', '/admin/modules')).json();
     expect(res.modules.map((m: { key: string }) => m.key)).toEqual([...MODULE_KEYS]);
     const review = res.modules.find((m: { key: string }) => m.key === 'review');
     expect(review).toMatchObject({ core: true, enabled: true });
@@ -211,9 +211,9 @@ describe.skipIf(!process.env.DATABASE_URL)('configuring modules', () => {
 
   it('keeps the admin screens for a module reachable only while it is on, and always lets the admin switch it back', async () => {
     await put('program', { enabled: false });
-    expect((await call('dean', 'GET', '/admin/programs')).json().code).toBe('MODULE_DISABLED');
+    expect((await call('admin', 'GET', '/admin/programs')).json().code).toBe('MODULE_DISABLED');
     expect((await put('program', { enabled: true })).statusCode).toBe(200);
-    expect((await call('dean', 'GET', '/admin/programs')).statusCode).toBe(200);
+    expect((await call('admin', 'GET', '/admin/programs')).statusCode).toBe(200);
   });
 
   it('turns off what depends on a module with it, and says why', async () => {
@@ -372,9 +372,9 @@ describe.skipIf(!process.env.DATABASE_URL)('configuring modules', () => {
   });
 
   it('records each change in the audit log', async () => {
-    const entries = (await call('dean', 'GET', '/admin/audit?action=module.updated&limit=100')).json().entries;
+    const entries = (await call('admin', 'GET', '/admin/audit?action=module.updated&limit=100')).json().entries;
     expect(entries.length).toBeGreaterThan(5);
-    expect(entries[0]).toMatchObject({ action: 'module.updated', actorName: 'العميدة', resource: 'tenant' });
+    expect(entries[0]).toMatchObject({ action: 'module.updated', actorName: 'المسؤولة', resource: 'tenant' });
     expect(entries.some((e: { details: { module: string; enabled?: boolean } }) => e.details.module === 'badges' && e.details.enabled === false)).toBe(true);
   });
 });

@@ -63,7 +63,7 @@ describe.skipIf(!hasDb)('AI recitation checking', () => {
     const mk = async (tenantId: string, role: typeof users.$inferInsert['role'], name: string) =>
       (await db.insert(users).values({ tenantId, role, displayNameAr: name }).returning())[0];
     const teacher = await mk(tenant.id, 'lecturer', 'المعلمة');
-    const dean = await mk(tenant.id, 'dean', 'العميدة');
+    const admin = await mk(tenant.id, 'admin', 'المسؤولة');
     const offTeacher = await mk(off.id, 'lecturer', 'معلمة');
     const a = await mk(tenant.id, 'student', 'طالبة أ');
     const b = await mk(tenant.id, 'student', 'طالبة ب');
@@ -88,7 +88,7 @@ describe.skipIf(!hasDb)('AI recitation checking', () => {
     Object.assign(ids, { tenant: tenant.id, off: off.id, section: section.id, offSection: offSection.id, a: a.id, b: b.id });
     const tok = (u: { id: string; role: string }, facultyId: string) => generateToken({ sub: u.id, role: u.role, facultyId });
     Object.assign(tokens, {
-      teacher: tok(teacher, tenant.id), dean: tok(dean, tenant.id), offTeacher: tok(offTeacher, off.id),
+      teacher: tok(teacher, tenant.id), admin: tok(admin, tenant.id), offTeacher: tok(offTeacher, off.id),
       a: tok(a, tenant.id), b: tok(b, tenant.id), noAi: tok(noAi, tenant.id), offStudent: tok(offStudent, off.id),
     });
   });
@@ -292,10 +292,10 @@ describe.skipIf(!hasDb)('AI recitation checking', () => {
       expect((await put('teacher', false)).statusCode).toBe(403);
       expect((await put('a', false)).statusCode).toBe(403);
 
-      expect((await put('dean', false)).json()).toEqual({ enabled: false });
+      expect((await put('admin', false)).json()).toEqual({ enabled: false });
       expect((await submit('a')).json().aiStatus).toBeNull();
 
-      expect((await put('dean', true)).json()).toEqual({ enabled: true });
+      expect((await put('admin', true)).json()).toEqual({ enabled: true });
       expect((await submit('a')).json().aiStatus).toBe('pending');
       await drainChecks();
 

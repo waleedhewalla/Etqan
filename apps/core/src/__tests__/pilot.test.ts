@@ -87,8 +87,8 @@ describe.skipIf(!process.env.DATABASE_URL)('GET /v1/admin/pilot', () => {
     const [other] = await db.insert(tenants).values({ slug: `pil-o-${tag}`, nameAr: 'آخر' }).returning();
     const mk = async (tenantId: string, role: typeof users.$inferInsert['role'], name: string) =>
       (await db.insert(users).values({ tenantId, role, displayNameAr: name }).returning())[0];
-    const dean = await mk(tenant.id, 'dean', 'عميدة');
-    const otherDean = await mk(other.id, 'dean', 'عميدة أخرى');
+    const admin = await mk(tenant.id, 'admin', 'مسؤولة');
+    const otherDean = await mk(other.id, 'admin', 'مسؤولة أخرى');
     const teacher = await mk(tenant.id, 'lecturer', 'معلمة');
     const steady = await mk(tenant.id, 'student', 'منتظمة');
     const once = await mk(tenant.id, 'student', 'مرة واحدة');
@@ -113,7 +113,7 @@ describe.skipIf(!process.env.DATABASE_URL)('GET /v1/admin/pilot', () => {
     ]);
     Object.assign(ids, { steady: steady.id });
     const tok = (u: { id: string; role: string; tenantId: string | null }) => generateToken({ sub: u.id, role: u.role, facultyId: u.tenantId! });
-    Object.assign(tokens, { dean: tok(dean), otherDean: tok(otherDean), teacher: tok(teacher), guardian: tok(guardian) });
+    Object.assign(tokens, { admin: tok(admin), otherDean: tok(otherDean), teacher: tok(teacher), guardian: tok(guardian) });
   });
 
   afterAll(async () => {
@@ -125,13 +125,13 @@ describe.skipIf(!process.env.DATABASE_URL)('GET /v1/admin/pilot', () => {
 
   it('is for administrators, and validates the number of weeks', async () => {
     expect((await pilot('teacher')).statusCode).toBe(403);
-    expect((await pilot('dean', '?weeks=0')).statusCode).toBe(400);
-    expect((await pilot('dean', '?weeks=13')).statusCode).toBe(400);
-    expect((await pilot('dean')).json().weeks).toHaveLength(4);
+    expect((await pilot('admin', '?weeks=0')).statusCode).toBe(400);
+    expect((await pilot('admin', '?weeks=13')).statusCode).toBe(400);
+    expect((await pilot('admin')).json().weeks).toHaveLength(4);
   });
 
   it('reports last week and this week from real activity', async () => {
-    const r = (await pilot('dean', '?weeks=2')).json();
+    const r = (await pilot('admin', '?weeks=2')).json();
     expect(r.weeks.map((w: { start: string }) => w.start)).toEqual([lastWeek, thisWeek]);
     expect(r.weeks[0]).toMatchObject({ partial: false, enrolled: 2, active: 2, regular: 1, reviews: 6 });
     expect(r.weeks[0].recitations).toEqual({ submitted: 2, reviewed: 1, medianHoursToReview: 6 });
@@ -140,14 +140,14 @@ describe.skipIf(!process.env.DATABASE_URL)('GET /v1/admin/pilot', () => {
   });
 
   it('counts a guardian opening the weekly report, once', async () => {
-    expect((await pilot('dean', '?weeks=1')).json().weeks[0].guardians).toEqual({ linked: 1, opened: 0 });
+    expect((await pilot('admin', '?weeks=1')).json().weeks[0].guardians).toEqual({ linked: 1, opened: 0 });
     for (let i = 0; i < 2; i++) {
       const res = await app.inject({ method: 'GET', url: `/v1/reports/student/${ids.steady}/weekly`, headers: auth('guardian') });
       expect(res.statusCode).toBe(200);
     }
     // a teacher reading the same report is not a guardian open
     await app.inject({ method: 'GET', url: `/v1/reports/student/${ids.steady}/weekly`, headers: auth('teacher') });
-    expect((await pilot('dean', '?weeks=1')).json().weeks[0].guardians).toEqual({ linked: 1, opened: 1 });
+    expect((await pilot('admin', '?weeks=1')).json().weeks[0].guardians).toEqual({ linked: 1, opened: 1 });
   });
 
   it('shows another institution nothing of this one', async () => {

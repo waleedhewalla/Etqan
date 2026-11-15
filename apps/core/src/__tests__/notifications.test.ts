@@ -28,9 +28,9 @@ describe.skipIf(!process.env.DATABASE_URL)('notifications', () => {
     const student = await mk('student', 'أسماء');
     const other = await mk('student', 'بسمة');
     const teacher = await mk('lecturer', 'المعلمة');
-    const dean = await mk('dean', 'العميدة');
+    const admin = await mk('admin', 'المسؤولة');
     Object.assign(ids, { student: student.id, other: other.id, tenant: tenant.id });
-    Object.assign(tokens, { student: tok(student), other: tok(other), teacher: tok(teacher), dean: tok(dean) });
+    Object.assign(tokens, { student: tok(student), other: tok(other), teacher: tok(teacher), admin: tok(admin) });
     const row = (userId: string, title: string, ago: number, read = false) => ({
       userId, titleAr: title, bodyAr: `نص ${title}`, sentAt: minutesAgo(ago), readAt: read ? new Date() : null, data: { type: 'live_reminder', sessionId: randomUUID() },
     });
@@ -97,7 +97,7 @@ describe.skipIf(!process.env.DATABASE_URL)('notifications', () => {
   });
 
   it('is refused for everyone while the institution has the module off', async () => {
-    const put = (enabled: boolean) => call('dean', 'PUT', '/admin/modules/notifications', { enabled });
+    const put = (enabled: boolean) => call('admin', 'PUT', '/admin/modules/notifications', { enabled });
     expect((await put(false)).statusCode).toBe(200);
     for (const url of ['/notifications', '/notifications/count']) {
       const res = await call('student', 'GET', url);

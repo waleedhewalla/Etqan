@@ -55,7 +55,7 @@ describe.skipIf(!process.env.DATABASE_URL)('verses to memorize, recorded by the 
       (await db.insert(users).values({ tenantId: tenant.id, role, displayNameAr: name }).returning())[0];
     const teacher = await mk('lecturer', 'المعلمة هدى');
     const otherTeacher = await mk('lecturer', 'معلمة أخرى');
-    const dean = await mk('dean', 'العميدة');
+    const admin = await mk('admin', 'المسؤولة');
     const student = await mk('student', 'طالبة');
     const classmate = await mk('student', 'زميلة');
     const outsider = await mk('student', 'من حلقة أخرى');
@@ -73,7 +73,7 @@ describe.skipIf(!process.env.DATABASE_URL)('verses to memorize, recorded by the 
     Object.assign(ids, { section: section.id, otherSection: otherSection.id, student: student.id, classmate: classmate.id, teacher: teacher.id });
     const tok = (u: { id: string; role: string; tenantId: string | null }) => generateToken({ sub: u.id, role: u.role, facultyId: u.tenantId! });
     Object.assign(tokens, {
-      teacher: tok(teacher), otherTeacher: tok(otherTeacher), dean: tok(dean), student: tok(student),
+      teacher: tok(teacher), otherTeacher: tok(otherTeacher), admin: tok(admin), student: tok(student),
       classmate: tok(classmate), outsider: tok(outsider), guardian: tok(guardian),
     });
   });
@@ -134,7 +134,7 @@ describe.skipIf(!process.env.DATABASE_URL)('verses to memorize, recorded by the 
   it('lets the halaqa\'s students and its staff listen, with seeking, and no one else', async () => {
     const link = (who: string) => get(who, `/v1/lessons/${ids.lesson}/audio-link`);
     for (const who of ['outsider', 'guardian', 'otherTeacher']) expect((await link(who)).statusCode).toBe(404);
-    for (const who of ['teacher', 'dean', 'classmate']) expect((await link(who)).statusCode).toBe(200);
+    for (const who of ['teacher', 'admin', 'classmate']) expect((await link(who)).statusCode).toBe(200);
     expect((await get('student', `/v1/lessons/${randomUUID()}/audio-link`)).statusCode).toBe(404);
     const { url } = (await link('student')).json();
 
@@ -187,7 +187,7 @@ describe.skipIf(!process.env.DATABASE_URL)('verses to memorize, recorded by the 
     // Two students in the halaqa; one recited (twice, counted once).
     expect(list.json().map((l: { id: string; students: number; recited: number }) => [l.id, l.students, l.recited]))
       .toEqual([[ids.second, 2, 0], [ids.lesson, 2, 1]]);
-    expect((await get('dean', `/v1/sections/${ids.section}/lessons`)).statusCode).toBe(200);
+    expect((await get('admin', `/v1/sections/${ids.section}/lessons`)).statusCode).toBe(200);
     for (const who of ['student', 'otherTeacher']) expect((await get(who, `/v1/sections/${ids.section}/lessons`)).statusCode).toBe(404);
   });
 

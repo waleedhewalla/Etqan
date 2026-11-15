@@ -5,7 +5,7 @@
  *
  * Sign in as:
  *   teacher  teacher@itqan.local       (magic link is printed in the API log)
- *   dean     dean@itqan.local
+ *   admin     admin@itqan.local
  *   student  +201000000101 … +201000000104  (OTP is printed in the API log)
  *   guardian +201000000201  (linked to the first student)
  *   new student: join code AZH001 with any other number
@@ -57,7 +57,7 @@ export async function seed() {
     }).returning();
 
     await db.insert(users).values({
-      tenantId: tenant.id, role: 'dean', displayNameAr: 'د. عميد الكلية', email: 'dean@itqan.local',
+      tenantId: tenant.id, role: 'admin', displayNameAr: 'د. مسؤول الكلية', email: 'admin@itqan.local',
   });
 
   const [section] = await db.insert(sections).values({

@@ -7,7 +7,7 @@ export type Role =
   | 'lecturer' 
   | 'muhaffiza' 
   | 'advisor' 
-  | 'dean' 
+  | 'admin' 
   | 'sheikh_reviewer' 
   | 'committee_member' 
   | 'sama_committee_member'
@@ -68,7 +68,7 @@ export type PermissionCode =
   | 'reject.content'
   | 'delegate.to.backup-sheikh'
   
-  // Dean
+  // Admin
   | 'read.all'
   | 'override.stalled-reviews'
   | 'approve.critical-changes'

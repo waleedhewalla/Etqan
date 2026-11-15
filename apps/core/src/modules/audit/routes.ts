@@ -11,7 +11,7 @@ export async function auditRoutes(app: FastifyInstance) {
     preHandler: [app.authenticate],
   }, async (request) => {
     const role = request.user.role;
-    if (!['operator', 'superadmin', 'dean'].includes(role)) {
+    if (!['operator', 'superadmin', 'admin'].includes(role)) {
       return request.server.httpErrors.forbidden('Admin access required');
     }
 

@@ -36,7 +36,7 @@ import { formatAyahRange, toArabicDigits } from '@/lib/quran';
 
 type TeacherTab = 'overview' | 'students' | 'attendance' | 'live' | 'lessons' | 'speedgrader' | 'periods' | 'mutashabihat' | 'cases' | 'account';
 
-const TEACHER_ROLES = ['lecturer', 'muhaffiza', 'sheikh_reviewer', 'advisor', 'dean', 'operator', 'superadmin'] as const;
+const TEACHER_ROLES = ['lecturer', 'muhaffiza', 'sheikh_reviewer', 'advisor', 'admin', 'operator', 'superadmin'] as const;
 
 function todayLocal() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
@@ -148,7 +148,7 @@ export default function TeacherDashboard() {
       case 'speedgrader':
         return (
           <div className="space-y-4">
-            {['dean', 'advisor', 'operator', 'superadmin'].includes(user?.role ?? '') && <AiCheckingSwitch />}
+            {['admin', 'advisor', 'operator', 'superadmin'].includes(user?.role ?? '') && <AiCheckingSwitch />}
             <SpeedGraderTab sectionId={section.id} />
           </div>
         );
@@ -182,7 +182,7 @@ export default function TeacherDashboard() {
           <p className="text-sm text-text-secondary">مرحباً {user?.displayNameAr}</p>
           <h1 className="font-heading text-2xl font-bold text-text-primary">{section?.nameAr ?? 'لوحة المعلمة'}</h1>
         </div>
-        {['dean', 'advisor', 'operator', 'superadmin'].includes(user?.role ?? '') && (
+        {['admin', 'advisor', 'operator', 'superadmin'].includes(user?.role ?? '') && (
           <Link href="/admin" className="text-sm rounded-xl border border-divider px-3 py-2 hover:border-brand-primary/40">لوحة الإدارة</Link>
         )}
         {(sectionsQuery.data?.length ?? 0) > 1 && (

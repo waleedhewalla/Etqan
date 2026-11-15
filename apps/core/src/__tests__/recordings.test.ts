@@ -53,8 +53,8 @@ describe.skipIf(!hasDb)('recitation recordings', () => {
 
     const teacher = await mk(tenant.id, 'lecturer', 'المعلمة');
     const outsider = await mk(other.id, 'lecturer', 'معلمة أخرى');
-    const dean = await mk(tenant.id, 'dean', 'العميدة');
-    const otherDean = await mk(other.id, 'dean', 'عميدة أخرى');
+    const admin = await mk(tenant.id, 'admin', 'المسؤولة');
+    const otherDean = await mk(other.id, 'admin', 'مسؤولة أخرى');
     const student = await mk(tenant.id, 'student', 'طالبة');
     const classmate = await mk(tenant.id, 'student', 'زميلة');
     const guardian = await mk(tenant.id, 'mahram', 'ولي الأمر');
@@ -77,7 +77,7 @@ describe.skipIf(!hasDb)('recitation recordings', () => {
     const tok = (u: { id: string; role: string }, facultyId: string) =>
       generateToken({ sub: u.id, role: u.role, facultyId });
     Object.assign(tokens, {
-      teacher: tok(teacher, tenant.id), outsider: tok(outsider, other.id), dean: tok(dean, tenant.id),
+      teacher: tok(teacher, tenant.id), outsider: tok(outsider, other.id), admin: tok(admin, tenant.id),
       otherDean: tok(otherDean, other.id), student: tok(student, tenant.id), classmate: tok(classmate, tenant.id),
       guardian: tok(guardian, tenant.id),
     });
@@ -160,7 +160,7 @@ describe.skipIf(!hasDb)('recitation recordings', () => {
       app.inject({ method: 'GET', url: `/v1/tasmi/${id}/audio-link`, headers: auth(who) });
 
     it('gives a link to the student and to her own teacher and admin', async () => {
-      for (const who of ['classmate', 'teacher', 'dean']) {
+      for (const who of ['classmate', 'teacher', 'admin']) {
         const res = await getLink(who);
         expect(res.statusCode, who).toBe(200);
         expect(res.json().url).toContain(`/v1/tasmi/${tasmiId}/audio?token=`);
@@ -244,7 +244,7 @@ describe.skipIf(!hasDb)('recitation recordings', () => {
 
   describe('GET /v1/audit', () => {
     it('shows an institution only its own entries', async () => {
-      const mine = await app.inject({ method: 'GET', url: '/v1/audit?action=tasmi.audio.view', headers: auth('dean') });
+      const mine = await app.inject({ method: 'GET', url: '/v1/audit?action=tasmi.audio.view', headers: auth('admin') });
       expect(mine.statusCode).toBe(200);
       expect(mine.json().length).toBeGreaterThan(0);
       expect(mine.json().every((r: { tenantId: string }) => r.tenantId === ids.tenant)).toBe(true);

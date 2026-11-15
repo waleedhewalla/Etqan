@@ -23,7 +23,7 @@ describe.skipIf(!process.env.DATABASE_URL)('period tests', () => {
     app.inject({ method, url: `/v1${url}`, headers: { authorization: `Bearer ${tokens[who]}` }, payload });
   const tok = (u: { id: string; role: string; tenantId: string | null }) => generateToken({ sub: u.id, role: u.role, facultyId: u.tenantId! });
   /** Puts the halaqa `weeks` weeks into the program. */
-  const place = (weeks: number) => call('dean', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: ids.program, startDate: addDays(localDate(), -7 * weeks) });
+  const place = (weeks: number) => call('admin', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: ids.program, startDate: addDays(localDate(), -7 * weeks) });
   const atTest = (period: number) => place(periods[period].startWeek + periods[period].hifzWeeks);
   const test = (who: string, student: string, body: object) => call(who, 'POST', `/sections/${ids.section}/program/students/${ids[student]}/results`, body);
   const good = { hifz: 36, tajweed: 23, retention: 14 };
@@ -44,10 +44,10 @@ describe.skipIf(!process.env.DATABASE_URL)('period tests', () => {
     const [other] = await db.insert(tenants).values({ slug: `px-${tag}`, nameAr: 'معهد آخر' }).returning();
     const mk = async (tenantId: string, role: typeof users.$inferInsert['role'], name: string) =>
       (await db.insert(users).values({ tenantId, role, displayNameAr: name }).returning())[0];
-    const dean = await mk(tenant.id, 'dean', 'العميدة');
+    const admin = await mk(tenant.id, 'admin', 'المسؤولة');
     const teacher = await mk(tenant.id, 'lecturer', 'المعلمة');
     const otherTeacher = await mk(tenant.id, 'lecturer', 'معلمة أخرى');
-    const foreignDean = await mk(other.id, 'dean', 'عميدة أخرى');
+    const foreignDean = await mk(other.id, 'admin', 'مسؤولة أخرى');
     const asma = await mk(tenant.id, 'student', 'أسماء');
     const basma = await mk(tenant.id, 'student', 'بسمة');
     const guardian = await mk(tenant.id, 'mahram', 'ولي الأمر');
@@ -55,10 +55,10 @@ describe.skipIf(!process.env.DATABASE_URL)('period tests', () => {
     const [section] = await db.insert(sections).values({ tenantId: tenant.id, nameAr: 'حلقة', joinCode: code('A'), teacherId: teacher.id }).returning();
     await db.insert(sectionEnrollments).values([asma, basma].map((s) => ({ sectionId: section.id, studentId: s.id })));
     Object.assign(ids, { tenant: tenant.id, section: section.id, asma: asma.id, basma: basma.id, teacher: teacher.id });
-    Object.assign(tokens, { dean: tok(dean), teacher: tok(teacher), otherTeacher: tok(otherTeacher), foreignDean: tok(foreignDean), asma: tok(asma), basma: tok(basma), guardian: tok(guardian) });
+    Object.assign(tokens, { admin: tok(admin), teacher: tok(teacher), otherTeacher: tok(otherTeacher), foreignDean: tok(foreignDean), asma: tok(asma), basma: tok(basma), guardian: tok(guardian) });
 
     // A program of three periods of verses, and the halaqa following it.
-    const made = (await call('dean', 'POST', '/admin/programs', {
+    const made = (await call('admin', 'POST', '/admin/programs', {
       nameAr: 'برنامج الاختبارات',
       periods: [
         { nameAr: 'الأولى', startRef: '112:1', endRef: '114:6', pagesPerDay: 0.5 },
@@ -76,12 +76,12 @@ describe.skipIf(!process.env.DATABASE_URL)('period tests', () => {
     await closeDb();
   });
 
-  it('is run by the teacher of the halaqa and its dean only', async () => {
+  it('is run by the teacher of the halaqa and its admin only', async () => {
     for (const who of ['asma', 'guardian', 'otherTeacher', 'foreignDean']) {
       expect((await call(who, 'GET', `/sections/${ids.section}/program/standings`)).statusCode, who).toBe(404);
       expect((await test(who, 'asma', { periodIndex: 0, scores: { ...good, review: null } })).statusCode, who).toBe(404);
     }
-    expect((await call('dean', 'GET', `/sections/${ids.section}/program/standings`)).statusCode).toBe(200);
+    expect((await call('admin', 'GET', `/sections/${ids.section}/program/standings`)).statusCode).toBe(200);
   });
 
   it('is not open before the halaqa reaches the test of the period', async () => {
@@ -145,11 +145,11 @@ describe.skipIf(!process.env.DATABASE_URL)('period tests', () => {
   });
 
   it('keeps the rules the test was made under, whatever the program says later', async () => {
-    await call('dean', 'PATCH', `/admin/programs/${ids.program}`, { passScore: 95, weights: { hifz: 30, tajweed: 30, review: 20, retention: 20 } });
+    await call('admin', 'PATCH', `/admin/programs/${ids.program}`, { passScore: 95, weights: { hifz: 30, tajweed: 30, review: 20, retention: 20 } });
     const [row] = await getDb().select().from(hifzPeriodResults).where(and(eq(hifzPeriodResults.studentId, ids.asma), eq(hifzPeriodResults.attempt, 2)));
     expect(row).toMatchObject({ passScore: 85, outcome: 'passed' });
     expect(row.weights).toMatchObject({ hifz: 50 });
-    await call('dean', 'PATCH', `/admin/programs/${ids.program}`, { passScore: 85, weights: { hifz: 40, tajweed: 25, review: 20, retention: 15 } });
+    await call('admin', 'PATCH', `/admin/programs/${ids.program}`, { passScore: 85, weights: { hifz: 40, tajweed: 25, review: 20, retention: 15 } });
   });
 
   it('lets a student see her own standing, the total and the criterion to work on, but not her scores or anyone else’s', async () => {
@@ -291,8 +291,8 @@ describe.skipIf(!process.env.DATABASE_URL)('period tests', () => {
     expect(JSON.stringify(record.periodTests)).not.toContain('scoreHifz');
   });
 
-  it('shows the dean how each period is going', async () => {
-    const res = (await call('dean', 'GET', `/admin/programs/${ids.program}/results`)).json();
+  it('shows the admin how each period is going', async () => {
+    const res = (await call('admin', 'GET', `/admin/programs/${ids.program}/results`)).json();
     expect(res).toMatchObject({ program: { id: ids.program }, students: 1 });
     expect(res.periods.map((p: { passed: number }) => p.passed)).toEqual([1, 1, 1]);
     expect(res.periods.map((p: { failedAttempts: number }) => p.failedAttempts)).toEqual([1, 2, 0]);
@@ -300,23 +300,23 @@ describe.skipIf(!process.env.DATABASE_URL)('period tests', () => {
   });
 
   it('cannot delete a program students have been tested on, only archive it', async () => {
-    await call('dean', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: null });
-    const res = await call('dean', 'DELETE', `/admin/programs/${ids.program}`);
+    await call('admin', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: null });
+    const res = await call('admin', 'DELETE', `/admin/programs/${ids.program}`);
     expect(res.statusCode).toBe(409);
-    expect((await call('dean', 'PATCH', `/admin/programs/${ids.program}`, { active: false })).json()).toMatchObject({ active: false, hasResults: true });
+    expect((await call('admin', 'PATCH', `/admin/programs/${ids.program}`, { active: false })).json()).toMatchObject({ active: false, hasResults: true });
   });
 
   it('is refused for everyone while the institution has the program module off', async () => {
     await place(0).catch(() => undefined);
-    await call('dean', 'PATCH', `/admin/programs/${ids.program}`, { active: true });
-    await call('dean', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: ids.program, startDate: localDate() });
-    expect((await call('dean', 'PUT', '/admin/modules/program', { enabled: false })).statusCode).toBe(200);
+    await call('admin', 'PATCH', `/admin/programs/${ids.program}`, { active: true });
+    await call('admin', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: ids.program, startDate: localDate() });
+    expect((await call('admin', 'PUT', '/admin/modules/program', { enabled: false })).statusCode).toBe(200);
     for (const url of [`/sections/${ids.section}/program/standings`, `/sections/${ids.section}/program/students/${ids.asma}/test`, `/admin/programs/${ids.program}/results`]) {
-      const res = await call('dean', 'GET', url);
+      const res = await call('admin', 'GET', url);
       expect(res.statusCode).toBe(403);
       expect(res.json().code).toBe('MODULE_DISABLED');
     }
     expect((await test('teacher', 'asma', { periodIndex: 0, scores: { ...good, review: null } })).json().code).toBe('MODULE_DISABLED');
-    await call('dean', 'PUT', '/admin/modules/program', { enabled: true });
+    await call('admin', 'PUT', '/admin/modules/program', { enabled: true });
   });
 });

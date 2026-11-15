@@ -29,7 +29,7 @@ const BULK_STATUS: Record<BulkStatus, { label: string; tone: 'green' | 'neutral'
   full: { label: 'الحلقة ممتلئة', tone: 'gold' },
   plan_limit: { label: 'بلغت المؤسسة حدّ الترخيص', tone: 'gold' },
 };
-const FILTER_ROLES = ['student', 'mahram', 'lecturer', 'muhaffiza', 'sheikh_reviewer', 'advisor', 'dean'] as const;
+const FILTER_ROLES = ['student', 'mahram', 'lecturer', 'muhaffiza', 'sheikh_reviewer', 'advisor', 'admin'] as const;
 
 /** The institution's people: find anyone, add students, guardians and staff, correct them, stop them, and place students in halaqat. */
 export function UsersAdmin() {
@@ -335,7 +335,7 @@ function AddUser({ halaqat, onChange }: { halaqat: SetupHalaqa[]; onChange: () =
           {add.isError && <p role="alert" className="text-sm text-red-800">{errorMessage(add.error, 'تعذّرت الإضافة. تحققي من البيانات.')}</p>}
         </form>
         <p className="text-xs text-text-secondary mt-3">
-          الطالبة وولي الأمر يدخلان برمز يصل إلى واتساب، والمعلمة والمرشدة والعميد برابط يصل إلى البريد الإلكتروني. أرقام الهواتف تُكتب كما تعرفينها: ٠١٠… تُحوَّل تلقائياً.
+          الطالبة وولي الأمر يدخلان برمز يصل إلى واتساب، والمعلمة والمرشدة والمسؤول برابط يصل إلى البريد الإلكتروني. أرقام الهواتف تُكتب كما تعرفينها: ٠١٠… تُحوَّل تلقائياً.
         </p>
       </CardContent>
     </Card>

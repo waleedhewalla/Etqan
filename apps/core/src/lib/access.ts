@@ -6,7 +6,7 @@ import type { TokenPayload } from './jwt';
 /** Roles that teach or review a halaqa. */
 export const TEACHER_ROLES = ['lecturer', 'muhaffiza', 'sheikh_reviewer'] as const;
 /** Roles with tenant-wide oversight. */
-export const ADMIN_ROLES = ['dean', 'advisor', 'operator', 'superadmin'] as const;
+export const ADMIN_ROLES = ['admin', 'advisor', 'operator', 'superadmin'] as const;
 export const STAFF_ROLES: readonly string[] = [
   ...TEACHER_ROLES, ...ADMIN_ROLES, 'committee_member', 'sama_committee_member',
 ];

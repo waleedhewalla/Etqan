@@ -20,7 +20,7 @@ import { sql } from 'drizzle-orm';
 // ── Enums ──
 
 export const roleEnum = pgEnum('role', [
-  'student', 'lecturer', 'muhaffiza', 'advisor', 'dean',
+  'student', 'lecturer', 'muhaffiza', 'advisor', 'admin',
   'sheikh_reviewer', 'committee_member', 'sama_committee_member',
   'operator', 'superadmin', 'mahram', 'alumna',
 ]);

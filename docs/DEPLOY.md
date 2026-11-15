@@ -18,7 +18,7 @@ Only Caddy listens on the internet. Postgres is not published at all, and record
 | A Linux server (2 vCPU, 4 GB RAM, 30 GB disk is plenty for a pilot) with Docker and the Compose plugin | runs everything |
 | **Two DNS names** pointing at the server's address, e.g. `app.example.org` and `api.example.org` | HTTPS certificates are issued per name. Ports 80 and 443 must be open. |
 | **HTTPS** (Caddy does it) | browsers allow the microphone and the offline mode only on HTTPS |
-| A **SendGrid** API key | staff sign in by an emailed link. Without it the API refuses to send links, so no teacher or dean can sign in. |
+| A **SendGrid** API key | staff sign in by an emailed link. Without it the API refuses to send links, so no teacher or admin can sign in. |
 | **360dialog (WhatsApp)** credentials and the **approved** message templates (`itqan_otp`, `itqan_absence_alert`, and `itqan_live_reminder` if you use scheduled live lessons) | students sign in with a code sent on WhatsApp, and guardians get absence alerts. Template approval by WhatsApp can take days: start early. |
 
 Decide **where the server is**. Student data (names, phone numbers, recordings) is stored on it; choose a region that
@@ -45,11 +45,11 @@ chmod 600 .env
    ```bash
    docker compose -f compose.prod.yml run --rm api node dist/quran-seed.mjs
    ```
-4. **Create the first institution, its dean, a teacher and a halaqa** (production has no demo data):
+4. **Create the first institution, its admin, a teacher and a halaqa** (production has no demo data):
    ```bash
    docker compose -f compose.prod.yml run --rm api node dist/bootstrap.mjs \
      --slug azhar-pilot --name "كلية الأزهر للبنات" --plan madrasa_pro \
-     --dean-email dean@example.org --dean-name "د. فلانة" \
+     --admin-email admin@example.org --admin-name "د. فلانة" \
      --teacher-email teacher@example.org --teacher-name "أ. فلانة" \
      --halaqa "حلقة سورة البقرة"
    ```
@@ -57,7 +57,7 @@ chmod 600 .env
    included in `madrasa_pro` and `enterprise`.
 5. **Check it works**, from your own computer:
    - `https://api.example.org/v1/health` shows `{"status":"ok"…}`
-   - open `https://app.example.org/auth/login/faculty`, enter the dean's email, and use the link that arrives. You land on the admin console.
+   - open `https://app.example.org/auth/login/faculty`, enter the admin's email, and use the link that arrives. You land on the admin console.
    - on a phone, sign up as a student with the join code (a WhatsApp code arrives).
 
 ## Audio storage

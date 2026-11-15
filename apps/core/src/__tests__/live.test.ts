@@ -41,7 +41,7 @@ describe.skipIf(!process.env.DATABASE_URL)('live lessons', () => {
       (await db.insert(users).values({ tenantId: tenant.id, role, displayNameAr: name }).returning())[0];
     const teacher = await mk('lecturer', 'المعلمة');
     const otherTeacher = await mk('lecturer', 'معلمة أخرى');
-    const dean = await mk('dean', 'العميدة');
+    const admin = await mk('admin', 'المسؤولة');
     const student = await mk('student', 'أسماء');
     const classmate = await mk('student', 'بسمة');
     const absent = await mk('student', 'جميلة');
@@ -55,10 +55,10 @@ describe.skipIf(!process.env.DATABASE_URL)('live lessons', () => {
       { sectionId: otherSection.id, studentId: outsider.id },
     ]);
     await db.insert(guardianLinks).values({ studentId: student.id, guardianId: guardian.id });
-    Object.assign(ids, { section: section.id, otherSection: otherSection.id, teacher: teacher.id, student: student.id, classmate: classmate.id, absent: absent.id, dean: dean.id });
+    Object.assign(ids, { section: section.id, otherSection: otherSection.id, teacher: teacher.id, student: student.id, classmate: classmate.id, absent: absent.id, admin: admin.id });
     const tok = (u: { id: string; role: string; tenantId: string | null }) => generateToken({ sub: u.id, role: u.role, facultyId: u.tenantId! });
     Object.assign(tokens, {
-      teacher: tok(teacher), otherTeacher: tok(otherTeacher), dean: tok(dean), student: tok(student),
+      teacher: tok(teacher), otherTeacher: tok(otherTeacher), admin: tok(admin), student: tok(student),
       classmate: tok(classmate), outsider: tok(outsider), guardian: tok(guardian),
     });
   });
@@ -93,7 +93,7 @@ describe.skipIf(!process.env.DATABASE_URL)('live lessons', () => {
   });
 
   it('shows the live lesson to the halaqa and its staff, and to nobody else', async () => {
-    for (const who of ['student', 'classmate', 'teacher', 'dean']) {
+    for (const who of ['student', 'classmate', 'teacher', 'admin']) {
       const now = (await call(who, 'GET', '/live/now')).json();
       expect(now.map((s: { id: string }) => s.id)).toEqual([ids.session]);
       expect(now[0]).toMatchObject({ sectionName: 'حلقة', teacherName: 'المعلمة' });
@@ -102,7 +102,7 @@ describe.skipIf(!process.env.DATABASE_URL)('live lessons', () => {
     for (const who of ['outsider', 'guardian', 'otherTeacher']) expect((await call(who, 'GET', '/live/now')).json()).toEqual([]);
   });
 
-  it('lets them in with the right role: the teacher hosts, students and the dean listen', async () => {
+  it('lets them in with the right role: the teacher hosts, students and the admin listen', async () => {
     for (const who of ['outsider', 'guardian', 'otherTeacher']) expect((await call(who, 'POST', `/live/${ids.session}/join`)).statusCode).toBe(404);
     expect((await call('student', 'POST', `/live/${randomUUID()}/join`)).statusCode).toBe(404);
 
@@ -113,7 +113,7 @@ describe.skipIf(!process.env.DATABASE_URL)('live lessons', () => {
     expect(listener.role).toBe('listener');
     expect(listener.token.endsWith(`:${ids.student}:listener`)).toBe(true);
     expect((await call('classmate', 'POST', `/live/${ids.session}/join`)).json().role).toBe('listener');
-    expect((await call('dean', 'POST', `/live/${ids.session}/join`)).json().role).toBe('listener');
+    expect((await call('admin', 'POST', `/live/${ids.session}/join`)).json().role).toBe('listener');
   });
 
   it('notes in the audit log that someone could not connect, for her halaqa only', async () => {
@@ -130,7 +130,7 @@ describe.skipIf(!process.env.DATABASE_URL)('live lessons', () => {
   it('shows the teacher who is here; a student sees only herself', async () => {
     const forTeacher = await state('teacher');
     expect(forTeacher).toMatchObject({ role: 'host', attending: 2 });
-    expect(forTeacher.participants.map((p: { name: string }) => p.name)).toEqual(['أسماء', 'بسمة']); // students, not the dean
+    expect(forTeacher.participants.map((p: { name: string }) => p.name)).toEqual(['أسماء', 'بسمة']); // students, not the admin
     const forStudent = await state('student');
     expect(forStudent).toMatchObject({ role: 'listener', attending: 2, participants: [], me: { handRaised: false, canSpeak: false } });
     expect((await call('outsider', 'GET', `/live/${ids.session}/state`)).statusCode).toBe(404);
@@ -142,7 +142,7 @@ describe.skipIf(!process.env.DATABASE_URL)('live lessons', () => {
     expect((await state('teacher')).participants.find((p: { userId: string }) => p.userId === ids.student)).toMatchObject({ handRaised: true, canSpeak: false });
 
     const speak = (who: string, userId: string, canSpeak: boolean) => call(who, 'PUT', `/live/${ids.session}/participants/${userId}/speak`, { canSpeak });
-    for (const who of ['student', 'classmate', 'dean']) expect((await speak(who, ids.student, true)).statusCode).toBe(403);
+    for (const who of ['student', 'classmate', 'admin']) expect((await speak(who, ids.student, true)).statusCode).toBe(403);
     expect((await speak('teacher', ids.absent, true)).statusCode).toBe(404); // never joined
     expect(calls).toEqual([]);
 
