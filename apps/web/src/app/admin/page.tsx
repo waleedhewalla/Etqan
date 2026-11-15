@@ -17,13 +17,13 @@ import { UsersAdmin } from '@/components/UsersAdmin';
 import { AuditLog } from '@/components/AuditLog';
 import { ModulesAdmin } from '@/components/ModulesAdmin';
 
-const SETUP_ROLES = ['dean', 'operator', 'superadmin'];
+const SETUP_ROLES = ['admin', 'operator', 'superadmin'];
 const TABS = [
   { id: 'overview', label: 'نظرة عامة' }, { id: 'setup', label: 'الإعداد: الحلقات والبرنامج' },
   { id: 'users', label: 'المستخدمون' }, { id: 'modules', label: 'الوحدات' }, { id: 'audit', label: 'سجل العمليات' },
 ] as const;
 
-const ADMIN_ROLES = ['dean', 'advisor', 'operator', 'superadmin'] as const;
+const ADMIN_ROLES = ['admin', 'advisor', 'operator', 'superadmin'] as const;
 
 const PLAN_LABEL: Record<string, string> = {
   free: 'مجانية', madrasa_basic: 'مدرسة — أساسية', madrasa_pro: 'مدرسة — احترافية', enterprise: 'مؤسسات',

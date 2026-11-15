@@ -18,7 +18,7 @@ import { describeStanding, loadAttempts, studentResult } from '../../lib/period-
 import type { TokenPayload } from '../../lib/jwt';
 import { auditLog } from '../audit/service';
 
-const MANAGER_ROLES: readonly string[] = ['dean', 'operator', 'superadmin'];
+const MANAGER_ROLES: readonly string[] = ['admin', 'operator', 'superadmin'];
 const MAX_PERIODS = 40;
 
 const ref = z.string().refine((r) => parseRef(r) !== null, 'Unknown verse');

@@ -16,7 +16,7 @@ const INVITATION: Record<string, string> = {
   failed: 'أُضيفت، لكن تعذّر إرسال الرسالة. أخبريها أن تدخل من «دخول هيئة التدريس» ببريدها.',
 };
 
-/** Where a dean staffs her institution: adds teachers, opens halaqat for them and hands out join codes. */
+/** Where an admin staffs her institution: adds teachers, opens halaqat for them and hands out join codes. */
 export function InstitutionSetup() {
   const queryClient = useQueryClient();
   const setup = useQuery({ queryKey: queryKeys.adminSetup, queryFn: () => api.getSetup().then((r) => r.data) });
@@ -64,13 +64,13 @@ function Teachers({ staff, onChange }: { staff: SetupStaff[]; onChange: () => vo
           {staff.map((s) => (
             <li key={s.id} className="py-2.5 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="font-medium text-text-primary truncate">{s.displayNameAr}{s.role === 'dean' && <span className="text-text-secondary font-normal"> — عميد</span>}</p>
+                <p className="font-medium text-text-primary truncate">{s.displayNameAr}{s.role === 'admin' && <span className="text-text-secondary font-normal"> — مسؤول</span>}</p>
                 <p dir="ltr" className="text-xs text-text-secondary truncate text-right">{s.email ?? '—'}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-text-secondary">{s.halaqat === 0 ? 'بلا حلقة' : `${toArabicDigits(s.halaqat)} حلقة`}</span>
                 {!s.active && <Badge variant="red" size="sm">موقوفة</Badge>}
-                {s.role !== 'dean' && (
+                {s.role !== 'admin' && (
                   <Button size="sm" variant="ghost" disabled={toggle.isPending} onClick={() => confirmToggle(s)}>
                     {s.active ? 'إيقاف الدخول' : 'إعادة الدخول'}
                   </Button>

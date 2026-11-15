@@ -213,7 +213,7 @@ export async function periodTestRoutes(app: FastifyInstance) {
   // GET /v1/admin/programs/:id/results — how each period is going across the institution's halaqat
   app.get('/admin/programs/:id/results', { schema: { params: idSection }, preHandler: [app.authenticate] }, async (request) => {
     const user = request.user;
-    if (!['dean', 'operator', 'superadmin'].includes(user.role) || !user.facultyId) return request.server.httpErrors.forbidden('Institution managers only');
+    if (!['admin', 'operator', 'superadmin'].includes(user.role) || !user.facultyId) return request.server.httpErrors.forbidden('Institution managers only');
     const { id } = request.params as z.infer<typeof idSection>;
     const [program] = await db.select().from(hifzPrograms).where(and(eq(hifzPrograms.id, id), eq(hifzPrograms.tenantId, user.facultyId))).limit(1);
     if (!program) return request.server.httpErrors.notFound('Program not found');

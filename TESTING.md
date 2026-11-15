@@ -59,7 +59,7 @@ Students record from the **التسميع** tab; the teacher listens in **الت
 ### The automatic first check (optional)
 
 A check runs only when **all four** hold: `ENABLE_ASR=true` with an `ASR_PROVIDER` other than `none`;
-the institution's administrator turned it on (التسميع والتقييم tab, dean/advisor/operator);
+the institution's administrator turned it on (التسميع والتقييم tab, admin/advisor/operator);
 the student allowed it (an optional consent, separate from voice recording);
 and the Quran text is loaded. To try it locally:
 
@@ -154,7 +154,7 @@ The program's weights and pass marks now decide whether a student moves on. Need
   score), the retest date, and any slower pace. **Guardians and the monthly record** show the outcome and total of tests taken that month.
 - **Mistakes:** «التراجع عن آخر نتيجة» takes back her latest result (it stays in the history, marked, with a reason); results are never
   edited. The rules and weights a result was made under are kept with it, so changing the program later does not change old results.
-- **The dean:** under the program in «الإعداد»: a table of how many passed each period, are repeating it, and failed attempts.
+- **The admin:** under the program in «الإعداد»: a table of how many passed each period, are repeating it, and failed attempts.
   A program students have been tested on can be archived but not deleted. If you change a started program's periods so their
   order changes, results stay attached to the position in the program.
 - API: `GET /v1/sections/:id/program/standings`, `GET|POST /v1/sections/:id/program/students/:studentId/test|results`,
@@ -163,7 +163,7 @@ The program's weights and pass marks now decide whether a student moves on. Need
 
 ## Product modules (admin)
 
-Sign in as `dean@itqan.local`, open «لوحة الإدارة» and the **الوحدات** tab. Every part of the product is a module the
+Sign in as `admin@itqan.local`, open «لوحة الإدارة» and the **الوحدات** tab. Every part of the product is a module the
 institution can switch off, and some have settings. An institution that changes nothing behaves exactly as before: the
 defaults are the deployment's own values (`AUDIO_RETENTION_HOURS`, `LIVE_RECORDING_MAX_MB` and the rest of `.env`).
 
@@ -191,7 +191,7 @@ defaults are the deployment's own values (`AUDIO_RETENTION_HOURS`, `LIVE_RECORDI
 
 ## People and the audit log (admin)
 
-Sign in as `dean@itqan.local`, open «لوحة الإدارة». The page now has four tabs: **نظرة عامة**, **الإعداد: الحلقات والبرنامج**
+Sign in as `admin@itqan.local`, open «لوحة الإدارة». The page now has four tabs: **نظرة عامة**, **الإعداد: الحلقات والبرنامج**
 (teachers, halaqat and the memorization program), **المستخدمون** and **سجل العمليات**. Advisors see the overview only.
 
 - **المستخدمون** lists everyone in the institution (50 a page) with their halaqat, guardians or children. Search by name,
@@ -201,9 +201,9 @@ Sign in as `dean@itqan.local`, open «لوحة الإدارة». The page now ha
   stays) and link or unlink guardians. A number or email can belong to one account only.
 - **Stopping an account takes effect at once**, even for someone already signed in (their token is refused within about
   15 seconds on a deployed server, immediately when the same process stops them). Before this, a stopped account kept its
-  session for up to 30 days. You cannot stop your own account, and only the platform operator changes a dean.
+  session for up to 30 days. You cannot stop your own account, and only the platform operator changes an admin.
 - **إضافة مستخدم:** a student (optionally into a halaqa, with her guardian), a guardian, or a member of staff
-  (معلمة، محفّظة، شيخة مراجِعة، مرشدة). A dean is added by the platform operator only. Staff get an email telling them to
+  (معلمة، محفّظة، شيخة مراجِعة، مرشدة). An admin is added by the platform operator only. Staff get an email telling them to
   sign in from «دخول هيئة التدريس»; students and guardians sign in with a code sent to their WhatsApp number. Numbers are
   taken as typed: `010 1234 5678` becomes `+201012345678`.
 - **إضافة طالبات دفعة واحدة:** paste «الاسم، الرقم» one per line (up to 100), optionally choosing a halaqa. Each row
@@ -216,7 +216,7 @@ Sign in as `dean@itqan.local`, open «لوحة الإدارة». The page now ha
 
 ## Memorization program (admin)
 
-The dean sets what must be memorized, period by period. Sign in as `dean@itqan.local` and open «لوحة الإدارة»: under the
+The admin sets what must be memorized, period by period. Sign in as `admin@itqan.local` and open «لوحة الإدارة»: under the
 setup section is **برنامج الحفظ**.
 
 - **Create** a program (name only to start). Settings: days of new memorization a week (default 4, Sunday to Wednesday;
@@ -257,7 +257,7 @@ says live lessons are not set up and nothing else changes.
 - **Student** — a «درس مباشر الآن» banner on her home screen. She enters as a listener: microphone off, no camera
   offered. She can write a question, or raise her hand and speak once the teacher allows it.
 - **Rules.** Only the halaqa's students and whoever manages it can enter; the teacher who opened the lesson hosts
-  and a dean listens. One live lesson per halaqa at a time. The room name never leaves the server; a join token
+  and an admin listens. One live lesson per halaqa at a time. The room name never leaves the server; a join token
   lasts ten minutes and names one room. A student's token cannot publish anything until the teacher grants the
   microphone, and then only audio. Reconnecting takes the microphone back.
 - State (who is here, hands, questions) is polled every three seconds; media is live.
@@ -478,7 +478,7 @@ and the early-warning list. A superadmin can switch institution; everyone else o
 
 ## Setting up an institution
 
-The first dean is created with the bootstrap command ([DEPLOY.md](docs/DEPLOY.md)). After that she needs no one:
+The first admin is created with the bootstrap command ([DEPLOY.md](docs/DEPLOY.md)). After that she needs no one:
 the admin console (**/admin**) has two cards under the institution's name.
 
 - **المعلمات** — add a teacher by name and email. She signs in from «دخول هيئة التدريس» with a link sent to that
@@ -488,19 +488,19 @@ the admin console (**/admin**) has two cards under the institution's name.
   The pencil renames a halaqa, changes its size, or closes it. A closed halaqa accepts no one and leaves its
   teacher's and students' lists; nothing is deleted, and «إعادة فتح» brings it back.
 
-For deans, operators and superadmins only (advisors see the console but not these cards), and only for their own
-institution. An email address belongs to one account across all institutions. A dean cannot stop her own access
-or another dean's. API: `GET /v1/admin/setup`, `POST|PATCH /v1/admin/staff`, `POST|PATCH /v1/admin/halaqat`.
+For admins, operators and superadmins only (advisors see the console but not these cards), and only for their own
+institution. An email address belongs to one account across all institutions. An admin cannot stop her own access
+or another admin's. API: `GET /v1/admin/setup`, `POST|PATCH /v1/admin/staff`, `POST|PATCH /v1/admin/halaqat`.
 
 ## Role change, data export and deletion requests
 
-- **Change a staff member's role** (dean, Users tab → إدارة → الدور → تغيير الدور): between teacher, tahfeez teacher, reviewer and advisor.
-  It applies at once, even to a signed-in session. Not for yourself; the dean role only by an operator; an advisor cannot
+- **Change a staff member's role** (admin, Users tab → إدارة → الدور → تغيير الدور): between teacher, tahfeez teacher, reviewer and advisor.
+  It applies at once, even to a signed-in session. Not for yourself; the admin role only by an operator; an advisor cannot
   hold halaqat (409 while she leads one).
 - **My data** (account page, and the guardian page): «تنزيل بياناتي» downloads a JSON file (no audio); «طلب حذف بياناتي»
-  sends a request the dean decides, «سحب الطلب» withdraws it while it is pending. A dean can also export a user's data and
+  sends a request the admin decides, «سحب الطلب» withdraws it while it is pending. An admin can also export a user's data and
   record a request on someone's behalf (for the existing /data-deletion page).
-- **Dean queue** (Users tab): approve with a mode: **تجهيل الهوية** (default: name and contact gone, grades, period results and
+- **Admin queue** (Users tab): approve with a mode: **تجهيل الهوية** (default: name and contact gone, grades, period results and
   attendance stay without a name) or **حذف كل شيء** (students and guardians only). Approval stops the account immediately;
   the data is removed after `DATA_DELETION_GRACE_DAYS` (14) by an hourly job; «إلغاء الطلب» before then restores the account.
   Staff can only be anonymized, and not while leading an active halaqa (409).
@@ -516,7 +516,7 @@ or another dean's. API: `GET /v1/admin/setup`, `POST|PATCH /v1/admin/staff`, `PO
   all mastered; a yellow dot means verses of that sura are due. Hover or screen reader gives the numbers.
   API: `GET /v1/scheduler/map`. Competitor background: `docs/competitive-analysis.md`.
 - **The same map for a guardian** (under the weekly report, «خريطة حفظ الطالبة», worded about «الطالبة») and for the student's
-  teacher or the dean: `GET /v1/reports/student/:id/map`, allowed for the student, her linked guardians and staff who can see her;
+  teacher or the admin: `GET /v1/reports/student/:id/map`, allowed for the student, her linked guardians and staff who can see her;
   anyone else gets 404. Hidden when printing the weekly report.
 
 ## Guardian access (the student decides)
@@ -525,7 +525,7 @@ or another dean's. API: `GET /v1/admin/setup`, `POST|PATCH /v1/admin/staff`, `PO
   choice as the box at sign-up («mahram_access»), and she can change it back at any time.
 - While it is off, her guardians get **404** for her weekly report, monthly record and memorization map, she is left out of the
   guardian page (which tells the guardian how many students did this, not who), and absence alerts and live-lesson reminders to
-  her guardians are not sent. Her teachers, the dean and she herself are unaffected.
+  her guardians are not sent. Her teachers, the admin and she herself are unaffected.
 - With no choice recorded at all (a guardian the institution linked before the student joined) access is allowed.
 - `GET /v1/auth/me` has `guardianAccess` (true unless withdrawn); `GET /v1/guardian/students` has `withdrawn` (a count).
 - Note: `PUT /v1/auth/me/consents` replaces all of a user's consents, so a screen that sends a list without `mahram_access`
@@ -548,7 +548,7 @@ pnpm --filter @itqan/web dev       # http://localhost:9050
 ```
 
 With `WHATSAPP_API_KEY` and `SENDGRID_API_KEY` empty, nothing is sent. In development (`NODE_ENV=development`)
-the sign-in page shows the code itself («وضع التجربة»), and a teacher's or dean's link opens straight away; they
+the sign-in page shows the code itself («وضع التجربة»), and a teacher's or admin's link opens straight away; they
 are also written to the API terminal, as are absence alerts. This never happens in production, where an unsent
 code is an error.
 
@@ -562,7 +562,7 @@ device on the network, or a tunnel. If a page says «تعذّر الاتصال �
 | Student | `/auth/login` | `010 0000 0101` (to `…0104`), the code is shown on the page |
 | Guardian | `/auth/login` | `010 0000 0201` (linked to مريم علي) |
 | Teacher | `/auth/login/faculty` | `teacher@itqan.local`, you are signed in straight away |
-| Dean | `/auth/login/faculty` | `dean@itqan.local` |
+| Admin | `/auth/login/faculty` | `admin@itqan.local` |
 | New student | `/auth/join` | join code `AZH001` and any other number |
 
 ## Running checks

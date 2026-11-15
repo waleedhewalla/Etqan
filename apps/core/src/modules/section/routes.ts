@@ -89,7 +89,7 @@ export async function sectionRoutes(app: FastifyInstance) {
     const user = request.user;
 
     if (isStaff(user)) {
-      // Closed halaqat leave everyone's lists; the dean reopens them from the admin console.
+      // Closed halaqat leave everyone's lists; the admin reopens them from the admin console.
       const where = isTenantAdmin(user)
         ? and(eq(sections.tenantId, user.facultyId!), eq(sections.active, true))
         : and(eq(sections.teacherId, user.sub), eq(sections.tenantId, user.facultyId!), eq(sections.active, true));

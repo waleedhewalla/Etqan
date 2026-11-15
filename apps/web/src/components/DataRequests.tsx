@@ -14,7 +14,7 @@ const day = (iso: string) => new Intl.DateTimeFormat('ar-EG', { weekday: 'long',
 const field = 'rounded-xl border border-divider bg-surface-elevated px-3 py-2 text-sm';
 const STATUS = { pending: ['بانتظار القرار', 'gold'], scheduled: ['معتمد: ينتظر التنفيذ', 'info'], done: ['نُفّذ', 'green'], rejected: ['مرفوض', 'red'], cancelled: ['أُلغي', 'neutral'] } as const;
 
-/** The institution's data-deletion requests: a dean decides each, and an approved one waits out its grace period before it runs. */
+/** The institution's data-deletion requests: an admin decides each, and an approved one waits out its grace period before it runs. */
 export function DataRequests() {
   const queryClient = useQueryClient();
   const [showDone, setShowDone] = useState(false);

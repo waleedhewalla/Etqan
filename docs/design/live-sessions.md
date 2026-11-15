@@ -50,7 +50,7 @@ Verify LiveKit's current token, egress and webhook details against its documenta
 
 ## 2. Roles and permissions
 
-| Action | Teacher of the halaqa | Dean / operator | Student of the halaqa | Guardian | Anyone else |
+| Action | Teacher of the halaqa | Admin / operator | Student of the halaqa | Guardian | Anyone else |
 |---|---|---|---|---|---|
 | Schedule, start, end a session | Yes | Yes | No | No | No |
 | Join a live session | Yes | Yes (observer) | Yes | No | No |

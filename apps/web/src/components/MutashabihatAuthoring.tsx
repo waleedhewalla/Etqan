@@ -10,7 +10,7 @@ import { ClusterCompare } from '@/components/ClusterCompare';
 import { LoadError, Spinner } from '@/components/LoadState';
 import { useConfirm } from '@/components/ConfirmProvider';
 
-const APPROVER_ROLES = ['sheikh_reviewer', 'dean', 'advisor', 'operator', 'superadmin'];
+const APPROVER_ROLES = ['sheikh_reviewer', 'admin', 'advisor', 'operator', 'superadmin'];
 const SOURCES: { value: Cluster['source']; label: string }[] = [
   { value: 'other', label: 'أخرى' }, { value: 'kirmani', label: 'الكرماني' },
   { value: 'ansari', label: 'الأنصاري' }, { value: 'sakhawi', label: 'السخاوي' },

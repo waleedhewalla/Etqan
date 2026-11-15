@@ -20,7 +20,7 @@ in Egypt (`docs/pilot/README.md`). A web app that installs as a PWA (works offli
 | Student | FSRS-scheduled daily review (new / recent / old), previous verse as the cue and a reveal button, mushaf reader, look-alike verse (mutashabihat) drills, badges and streaks with freeze days, per-student plan |
 | Recitation | Student records audio; the teacher grades (hifz, tajweed, fluency), replies in text or voice, up to a set number of re-attempts; optional AI checking (off in the pilot); audio is deleted after review |
 | Teaching | Live lessons (LiveKit): hand-raise, synced mushaf, scheduled with reminders, browser-side recording shared with the halaqa; «آيات للحفظ» recorded verses |
-| Programme | Dean-defined programme by period with verse ranges, pace, weights, **period tests** that decide moving on |
+| Programme | Admin-defined programme by period with verse ranges, pace, weights, **period tests** that decide moving on |
 | People | Attendance with guardian alerts, guardian portal and weekly report, monthly record, notification bell, WhatsApp messages, admin console (users, modules on/off, audit log), data export and deletion requests |
 | Plans | Tiers `free`, `madrasa_basic`, `madrasa_pro`, `enterprise` in code (`lib/plan.ts`); limits on students and halaqat. **No payment flow, no prices in the repository.** |
 
@@ -87,7 +87,7 @@ Not verified and dropped: Quran Companion, Ayah, Quranly, Hafiz, Bayyinah and Al
 4. **Printable summary for guardians.** The map is now in the guardian report; a printable certificate-style summary is the cheap next step.
    Small to medium.
 5. **Fees and invoices.** Only if the pilot institution asks; needs a payment provider and merchant account. Large.
-6. **Certificates / ijazah workflow.** Ask the pilot dean what they issue today before designing anything. Unknown size.
+6. **Certificates / ijazah workflow.** Ask the pilot admin what they issue today before designing anything. Unknown size.
 7. **English and other UI languages.** Medium to large; for expansion, not the pilot.
 
 ## 6. Built in this change

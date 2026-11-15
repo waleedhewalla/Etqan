@@ -54,7 +54,7 @@ export async function liveRoutes(app: FastifyInstance) {
   /** How the caller relates to a session: its host, a listener, or neither (null). */
   const roleIn = async (user: TokenPayload, session: Session): Promise<'host' | 'listener' | null> => {
     if (await loadManagedSection(db, user, session.sectionId)) {
-      // The teacher who opened it hosts; a dean looking in listens.
+      // The teacher who opened it hosts; an admin looking in listens.
       return session.teacherId === user.sub ? 'host' : 'listener';
     }
     const [enrolled] = await db.select({ id: sectionEnrollments.id }).from(sectionEnrollments)
@@ -178,7 +178,7 @@ export async function liveRoutes(app: FastifyInstance) {
   });
 
   // POST /v1/live/:id/connection-problem — the browser could not join the room (the network blocks the media, say).
-  // Only noted in the audit log, so the dean can see how many people cannot connect before deciding on a relay server.
+  // Only noted in the audit log, so the admin can see how many people cannot connect before deciding on a relay server.
   app.post('/live/:id/connection-problem', {
     schema: { body: z.object({ reason: z.string().trim().max(120).default('') }) },
     preHandler: [app.authenticate],

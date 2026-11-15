@@ -1,5 +1,5 @@
 /**
- * Data requests. A person can download her data and ask for it to be deleted; a dean can do the same on her behalf (a request that
+ * Data requests. A person can download her data and ask for it to be deleted; an admin can do the same on her behalf (a request that
  * came by email) and decides each request: anonymize (the default, which keeps the grades the institution must keep, without a name)
  * or erase. An approved request waits out a grace period, during which the account is stopped, so a mistake can be undone; then a job
  * removes the data (lib/data-deletion.ts).
@@ -15,7 +15,7 @@ import { activeHalaqatLed, buildExport, isErasable } from '../../lib/data-deleti
 import type { TokenPayload } from '../../lib/jwt';
 import { auditLog } from '../audit/service';
 
-const MANAGER_ROLES: readonly string[] = ['dean', 'operator', 'superadmin'];
+const MANAGER_ROLES: readonly string[] = ['admin', 'operator', 'superadmin'];
 const PLATFORM_ROLES = ['operator', 'superadmin'];
 const idParam = z.object({ id: z.string().uuid() });
 const onBehalf = z.object({ userId: z.string().uuid(), note: z.string().trim().max(300).optional() });
@@ -24,7 +24,7 @@ const reject = z.object({ reason: z.string().trim().min(3).max(300) });
 const listQuery = z.object({ status: z.enum(['open', 'done', 'all']).default('open') });
 
 type Request = typeof dataRequests.$inferSelect;
-/** What a person sees of her own request, and a dean of any: never the grace-period bookkeeping. */
+/** What a person sees of her own request, and an admin of any: never the grace-period bookkeeping. */
 const serialize = (r: Request) => ({
   id: r.id, userId: r.userId, subjectName: r.subjectName, subjectRole: r.subjectRole, status: r.status, mode: r.mode, source: r.source,
   requestedAt: r.requestedAt, decidedAt: r.decidedAt, decisionNote: r.decisionNote, scheduledFor: r.scheduledFor, completedAt: r.completedAt,
@@ -36,7 +36,7 @@ export async function privacyRoutes(app: FastifyInstance) {
 
   const tenantOf = (user: TokenPayload) => (MANAGER_ROLES.includes(user.role) && user.facultyId ? user.facultyId : null);
   const forbidden = (request: { server: FastifyInstance }) => request.server.httpErrors.forbidden('Institution managers only');
-  const canDecide = (actor: TokenPayload, subjectRole: string) => !['dean'].includes(subjectRole) || PLATFORM_ROLES.includes(actor.role);
+  const canDecide = (actor: TokenPayload, subjectRole: string) => !['admin'].includes(subjectRole) || PLATFORM_ROLES.includes(actor.role);
 
   const openRequest = async (userId: string) =>
     (await db.select().from(dataRequests).where(and(eq(dataRequests.userId, userId), inArray(dataRequests.status, ['pending', 'scheduled']))).limit(1))[0];
@@ -86,7 +86,7 @@ export async function privacyRoutes(app: FastifyInstance) {
   app.delete('/me/data-request', { preHandler: [app.authenticate] }, async (request) => {
     const open = await openRequest(request.user.sub);
     if (!open) return request.server.httpErrors.notFound('No open request');
-    if (open.status !== 'pending') return request.server.httpErrors.conflict('The request was approved: ask your dean to cancel it');
+    if (open.status !== 'pending') return request.server.httpErrors.conflict('The request was approved: ask your admin to cancel it');
     await db.update(dataRequests).set({ status: 'cancelled', decidedAt: new Date(), decidedBy: request.user.sub }).where(eq(dataRequests.id, open.id));
     await auditLog({ actorId: request.user.sub, actorRole: request.user.role, tenantId: open.tenantId, action: 'data.deletion.cancelled', targetType: 'data_request', targetId: open.id, metadata: { by: 'self' } });
     return { ok: true };
@@ -108,14 +108,14 @@ export async function privacyRoutes(app: FastifyInstance) {
     return { requests: rows.map((r) => ({ ...serialize(r), leadsHalaqat: leads.get(r.userId) ?? 0, erasable: isErasable(r.subjectRole) })), graceDays: config.DATA_DELETION_GRACE_DAYS };
   });
 
-  // POST /v1/admin/data-requests — a dean enters a request on someone's behalf (one that came by email)
+  // POST /v1/admin/data-requests — an admin enters a request on someone's behalf (one that came by email)
   app.post('/admin/data-requests', { schema: { body: onBehalf }, preHandler: [app.authenticate] }, async (request, reply) => {
     const tenantId = tenantOf(request.user);
     if (!tenantId) return forbidden(request);
     const body = request.body as z.infer<typeof onBehalf>;
     const [subject] = await db.select().from(users).where(and(eq(users.id, body.userId), eq(users.tenantId, tenantId))).limit(1);
     if (!subject || PLATFORM_ROLES.includes(subject.role)) return request.server.httpErrors.notFound('User not found');
-    if (!canDecide(request.user, subject.role)) return request.server.httpErrors.forbidden('Only the platform operator handles a dean\'s data');
+    if (!canDecide(request.user, subject.role)) return request.server.httpErrors.forbidden('Only the platform operator handles an admin\'s data');
     const made = await open(request, subject, 'admin', request.user, body.note);
     if ('error' in made) return made.error;
     return reply.code(201).send(serialize(made.row));
@@ -127,7 +127,7 @@ export async function privacyRoutes(app: FastifyInstance) {
     const { id } = request.params as z.infer<typeof idParam>;
     const [row] = await db.select().from(dataRequests).where(and(eq(dataRequests.id, id), eq(dataRequests.tenantId, tenantId))).limit(1);
     if (!row) return { error: request.server.httpErrors.notFound('Request not found') };
-    if (!canDecide(request.user, row.subjectRole)) return { error: request.server.httpErrors.forbidden('Only the platform operator handles a dean\'s data') };
+    if (!canDecide(request.user, row.subjectRole)) return { error: request.server.httpErrors.forbidden('Only the platform operator handles an admin\'s data') };
     return { row };
   };
 
@@ -183,14 +183,14 @@ export async function privacyRoutes(app: FastifyInstance) {
     return serialize(updated);
   });
 
-  // GET /v1/admin/users/:id/export — a dean gives a person her data (when she asks for it by email)
+  // GET /v1/admin/users/:id/export — an admin gives a person her data (when she asks for it by email)
   app.get('/admin/users/:id/export', { schema: { params: idParam }, preHandler: [app.authenticate] }, async (request, reply) => {
     const tenantId = tenantOf(request.user);
     if (!tenantId) return forbidden(request);
     const { id } = request.params as z.infer<typeof idParam>;
     const [subject] = await db.select({ id: users.id, role: users.role }).from(users).where(and(eq(users.id, id), eq(users.tenantId, tenantId))).limit(1);
     if (!subject || PLATFORM_ROLES.includes(subject.role)) return request.server.httpErrors.notFound('User not found');
-    if (!canDecide(request.user, subject.role)) return request.server.httpErrors.forbidden('Only the platform operator handles a dean\'s data');
+    if (!canDecide(request.user, subject.role)) return request.server.httpErrors.forbidden('Only the platform operator handles an admin\'s data');
     const data = await buildExport(db, id);
     await auditLog({ actorId: request.user.sub, actorRole: request.user.role, tenantId, action: 'data.exported', targetType: 'user', targetId: id, metadata: { by: 'admin' } });
     return reply.header('Content-Disposition', 'attachment; filename="itqan-user-data.json"').type('application/json').send(data);

@@ -55,8 +55,8 @@ describe.skipIf(!process.env.DATABASE_URL)('recording a live lesson', () => {
     const [tenant] = await db.insert(tenants).values({ slug: `rec-${tag}`, nameAr: 'معهد' }).returning();
     const mk = async (role: typeof users.$inferInsert['role'], name: string) =>
       (await db.insert(users).values({ tenantId: tenant.id, role, displayNameAr: name }).returning())[0];
-    const [teacher, otherTeacher, dean, student, outsider, guardian] = [
-      await mk('lecturer', 'المعلمة'), await mk('lecturer', 'معلمة أخرى'), await mk('dean', 'العميدة'),
+    const [teacher, otherTeacher, admin, student, outsider, guardian] = [
+      await mk('lecturer', 'المعلمة'), await mk('lecturer', 'معلمة أخرى'), await mk('admin', 'المسؤولة'),
       await mk('student', 'أسماء'), await mk('student', 'من حلقة أخرى'), await mk('mahram', 'ولي الأمر'),
     ];
     const code = (p: string) => `${p}${tag.toUpperCase().slice(0, 6)}`;
@@ -66,7 +66,7 @@ describe.skipIf(!process.env.DATABASE_URL)('recording a live lesson', () => {
     await db.insert(guardianLinks).values({ studentId: student.id, guardianId: guardian.id });
     ids.section = section.id;
     const tok = (u: { id: string; role: string; tenantId: string | null }) => generateToken({ sub: u.id, role: u.role, facultyId: u.tenantId! });
-    Object.assign(tokens, { teacher: tok(teacher), otherTeacher: tok(otherTeacher), dean: tok(dean), student: tok(student), outsider: tok(outsider), guardian: tok(guardian) });
+    Object.assign(tokens, { teacher: tok(teacher), otherTeacher: tok(otherTeacher), admin: tok(admin), student: tok(student), outsider: tok(outsider), guardian: tok(guardian) });
     ids.session = await startLesson();
   });
 
@@ -86,7 +86,7 @@ describe.skipIf(!process.env.DATABASE_URL)('recording a live lesson', () => {
   it('is started by the host only, once', async () => {
     expect((await send('teacher', 0, WEBM)).statusCode).toBe(409); // not recording yet
     expect((await call('student', 'POST', `/live/${ids.session}/recording/start`)).statusCode).toBe(403);
-    expect((await call('dean', 'POST', `/live/${ids.session}/recording/start`)).statusCode).toBe(403);
+    expect((await call('admin', 'POST', `/live/${ids.session}/recording/start`)).statusCode).toBe(403);
     for (const who of ['outsider', 'guardian', 'otherTeacher']) {
       expect((await call(who, 'POST', `/live/${ids.session}/recording/start`)).statusCode).toBe(404);
     }
@@ -131,7 +131,7 @@ describe.skipIf(!process.env.DATABASE_URL)('recording a live lesson', () => {
   });
 
   it('is listed for the halaqa and its staff, and for nobody else', async () => {
-    for (const who of ['student', 'teacher', 'dean']) {
+    for (const who of ['student', 'teacher', 'admin']) {
       const list = (await call(who, 'GET', '/live/recordings')).json();
       expect(list.map((s: { id: string }) => s.id)).toContain(ids.session);
       expect(list[0]).toMatchObject({ sectionName: 'حلقة', teacherName: 'المعلمة', startRef: '67:1' });

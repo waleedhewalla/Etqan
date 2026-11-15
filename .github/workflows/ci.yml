@@ -125,7 +125,7 @@ jobs:
           for i in 1 2; do
             docker compose -f compose.prod.yml run --rm --no-deps api node dist/bootstrap.mjs \
               --slug ci-check --name "CI" --plan madrasa_pro \
-              --dean-email dean@example.test --dean-name "Dean" \
+              --admin-email admin@example.test --admin-name "Admin" \
               --teacher-email teacher@example.test --teacher-name "Teacher" --halaqa "Halaqa"
           done
 

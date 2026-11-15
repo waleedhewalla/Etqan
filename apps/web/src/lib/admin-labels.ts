@@ -1,16 +1,16 @@
 import type { AdminRole } from '@/lib/api';
 
 export const ROLE_LABEL: Record<AdminRole, string> = {
-  student: 'طالبة', mahram: 'ولي أمر', lecturer: 'معلمة', muhaffiza: 'محفّظة', sheikh_reviewer: 'شيخة مراجِعة', advisor: 'مرشدة', dean: 'عميد',
+  student: 'طالبة', mahram: 'ولي أمر', lecturer: 'معلمة', muhaffiza: 'محفّظة', sheikh_reviewer: 'شيخة مراجِعة', advisor: 'مرشدة', admin: 'مسؤول',
   alumna: 'خريجة', committee_member: 'عضو لجنة', sama_committee_member: 'عضو لجنة السماع',
 };
 
-/** Roles an admin can create, in the order the form offers them. A dean is added by the platform operator only. */
-export const CREATABLE: { role: 'student' | 'mahram' | 'lecturer' | 'muhaffiza' | 'sheikh_reviewer' | 'advisor' | 'dean'; operatorOnly?: boolean }[] = [
+/** Roles an admin can create, in the order the form offers them. An admin is added by the platform operator only. */
+export const CREATABLE: { role: 'student' | 'mahram' | 'lecturer' | 'muhaffiza' | 'sheikh_reviewer' | 'advisor' | 'admin'; operatorOnly?: boolean }[] = [
   { role: 'student' }, { role: 'mahram' }, { role: 'lecturer' }, { role: 'muhaffiza' }, { role: 'sheikh_reviewer' }, { role: 'advisor' },
-  { role: 'dean', operatorOnly: true },
+  { role: 'admin', operatorOnly: true },
 ];
-export const isStaffRole = (role: string) => ['lecturer', 'muhaffiza', 'sheikh_reviewer', 'advisor', 'dean'].includes(role);
+export const isStaffRole = (role: string) => ['lecturer', 'muhaffiza', 'sheikh_reviewer', 'advisor', 'admin'].includes(role);
 
 /** The audit log's action codes, in words. An action with no entry here is shown as its code. */
 export const ACTION_LABEL: Record<string, string> = {

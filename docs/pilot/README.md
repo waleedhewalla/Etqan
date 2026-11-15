@@ -27,7 +27,7 @@ answer to the question is no, they do not matter.
 ## Setup week
 
 1. Deploy the staging stack ([DEPLOY.md](../DEPLOY.md)) and create the institution and its admin.
-2. The dean signs in and, in the admin console, adds each teacher and opens her halaqa. Give each teacher her
+2. The admin signs in and, in the admin console, adds each teacher and opens her halaqa. Give each teacher her
    halaqa's join code.
 3. Sit with each teacher for 30 minutes with the teacher guide: she signs in, adds two students herself, and
    **sets each student's memorization plan** — without it a student's daily list is empty.

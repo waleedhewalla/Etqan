@@ -136,8 +136,8 @@ describe.skipIf(!process.env.DATABASE_URL)('configuring programs', () => {
     const [otherTenant] = await db.insert(tenants).values({ slug: `prx-${tag}`, nameAr: 'معهد آخر' }).returning();
     const mk = async (tenantId: string, role: typeof users.$inferInsert['role'], name: string) =>
       (await db.insert(users).values({ tenantId, role, displayNameAr: name }).returning())[0];
-    const dean = await mk(tenant.id, 'dean', 'العميدة');
-    const otherDean = await mk(otherTenant.id, 'dean', 'عميدة أخرى');
+    const admin = await mk(tenant.id, 'admin', 'المسؤولة');
+    const otherDean = await mk(otherTenant.id, 'admin', 'مسؤولة أخرى');
     const advisor = await mk(tenant.id, 'advisor', 'المستشارة');
     const teacher = await mk(tenant.id, 'lecturer', 'المعلمة');
     const otherTeacher = await mk(tenant.id, 'lecturer', 'معلمة أخرى');
@@ -153,7 +153,7 @@ describe.skipIf(!process.env.DATABASE_URL)('configuring programs', () => {
     Object.assign(ids, { section: section.id, other: other.id, student: student.id, classmate: classmate.id });
     const tok = (u: { id: string; role: string; tenantId: string | null }) => generateToken({ sub: u.id, role: u.role, facultyId: u.tenantId! });
     Object.assign(tokens, {
-      dean: tok(dean), otherDean: tok(otherDean), advisor: tok(advisor), teacher: tok(teacher), otherTeacher: tok(otherTeacher),
+      admin: tok(admin), otherDean: tok(otherDean), advisor: tok(advisor), teacher: tok(teacher), otherTeacher: tok(otherTeacher),
       student: tok(student), outsider: tok(outsider),
     });
   });
@@ -168,11 +168,11 @@ describe.skipIf(!process.env.DATABASE_URL)('configuring programs', () => {
       expect((await call(who, 'GET', '/admin/programs')).statusCode).toBe(403);
       expect((await call(who, 'POST', '/admin/programs', { nameAr: 'برنامج' })).statusCode).toBe(403);
     }
-    expect((await call('dean', 'GET', '/admin/programs')).json().programs).toEqual([]);
+    expect((await call('admin', 'GET', '/admin/programs')).json().programs).toEqual([]);
   });
 
   it('creates a program with its defaults and works out the weeks of each period', async () => {
-    const res = await call('dean', 'POST', '/admin/programs', { nameAr: 'برنامج الحفظ', periods });
+    const res = await call('admin', 'POST', '/admin/programs', { nameAr: 'برنامج الحفظ', periods });
     expect(res.statusCode).toBe(201);
     const program = res.json();
     ids.program = program.id;
@@ -199,7 +199,7 @@ describe.skipIf(!process.env.DATABASE_URL)('configuring programs', () => {
   });
 
   it('refuses periods that cannot be memorized or scheduled', async () => {
-    const put = (p: object) => call('dean', 'PUT', `/admin/programs/${ids.program}/periods`, { periods: [{ nameAr: 'فترة', ...p }] });
+    const put = (p: object) => call('admin', 'PUT', `/admin/programs/${ids.program}/periods`, { periods: [{ nameAr: 'فترة', ...p }] });
     expect((await put({ startRef: '112:1' })).statusCode).toBe(400); // one end only
     expect((await put({ startRef: '114:1', endRef: '112:1' })).statusCode).toBe(400); // backwards
     expect((await put({ startRef: '2:1', endRef: '20:1' })).statusCode).toBe(400); // too many ayat
@@ -208,13 +208,13 @@ describe.skipIf(!process.env.DATABASE_URL)('configuring programs', () => {
     expect((await put({ startRef: '1:1', endRef: '1:7', fixedWeeks: 2 })).statusCode).toBe(400); // both
     expect((await put({ startRef: '1:1', endRef: '1:7', pagesPerDay: 0.6 })).statusCode).toBe(400); // not a quarter step
     expect((await put({ startRef: '1:1', endRef: '1:7', pagesPerDay: 3 })).statusCode).toBe(400);
-    expect((await call('dean', 'PUT', `/admin/programs/${ids.program}/periods`, { periods: [] })).statusCode).toBe(400);
-    expect((await call('dean', 'POST', '/admin/programs', { nameAr: 'برنامج', weights: { hifz: 50, tajweed: 25, review: 20, retention: 15 } })).statusCode).toBe(400);
-    expect((await call('dean', 'POST', '/admin/programs', { nameAr: 'برنامج', hifzDaysPerWeek: 6 })).statusCode).toBe(400);
+    expect((await call('admin', 'PUT', `/admin/programs/${ids.program}/periods`, { periods: [] })).statusCode).toBe(400);
+    expect((await call('admin', 'POST', '/admin/programs', { nameAr: 'برنامج', weights: { hifz: 50, tajweed: 25, review: 20, retention: 15 } })).statusCode).toBe(400);
+    expect((await call('admin', 'POST', '/admin/programs', { nameAr: 'برنامج', hifzDaysPerWeek: 6 })).statusCode).toBe(400);
   });
 
   it('changing the required verses or the pace re-draws the schedule', async () => {
-    const put = (list: object[]) => call('dean', 'PUT', `/admin/programs/${ids.program}/periods`, { periods: list });
+    const put = (list: object[]) => call('admin', 'PUT', `/admin/programs/${ids.program}/periods`, { periods: list });
     const long = [{ nameAr: 'طويلة', startRef: '99:1', endRef: '114:6', pagesPerDay: 0.5 }, { nameAr: 'تثبيت', fixedWeeks: 2 }];
     const base = (await put(long)).json();
     const slower = (await put([{ ...long[0], pagesPerDay: 0.25 }, long[1]])).json();
@@ -226,19 +226,19 @@ describe.skipIf(!process.env.DATABASE_URL)('configuring programs', () => {
     expect(more.totals.weeks).toBeGreaterThan(base.totals.weeks);
     // Four memorization days a week become three: more weeks again.
     await put([{ ...long[0], pagesPerDay: 0.25 }, long[1]]);
-    const three = (await call('dean', 'PATCH', `/admin/programs/${ids.program}`, { hifzDaysPerWeek: 3 })).json();
+    const three = (await call('admin', 'PATCH', `/admin/programs/${ids.program}`, { hifzDaysPerWeek: 3 })).json();
     expect(three.totals.weeks).toBeGreaterThan(slower.totals.weeks);
-    await call('dean', 'PATCH', `/admin/programs/${ids.program}`, { hifzDaysPerWeek: 4 });
+    await call('admin', 'PATCH', `/admin/programs/${ids.program}`, { hifzDaysPerWeek: 4 });
     await put(periods);
   });
 
   it('changes the evaluation settings, which must add up', async () => {
-    expect((await call('dean', 'PATCH', `/admin/programs/${ids.program}`, { weights: { hifz: 50, tajweed: 30, review: 10, retention: 10 }, passScore: 80 })).json())
+    expect((await call('admin', 'PATCH', `/admin/programs/${ids.program}`, { weights: { hifz: 50, tajweed: 30, review: 10, retention: 10 }, passScore: 80 })).json())
       .toMatchObject({ weights: { hifz: 50, tajweed: 30, review: 10, retention: 10 }, passScore: 80 });
-    expect((await call('dean', 'PATCH', `/admin/programs/${ids.program}`, { weights: { hifz: 50, tajweed: 30, review: 10, retention: 5 } })).statusCode).toBe(400);
-    expect((await call('dean', 'PATCH', `/admin/programs/${ids.program}`, { passScore: 40 })).statusCode).toBe(400);
-    expect((await call('dean', 'PATCH', `/admin/programs/${ids.program}`, {})).statusCode).toBe(400);
-    await call('dean', 'PATCH', `/admin/programs/${ids.program}`, { weights: { hifz: 40, tajweed: 25, review: 20, retention: 15 }, passScore: 85 });
+    expect((await call('admin', 'PATCH', `/admin/programs/${ids.program}`, { weights: { hifz: 50, tajweed: 30, review: 10, retention: 5 } })).statusCode).toBe(400);
+    expect((await call('admin', 'PATCH', `/admin/programs/${ids.program}`, { passScore: 40 })).statusCode).toBe(400);
+    expect((await call('admin', 'PATCH', `/admin/programs/${ids.program}`, {})).statusCode).toBe(400);
+    await call('admin', 'PATCH', `/admin/programs/${ids.program}`, { weights: { hifz: 40, tajweed: 25, review: 20, retention: 15 }, passScore: 85 });
   });
 
   it('shows nothing until a halaqa follows the program', async () => {
@@ -247,28 +247,28 @@ describe.skipIf(!process.env.DATABASE_URL)('configuring programs', () => {
   });
 
   it('assigns a halaqa from the Sunday of the chosen week', async () => {
-    const res = await call('dean', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: ids.program, startDate: '2026-01-07' }); // a Wednesday
+    const res = await call('admin', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: ids.program, startDate: '2026-01-07' }); // a Wednesday
     expect(res.json()).toEqual({ id: ids.section, programId: ids.program, startDate: '2026-01-04' });
-    expect((await call('dean', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: randomUUID() })).statusCode).toBe(400);
+    expect((await call('admin', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: randomUUID() })).statusCode).toBe(400);
     expect((await call('teacher', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: ids.program })).statusCode).toBe(403);
     expect((await call('otherDean', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: ids.program })).statusCode).toBe(404);
-    const listed = (await call('dean', 'GET', '/admin/programs')).json();
+    const listed = (await call('admin', 'GET', '/admin/programs')).json();
     expect(listed.halaqat.find((h: { id: string }) => h.id === ids.section)).toMatchObject({ programId: ids.program, startDate: '2026-01-04', weekStart: '2026-01-04' });
     expect(listed.programs[0].inUse).toBe(true);
   });
 
   it('refuses a program with no periods, an archived one, and deleting one in use', async () => {
-    const empty = (await call('dean', 'POST', '/admin/programs', { nameAr: 'فارغ' })).json();
-    expect((await call('dean', 'PUT', `/admin/halaqat/${ids.other}/program`, { programId: empty.id })).statusCode).toBe(400);
-    await call('dean', 'PATCH', `/admin/programs/${empty.id}`, { active: false });
-    expect((await call('dean', 'PUT', `/admin/halaqat/${ids.other}/program`, { programId: empty.id })).statusCode).toBe(400);
-    expect((await call('dean', 'DELETE', `/admin/programs/${ids.program}`)).statusCode).toBe(409);
-    expect((await call('dean', 'DELETE', `/admin/programs/${empty.id}`)).statusCode).toBe(204);
+    const empty = (await call('admin', 'POST', '/admin/programs', { nameAr: 'فارغ' })).json();
+    expect((await call('admin', 'PUT', `/admin/halaqat/${ids.other}/program`, { programId: empty.id })).statusCode).toBe(400);
+    await call('admin', 'PATCH', `/admin/programs/${empty.id}`, { active: false });
+    expect((await call('admin', 'PUT', `/admin/halaqat/${ids.other}/program`, { programId: empty.id })).statusCode).toBe(400);
+    expect((await call('admin', 'DELETE', `/admin/programs/${ids.program}`)).statusCode).toBe(409);
+    expect((await call('admin', 'DELETE', `/admin/programs/${empty.id}`)).statusCode).toBe(204);
   });
 
   it('tells the halaqa what is required now', async () => {
-    await call('dean', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: ids.program, startDate: localDate() });
-    for (const who of ['teacher', 'student', 'dean']) {
+    await call('admin', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: ids.program, startDate: localDate() });
+    for (const who of ['teacher', 'student', 'admin']) {
       const res = await call(who, 'GET', `/sections/${ids.section}/program`);
       expect(res.statusCode).toBe(200);
       const now = res.json();
@@ -297,16 +297,16 @@ describe.skipIf(!process.env.DATABASE_URL)('configuring programs', () => {
   it('does not apply when no new memorization is due', async () => {
     expect((await call('otherTeacher', 'POST', `/sections/${ids.other}/program/apply`)).statusCode).toBe(409); // follows no program
     const future = localDateAfter(localDate(), 21);
-    await call('dean', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: ids.program, startDate: future });
+    await call('admin', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: ids.program, startDate: future });
     expect((await call('student', 'GET', `/sections/${ids.section}/program`)).json()).toMatchObject({ status: 'not_started', week: 0, canApply: false });
     expect((await call('teacher', 'POST', `/sections/${ids.section}/program/apply`)).statusCode).toBe(409);
-    await call('dean', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: ids.program, startDate: '2020-01-05' });
+    await call('admin', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: ids.program, startDate: '2020-01-05' });
     expect((await call('student', 'GET', `/sections/${ids.section}/program`)).json()).toMatchObject({ status: 'finished', canApply: false });
   });
 
   it('lets a halaqa stop following a program, and then the program can go', async () => {
-    expect((await call('dean', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: null })).json()).toEqual({ id: ids.section, programId: null, startDate: null });
+    expect((await call('admin', 'PUT', `/admin/halaqat/${ids.section}/program`, { programId: null })).json()).toEqual({ id: ids.section, programId: null, startDate: null });
     expect((await call('student', 'GET', `/sections/${ids.section}/program`)).json()).toEqual({ program: null });
-    expect((await call('dean', 'DELETE', `/admin/programs/${ids.program}`)).statusCode).toBe(204);
+    expect((await call('admin', 'DELETE', `/admin/programs/${ids.program}`)).statusCode).toBe(204);
   });
 });

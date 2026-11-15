@@ -45,8 +45,8 @@ describe.skipIf(!process.env.DATABASE_URL)('admin overview', () => {
     const [b] = await db.insert(tenants).values({ slug: `adm-b-${tag}`, nameAr: 'معهد ب' }).returning();
     const mk = async (tenantId: string, role: typeof users.$inferInsert['role'], name: string) =>
       (await db.insert(users).values({ tenantId, role, displayNameAr: name }).returning())[0];
-    const dean = await mk(a.id, 'dean', 'العميدة');
-    const deanB = await mk(b.id, 'dean', 'عميدة ب');
+    const admin = await mk(a.id, 'admin', 'المسؤولة');
+    const adminB = await mk(b.id, 'admin', 'مسؤولة ب');
     const root = await mk(a.id, 'superadmin', 'المشرفة العامة');
     const teacher = await mk(a.id, 'lecturer', 'معلمة');
     const student = await mk(a.id, 'student', 'طالبة');
@@ -94,7 +94,7 @@ describe.skipIf(!process.env.DATABASE_URL)('admin overview', () => {
     }
     Object.assign(ids, { a: a.id, b: b.id, absent: absent.id, away: away.id, never: never.id, both: both.id, other: other.id });
     const tok = (u: { id: string; role: string; tenantId: string | null }) => generateToken({ sub: u.id, role: u.role, facultyId: u.tenantId! });
-    Object.assign(tokens, { dean: tok(dean), deanB: tok(deanB), root: tok(root), teacher: tok(teacher), student: tok(student) });
+    Object.assign(tokens, { admin: tok(admin), adminB: tok(adminB), root: tok(root), teacher: tok(teacher), student: tok(student) });
   });
 
   afterAll(async () => {
@@ -109,18 +109,18 @@ describe.skipIf(!process.env.DATABASE_URL)('admin overview', () => {
   });
 
   it('describes the institution and its plan as stored', async () => {
-    const res = await get('/v1/admin/overview', 'dean');
+    const res = await get('/v1/admin/overview', 'admin');
     expect(res.statusCode, res.body).toBe(200);
     expect(res.json().institution).toMatchObject({ nameAr: 'معهد أ', plan: { tier: 'madrasa_pro', maxStudents: 80 } });
   });
 
   it('counts students in a halaqa once, and not those who left', async () => {
-    const { usage } = (await get('/v1/admin/overview', 'dean')).json();
+    const { usage } = (await get('/v1/admin/overview', 'admin')).json();
     expect(usage).toEqual({ students: 5, halaqat: 2 }); // active, away, never, absent, both
   });
 
   it('measures activity and the weekly trend', async () => {
-    const { activity } = (await get('/v1/admin/overview', 'dean')).json();
+    const { activity } = (await get('/v1/admin/overview', 'admin')).json();
     expect(activity.reviewsThisWeek).toBe(4);   // active 0d, away 5d, absent 1d, both 5d
     expect(activity.reviewsLastWeek).toBe(2);   // active 9d and 10d
     expect(activity.activeToday).toBe(1);
@@ -128,7 +128,7 @@ describe.skipIf(!process.env.DATABASE_URL)('admin overview', () => {
   });
 
   it('lists who needs follow-up with reasons, worst first, and not students who are fine', async () => {
-    const { atRisk } = (await get('/v1/admin/overview', 'dean')).json();
+    const { atRisk } = (await get('/v1/admin/overview', 'admin')).json();
     const by = Object.fromEntries(atRisk.students.map((s: { studentId: string }) => [s.studentId, s]));
     expect(Object.keys(by).sort()).toEqual([ids.absent, ids.away, ids.both, ids.never].sort());
     expect(by[ids.never]).toMatchObject({ level: 'high', reasons: ['inactive'], inactiveDays: null });
@@ -143,12 +143,12 @@ describe.skipIf(!process.env.DATABASE_URL)('admin overview', () => {
   });
 
   it('keeps institutions apart', async () => {
-    const b = (await get('/v1/admin/overview', 'deanB')).json();
+    const b = (await get('/v1/admin/overview', 'adminB')).json();
     expect(b.institution.nameAr).toBe('معهد ب');
     expect(b.usage.students).toBe(1);
     expect(b.atRisk.students).toEqual([]);
-    // a dean cannot ask for another institution
-    const sneaky = await get(`/v1/admin/overview?tenantId=${ids.b}`, 'dean');
+    // an admin cannot ask for another institution
+    const sneaky = await get(`/v1/admin/overview?tenantId=${ids.b}`, 'admin');
     expect(sneaky.json().institution.id).toBe(ids.a);
   });
 
@@ -158,6 +158,6 @@ describe.skipIf(!process.env.DATABASE_URL)('admin overview', () => {
     const list = await get('/v1/admin/tenants', 'root');
     expect(list.statusCode).toBe(200);
     expect(list.json().map((t: { id: string }) => t.id)).toEqual(expect.arrayContaining([ids.a, ids.b]));
-    expect((await get('/v1/admin/tenants', 'dean')).statusCode).toBe(403);
+    expect((await get('/v1/admin/tenants', 'admin')).statusCode).toBe(403);
   });
 });

@@ -15,7 +15,7 @@ export const USER_KEY = 'itqan_user';
 // ── Response types (mirror apps/core routes) ──
 
 export type Role =
-  | 'student' | 'lecturer' | 'muhaffiza' | 'advisor' | 'dean' | 'sheikh_reviewer'
+  | 'student' | 'lecturer' | 'muhaffiza' | 'advisor' | 'admin' | 'sheikh_reviewer'
   | 'committee_member' | 'sama_committee_member' | 'operator' | 'superadmin' | 'mahram' | 'alumna';
 
 export interface ApiUser {
@@ -452,7 +452,7 @@ export interface SetupHalaqa {
 export interface InstitutionSetup { staff: SetupStaff[]; halaqat: SetupHalaqa[] }
 
 /** Someone in the institution, as the admin's directory shows them. */
-export type AdminRole = 'student' | 'mahram' | 'lecturer' | 'muhaffiza' | 'sheikh_reviewer' | 'advisor' | 'dean' | 'alumna' | 'committee_member' | 'sama_committee_member';
+export type AdminRole = 'student' | 'mahram' | 'lecturer' | 'muhaffiza' | 'sheikh_reviewer' | 'advisor' | 'admin' | 'alumna' | 'committee_member' | 'sama_committee_member';
 export interface DirectoryUser {
   id: string;
   displayNameAr: string;
@@ -472,7 +472,7 @@ export interface UserDirectory { users: DirectoryUser[]; total: number; offset: 
 export type NewUser =
   | { role: 'student'; displayNameAr: string; whatsapp: string; sectionId?: string; guardian?: { displayNameAr: string; whatsapp: string } }
   | { role: 'mahram'; displayNameAr: string; whatsapp: string; studentId?: string }
-  | { role: 'lecturer' | 'muhaffiza' | 'sheikh_reviewer' | 'advisor' | 'dean'; displayNameAr: string; email: string };
+  | { role: 'lecturer' | 'muhaffiza' | 'sheikh_reviewer' | 'advisor' | 'admin'; displayNameAr: string; email: string };
 export type BulkStatus = 'created' | 'enrolled' | 'exists' | 'invalid' | 'full' | 'plan_limit';
 export interface BulkStudentsResult {
   results: { row: number; displayNameAr: string; whatsapp: string; status: BulkStatus }[];
@@ -697,7 +697,7 @@ export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاول�
   if (code === 'CONSENT_REQUIRED') return 'نحتاج موافقتكِ على تسجيل الصوت أولاً.';
   if (e?.response?.status === 413) return 'التسجيل كبير جداً. سجّلي مقطعاً أقصر.';
   if (e?.response?.status === 415) return 'تعذّر قبول هذا التسجيل. جرّبي متصفحاً آخر.';
-  if (code === 'MODULE_DISABLED') return 'هذه الوحدة موقوفة في مؤسستكم. تواصلي مع العميد.';
+  if (code === 'MODULE_DISABLED') return 'هذه الوحدة موقوفة في مؤسستكم. تواصلي مع المسؤول.';
   if (code === 'RECORDING_NOT_ALLOWED') return 'تسجيل الدروس غير مسموح به في مؤسستكم.';
   if (code === 'RETEST_TOO_SOON') return 'لا يُعاد الاختبار قبل مضي أسبوع العلاج. يظهر أول يوم للإعادة في بطاقة الطالبة.';
   if (code === 'LESSON_NOT_STARTED') return 'لم يبدأ الدرس بعد. ستبدأ المعلمة الدرس في موعده.';
@@ -965,7 +965,7 @@ class ApiClient {
     return this.client.post<DirectoryUser & { invitation?: 'sent' | 'skipped' | 'failed' }>('/admin/users', data);
   }
 
-  editUser(id: string, data: { displayNameAr?: string; email?: string; whatsapp?: string; active?: boolean; role?: 'lecturer' | 'muhaffiza' | 'sheikh_reviewer' | 'advisor' | 'dean' }) {
+  editUser(id: string, data: { displayNameAr?: string; email?: string; whatsapp?: string; active?: boolean; role?: 'lecturer' | 'muhaffiza' | 'sheikh_reviewer' | 'advisor' | 'admin' }) {
     return this.client.patch<DirectoryUser>(`/admin/users/${id}`, data);
   }
 
@@ -1362,7 +1362,7 @@ export function clearSession() {
 export function homeFor(role: Role | undefined | null) {
   if (role === 'student' || role === 'alumna') return '/dashboard';
   if (role === 'mahram') return '/guardian';
-  if (role === 'dean' || role === 'advisor' || role === 'operator' || role === 'superadmin') return '/admin';
+  if (role === 'admin' || role === 'advisor' || role === 'operator' || role === 'superadmin') return '/admin';
   return '/dashboard/teacher';
 }
 

@@ -11,10 +11,10 @@ describe('staff invitation', () => {
     return sent[0];
   };
 
-  it('addresses a dean in the masculine', async () => {
-    const m = await send('dean');
+  it('addresses an admin in the masculine', async () => {
+    const m = await send('admin');
     expect(m.subject).toBe('أُضيفتَ إلى إتقان');
-    expect(m.text).toContain('عميداً');
+    expect(m.text).toContain('مسؤولاً');
     expect(m.text).toContain('افتح ');
     expect(m.text).not.toContain('افتحي');
   });

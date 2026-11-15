@@ -72,7 +72,7 @@ describe.skipIf(!process.env.DATABASE_URL)('plan enforcement', () => {
     const mk = async (role: typeof users.$inferInsert['role'], name: string, whatsappE164?: string) =>
       (await db.insert(users).values({ tenantId: tenant.id, role, displayNameAr: name, whatsappE164 }).returning())[0];
     const teacher = await mk('lecturer', 'المعلمة');
-    const dean = await mk('dean', 'العميدة');
+    const admin = await mk('admin', 'المسؤولة');
     const first = await mk('student', 'الأولى', phone(1));
     const outsider = await mk('student', 'خارج الحلقات', phone(2));
     const [s1] = await db.insert(sections).values({ tenantId: tenant.id, nameAr: 'حلقة ١', joinCode: code('P1'), teacherId: teacher.id }).returning();
@@ -80,7 +80,7 @@ describe.skipIf(!process.env.DATABASE_URL)('plan enforcement', () => {
     await db.insert(sectionEnrollments).values({ sectionId: s1.id, studentId: first.id }); // 1 of 2 seats used
     Object.assign(ids, { tenant: tenant.id, s1: s1.id, s2: s2.id, first: first.id, outsider: outsider.id });
     const tok = (u: { id: string; role: string }) => generateToken({ sub: u.id, role: u.role, facultyId: tenant.id });
-    Object.assign(tokens, { teacher: tok(teacher), dean: tok(dean), first: tok(first), outsider: tok(outsider) });
+    Object.assign(tokens, { teacher: tok(teacher), admin: tok(admin), first: tok(first), outsider: tok(outsider) });
   });
 
   afterEach(() => mode('warn'));
@@ -93,7 +93,7 @@ describe.skipIf(!process.env.DATABASE_URL)('plan enforcement', () => {
     await closeDb();
   });
 
-  const overview = async () => (await app.inject({ method: 'GET', url: '/v1/admin/overview', headers: auth('dean') })).json().institution.plan;
+  const overview = async () => (await app.inject({ method: 'GET', url: '/v1/admin/overview', headers: auth('admin') })).json().institution.plan;
   const createHalaqa = (name: string) => app.inject({ method: 'POST', url: '/v1/sections', headers: auth('teacher'), payload: { nameAr: name, maxStudents: 25 } });
   const joinAs = (who: string, joinCode: string) => app.inject({ method: 'POST', url: '/v1/sections/join', headers: auth(who), payload: { code: joinCode } });
 
@@ -190,16 +190,16 @@ describe.skipIf(!process.env.DATABASE_URL)('plan enforcement', () => {
       setAsrProvider(provider);
       const status = (who: string) => app.inject({ method: 'GET', url: '/v1/voice/status', headers: auth(who) });
       await setPlan({ planTier: 'free', settings: { aiChecking: true } });
-      expect((await status('dean')).json()).toMatchObject({ available: true, included: false, enabled: false });
-      const refused = await app.inject({ method: 'PUT', url: '/v1/voice/institution', headers: auth('dean'), payload: { enabled: true } });
+      expect((await status('admin')).json()).toMatchObject({ available: true, included: false, enabled: false });
+      const refused = await app.inject({ method: 'PUT', url: '/v1/voice/institution', headers: auth('admin'), payload: { enabled: true } });
       expect(refused.statusCode).toBe(403);
       expect(refused.json().code).toBe('PLAN_FEATURE_NOT_INCLUDED');
       // switching it OFF is always allowed
-      expect((await app.inject({ method: 'PUT', url: '/v1/voice/institution', headers: auth('dean'), payload: { enabled: false } })).statusCode).toBe(200);
+      expect((await app.inject({ method: 'PUT', url: '/v1/voice/institution', headers: auth('admin'), payload: { enabled: false } })).statusCode).toBe(200);
 
       await setPlan({ planTier: 'madrasa_pro' });
-      expect((await app.inject({ method: 'PUT', url: '/v1/voice/institution', headers: auth('dean'), payload: { enabled: true } })).statusCode).toBe(200);
-      expect((await status('dean')).json()).toMatchObject({ included: true, enabled: true });
+      expect((await app.inject({ method: 'PUT', url: '/v1/voice/institution', headers: auth('admin'), payload: { enabled: true } })).statusCode).toBe(200);
+      expect((await status('admin')).json()).toMatchObject({ included: true, enabled: true });
     });
   });
 });

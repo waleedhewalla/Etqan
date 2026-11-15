@@ -45,7 +45,7 @@ describe.skipIf(!process.env.DATABASE_URL)('scheduled live lessons', () => {
     const mk = async (role: typeof users.$inferInsert['role'], name: string, extra: Partial<typeof users.$inferInsert> = {}) =>
       (await db.insert(users).values({ tenantId: tenant.id, role, displayNameAr: name, ...extra }).returning())[0];
     const teacher = await mk('lecturer', 'المعلمة');
-    const dean = await mk('dean', 'العميدة');
+    const admin = await mk('admin', 'المسؤولة');
     const asma = await mk('student', 'أسماء', { whatsappE164: `+2010${tag.replace(/\D/g, '').padEnd(4, '1').slice(0, 4)}0001` });
     const basma = await mk('student', 'بسمة', { whatsappE164: `+2010${tag.replace(/\D/g, '').padEnd(4, '1').slice(0, 4)}0002` });
     const stopped = await mk('student', 'موقوفة', { active: false });
@@ -56,7 +56,7 @@ describe.skipIf(!process.env.DATABASE_URL)('scheduled live lessons', () => {
     // Asma agreed to WhatsApp messages; Basma did not.
     await db.insert(consents).values({ userId: asma.id, purpose: 'whatsapp_notifications', grantedAt: new Date() });
     Object.assign(ids, { tenant: tenant.id, section: section.id, other: other.id, teacher: teacher.id, asma: asma.id, basma: basma.id, stopped: stopped.id });
-    Object.assign(tokens, { teacher: tok(teacher), dean: tok(dean), asma: tok(asma), basma: tok(basma), outsider: tok(outsider) });
+    Object.assign(tokens, { teacher: tok(teacher), admin: tok(admin), asma: tok(asma), basma: tok(basma), outsider: tok(outsider) });
   });
 
   afterAll(async () => {
@@ -83,7 +83,7 @@ describe.skipIf(!process.env.DATABASE_URL)('scheduled live lessons', () => {
   });
 
   it('is listed for the halaqa and its staff as upcoming, not as live now', async () => {
-    for (const who of ['asma', 'teacher', 'dean']) {
+    for (const who of ['asma', 'teacher', 'admin']) {
       const upcoming = (await call(who, 'GET', '/live/upcoming')).json();
       expect(upcoming.map((s: { id: string }) => s.id), who).toContain(ids.lesson);
       expect(upcoming.find((s: { id: string }) => s.id === ids.lesson)).toMatchObject({ sectionName: 'حلقة', teacherName: 'المعلمة' });
@@ -136,7 +136,7 @@ describe.skipIf(!process.env.DATABASE_URL)('scheduled live lessons', () => {
   it('can be cancelled by whoever manages the halaqa, before it starts', async () => {
     const lesson = (await schedule(3 * HOUR)).json();
     expect((await call('asma', 'POST', `/live/${lesson.id}/cancel`)).statusCode).toBe(404);
-    expect((await call('dean', 'POST', `/live/${lesson.id}/cancel`)).json().status).toBe('cancelled');
+    expect((await call('admin', 'POST', `/live/${lesson.id}/cancel`)).json().status).toBe('cancelled');
     expect((await call('teacher', 'POST', `/live/${lesson.id}/cancel`)).json().status).toBe('cancelled'); // again: no change
     expect((await call('teacher', 'POST', `/live/${lesson.id}/start`)).statusCode).toBe(410);
     expect((await call('asma', 'POST', `/live/${lesson.id}/join`)).statusCode).toBe(410);
@@ -220,7 +220,7 @@ describe.skipIf(!process.env.DATABASE_URL)('scheduled live lessons', () => {
 
     it('respects the institution’s module choices: live off sends nothing, notifications off sends no in-app message', async () => {
       const put = (key: string, enabled: boolean) => app.inject({
-        method: 'PUT', url: `/v1/admin/modules/${key}`, headers: { authorization: `Bearer ${tokens.dean}` }, payload: { enabled },
+        method: 'PUT', url: `/v1/admin/modules/${key}`, headers: { authorization: `Bearer ${tokens.admin}` }, payload: { enabled },
       });
       const lesson = await plant(new Date(Date.now() + 10 * 60_000), { startedAt: new Date(Date.now() - 3 * 24 * HOUR) });
       const before = (await mailOf(ids.asma)).length;

@@ -17,10 +17,10 @@ import { auditLog } from '../audit/service';
 import { enrollStudent } from '../auth/routes';
 
 /** Who may manage the institution's people. Advisors see the console but do not manage accounts. */
-const MANAGER_ROLES: readonly string[] = ['dean', 'operator', 'superadmin'];
+const MANAGER_ROLES: readonly string[] = ['admin', 'operator', 'superadmin'];
 /** Accounts that belong to the platform, not to an institution: never listed or changed here. */
 const PLATFORM_ROLES = ['operator', 'superadmin'] as const;
-const STAFF_ROLES = ['lecturer', 'muhaffiza', 'sheikh_reviewer', 'advisor', 'dean'] as const;
+const STAFF_ROLES = ['lecturer', 'muhaffiza', 'sheikh_reviewer', 'advisor', 'admin'] as const;
 /** Roles that sign in with an email link; the others sign in with a WhatsApp code. */
 const isStaffRole = (role: string) => (STAFF_ROLES as readonly string[]).includes(role);
 type Role = typeof users.$inferSelect['role'];
@@ -40,7 +40,7 @@ const createSchema = z.discriminatedUnion('role', [
 ]);
 const editSchema = z.object({
   displayNameAr: name.optional(),
-  /** A member of staff moves to another staff role (a dean only by the platform operator); students and guardians do not change role. */
+  /** A member of staff moves to another staff role (an admin only by the platform operator); students and guardians do not change role. */
   role: z.enum(STAFF_ROLES).optional(),
   email: email.optional(),
   whatsapp: whatsapp.optional(),
@@ -73,14 +73,14 @@ export async function adminUsersRoutes(app: FastifyInstance) {
 
   const tenantOf = (user: TokenPayload) => (MANAGER_ROLES.includes(user.role) && user.facultyId ? user.facultyId : null);
   const forbidden = (request: { server: FastifyInstance }) => request.server.httpErrors.forbidden('Institution managers only');
-  const canGovern = (actor: TokenPayload, role: string) => role !== 'dean' || actor.role === 'operator' || actor.role === 'superadmin';
+  const canGovern = (actor: TokenPayload, role: string) => role !== 'admin' || actor.role === 'operator' || actor.role === 'superadmin';
 
   /** One user as the directory shows them, with what they are attached to. */
   const describe = async (tenantId: string, rows: User[]) => {
     const ids = rows.map((r) => r.id);
     const studentIds = rows.filter((r) => r.role === 'student').map((r) => r.id);
     const guardianIds = rows.filter((r) => r.role === 'mahram').map((r) => r.id);
-    const teacherIds = rows.filter((r) => ['lecturer', 'muhaffiza', 'sheikh_reviewer', 'dean'].includes(r.role)).map((r) => r.id);
+    const teacherIds = rows.filter((r) => ['lecturer', 'muhaffiza', 'sheikh_reviewer', 'admin'].includes(r.role)).map((r) => r.id);
 
     const halaqat = studentIds.length ? await db.select({ userId: sectionEnrollments.studentId, id: sections.id, nameAr: sections.nameAr })
       .from(sectionEnrollments).innerJoin(sections, eq(sectionEnrollments.sectionId, sections.id))
@@ -140,7 +140,7 @@ export async function adminUsersRoutes(app: FastifyInstance) {
   const governed = async (request: { server: FastifyInstance; user: TokenPayload }, tenantId: string, id: string) => {
     const [target] = await db.select().from(users).where(and(eq(users.id, id), eq(users.tenantId, tenantId))).limit(1);
     if (!target || (PLATFORM_ROLES as readonly string[]).includes(target.role)) return { error: request.server.httpErrors.notFound('User not found') };
-    if (!canGovern(request.user, target.role) && target.id !== request.user.sub) return { error: request.server.httpErrors.forbidden('Only the platform operator changes a dean') };
+    if (!canGovern(request.user, target.role) && target.id !== request.user.sub) return { error: request.server.httpErrors.forbidden('Only the platform operator changes an admin') };
     return { target };
   };
 
@@ -174,7 +174,7 @@ export async function adminUsersRoutes(app: FastifyInstance) {
     if (!tenantId) return forbidden(request);
     const body = request.body as z.infer<typeof createSchema>;
     const errors = request.server.httpErrors;
-    if (!canGovern(request.user, body.role)) return errors.forbidden('Only the platform operator adds a dean');
+    if (!canGovern(request.user, body.role)) return errors.forbidden('Only the platform operator adds an admin');
 
     let created: User;
     let invitation: string | undefined;
@@ -233,7 +233,7 @@ export async function adminUsersRoutes(app: FastifyInstance) {
     if (changingRole) {
       if (!isStaffRole(target.role)) return errors.badRequest('Only staff change role: a student or guardian is added again with the right role');
       if (id === request.user.sub) return errors.badRequest('You cannot change your own role');
-      if (!canGovern(request.user, body.role!)) return errors.forbidden('Only the platform operator makes someone a dean');
+      if (!canGovern(request.user, body.role!)) return errors.forbidden('Only the platform operator makes someone an admin');
       // An advisor does not lead halaqat: hand them to another teacher first.
       if (body.role === 'advisor') {
         const led = await activeHalaqatLed(db, id);
