@@ -57,7 +57,7 @@ export async function seed() {
     }).returning();
 
     await db.insert(users).values({
-      tenantId: tenant.id, role: 'dean', displayNameAr: 'د. عميدة الكلية', email: 'dean@itqan.local',
+      tenantId: tenant.id, role: 'dean', displayNameAr: 'د. عميد الكلية', email: 'dean@itqan.local',
   });
 
   const [section] = await db.insert(sections).values({

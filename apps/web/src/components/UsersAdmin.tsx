@@ -333,7 +333,7 @@ function AddUser({ halaqat, onChange }: { halaqat: SetupHalaqa[]; onChange: () =
           {add.isError && <p role="alert" className="text-sm text-red-800">{errorMessage(add.error, 'تعذّرت الإضافة. تحققي من البيانات.')}</p>}
         </form>
         <p className="text-xs text-text-secondary mt-3">
-          الطالبة وولي الأمر يدخلان برمز يصل إلى واتساب، والمعلمة والمرشدة والعميدة برابط يصل إلى بريدها. أرقام الهواتف تُكتب كما تعرفينها: ٠١٠… تُحوَّل تلقائياً.
+          الطالبة وولي الأمر يدخلان برمز يصل إلى واتساب، والمعلمة والمرشدة والعميد برابط يصل إلى البريد الإلكتروني. أرقام الهواتف تُكتب كما تعرفينها: ٠١٠… تُحوَّل تلقائياً.
         </p>
       </CardContent>
     </Card>
