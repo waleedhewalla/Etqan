@@ -85,7 +85,7 @@ export interface ReviewLog {
 export interface QueueItem {
   card: StudentCard;
   priority: number;
-  reason: 'new' | 'overdue' | 'due-today' | 'mutashabihat-paired' | 'recovery' | 'upcoming-assessment' | 'sabaq' | 'sabqi' | 'manzil';
+  reason: 'new' | 'overdue' | 'due-today' | 'mutashabihat-paired' | 'recovery' | 'upcoming-assessment' | 'sabaq' | 'sabqi' | 'manzil' | 'test';
   estimatedMinutes: number;
   rationale: string;
 }

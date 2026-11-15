@@ -501,6 +501,16 @@ or another dean's. API: `GET /v1/admin/setup`, `POST|PATCH /v1/admin/staff`, `PO
   Staff can only be anonymized, and not while leading an active halaqa (409).
 - Automated: `apps/core/src/__tests__/privacy.test.ts` (13 tests) and a role-change test in `admin-users.test.ts`.
 
+## Self-test and memorization map (student)
+
+- **«اختبريني»** (home tab, shown once she has memorized verses): pick all memorized verses or one sura, and 5, 10 or 20
+  verses. They are random, from verses in review or mastered (not new or still learning), on any day. Each shows the verse before
+  it; she completes it from memory, reveals it and rates it. The ratings are ordinary reviews, so a «نسيتُها» brings the verse back.
+  API: `GET /v1/scheduler/test?sura=&count=` (count 1 to 30, sura 1 to 114).
+- **«خريطة حفظكِ»** («خطتي والكفايات»): 114 tiles in mushaf order. Colour: not in her plan, in plan, part memorized, all memorized,
+  all mastered; a yellow dot means verses of that sura are due. Hover or screen reader gives the numbers.
+  API: `GET /v1/scheduler/map`. Competitor background: `docs/competitive-analysis.md`.
+
 ## Pilot metrics
 
 The admin console (**/admin**) shows the pilot's four questions week by week (`GET /v1/admin/pilot?weeks=4`, weeks start on Saturday):

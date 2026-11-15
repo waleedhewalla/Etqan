@@ -30,6 +30,8 @@ import { AccountPanel } from '@/components/AccountPanel';
 import { IconTile } from '@/components/IconTile';
 import { MushafReader } from '@/components/MushafReader';
 import { MonthlyRecord } from '@/components/MonthlyRecord';
+import { MemorizationMap } from '@/components/MemorizationMap';
+import { SelfTestCard } from '@/components/SelfTestCard';
 import { LiveNowBanner } from '@/components/LiveNowBanner';
 import { StudentProgram } from '@/components/ProgramNow';
 import { useModules } from '@/lib/modules';
@@ -56,6 +58,8 @@ export default function StudentDashboard() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<StudentTab>('today');
   const [reviewing, setReviewing] = useState(false);
+  /** Verses of a random self-test, when she is taking one instead of today's list. */
+  const [testItems, setTestItems] = useState<QueueItem[] | null>(null);
 
   const queueQuery = useQuery({
     queryKey: queryKeys.queue,
@@ -122,7 +126,7 @@ export default function StudentDashboard() {
     <AppShell
       items={navItems}
       activeId={activeTab}
-      onSelect={(id) => { setActiveTab(id as StudentTab); setReviewing(false); }}
+      onSelect={(id) => { setActiveTab(id as StudentTab); setReviewing(false); setTestItems(null); }}
       homeHref="/dashboard"
       headerAction={<NotificationBell />}
       userInitials={user?.displayNameAr?.slice(0, 2) || '؟'}
@@ -166,6 +170,12 @@ export default function StudentDashboard() {
       {activeTab === 'today' && (
         queueQuery.isLoading ? <Spinner /> : queueQuery.isError || !queue ? (
           <LoadError onRetry={() => queueQuery.refetch()} />
+        ) : testItems ? (
+          <ReviewSession
+            kind="test"
+            items={testItems}
+            onFinish={() => { setTestItems(null); refreshAll(); queryClient.invalidateQueries({ queryKey: queryKeys.memorizationMap }); }}
+          />
         ) : reviewing ? (
           <ReviewSession
             items={items}
@@ -174,6 +184,7 @@ export default function StudentDashboard() {
         ) : (
           <>
             <NextActionCard queue={queue} onStart={() => setReviewing(true)} />
+            <SelfTestCard onStart={setTestItems} />
 
             {queue.gatekeeper.locked && (
               <section className="mb-5">
@@ -305,6 +316,7 @@ const REASON_LABELS: Record<QueueItem['reason'], string> = {
   manzil: 'مراجعة متأخرة',
   sabqi: 'مراجعة اليوم',
   sabaq: 'حفظ جديد',
+  test: 'اختبار',
 };
 
 /** One scale from "forgot" to "mastered": outlined in the colour of the outcome, with the usual answer filled. */
@@ -453,7 +465,7 @@ async function cacheVerses(store: NonNullable<ReturnType<typeof getOfflineStore>
   }
 }
 
-function ReviewSession({ items, onFinish }: { items: QueueItem[]; onFinish: () => void }) {
+function ReviewSession({ items, onFinish, kind = 'daily' }: { items: QueueItem[]; onFinish: () => void; kind?: 'daily' | 'test' }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [index, setIndex] = useState(0);
@@ -513,7 +525,7 @@ function ReviewSession({ items, onFinish }: { items: QueueItem[]; onFinish: () =
       <Card className="mb-5">
         <CardContent className="text-center space-y-4 py-8">
           <CheckCircle2 className="w-12 h-12 text-state-positive mx-auto" />
-          <h2 className="font-heading text-2xl font-bold text-text-primary">أحسنتِ، أتممتِ ورد اليوم</h2>
+          <h2 className="font-heading text-2xl font-bold text-text-primary">{kind === 'test' ? 'أحسنتِ، أتممتِ الاختبار' : 'أحسنتِ، أتممتِ ورد اليوم'}</h2>
           <p className="text-text-secondary">
             راجعتِ {toArabicDigits(total)} آية: {toArabicDigits(counts.good + counts.easy)} ثابتة،
             {' '}{toArabicDigits(counts.hard)} بصعوبة، {toArabicDigits(counts.again)} تحتاج إعادة.
@@ -542,7 +554,7 @@ function ReviewSession({ items, onFinish }: { items: QueueItem[]; onFinish: () =
     <Card className="mb-5">
       <CardHeader>
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <CardTitle>جلسة المراجعة</CardTitle>
+          <CardTitle>{kind === 'test' ? 'اختبار عشوائي' : 'جلسة المراجعة'}</CardTitle>
           <span className="text-sm text-text-secondary">
             {toArabicDigits(index + 1)} من {toArabicDigits(items.length)}
           </span>
@@ -646,6 +658,7 @@ function ProgressTab() {
 
   return (
     <div className="space-y-4">
+      <MemorizationMap />
       {user && isOn('monthly_record') && <MonthlyRecord studentId={user.id} />}
       {/* Gamification Badges */}
       {isOn('badges') && <Card>

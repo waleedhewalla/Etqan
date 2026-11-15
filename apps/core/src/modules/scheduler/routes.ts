@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { eq, and, lte, isNull, asc, desc, sql, count, gte } from 'drizzle-orm';
+import { eq, and, lte, isNull, asc, desc, sql, count, gte, inArray } from 'drizzle-orm';
 import { getDb } from '../../db';
 import { studentCards, reviewLogs, streaks, assignments } from '../../db/schema';
 import { localDate, startOfLocalDay } from '../../lib/dates';
@@ -304,6 +304,49 @@ export async function schedulerRoutes(app: FastifyInstance) {
       reviewCards.map(cardRowToState),
       GATEKEEPER_DEFAULTS,
     );
+  });
+
+  // GET /v1/scheduler/test — a random self-test over what she has already memorized (any day, due or not).
+  // Her answers go through POST /scheduler/rate like any review, so they also move the schedule.
+  app.get('/scheduler/test', {
+    schema: { querystring: z.object({
+      sura: z.coerce.number().int().min(1).max(114).optional(),
+      count: z.coerce.number().int().min(1).max(30).default(10),
+    }) },
+    preHandler: [app.authenticate],
+  }, async (request) => {
+    const { sura, count: wanted } = request.query as { sura?: number; count: number };
+    const rows = await db.select().from(studentCards)
+      .where(and(
+        eq(studentCards.studentId, request.user.sub),
+        inArray(studentCards.state, ['review', 'mastered']),
+        sura ? sql`split_part(${studentCards.ayahRef}, ':', 1)::int = ${sura}` : undefined,
+      ))
+      .orderBy(sql`random()`)
+      .limit(wanted);
+    const items: QueueItem[] = rows.map((row) => ({
+      card: { ...cardRowToState(row), id: row.id, studentId: row.studentId, ayahRef: row.ayahRef } as any,
+      priority: 2,
+      reason: 'test',
+      estimatedMinutes: 0.5,
+      rationale: 'اختبار عشوائي على محفوظك',
+    }));
+    return { items };
+  });
+
+  // GET /v1/scheduler/map — where each sura stands: how much of her plan is memorized, how much is solid, how much is due.
+  app.get('/scheduler/map', { preHandler: [app.authenticate] }, async (request) => {
+    const rows = await db.select({
+      sura: sql<number>`split_part(${studentCards.ayahRef}, ':', 1)::int`.mapWith(Number),
+      total: count(),
+      memorized: sql<number>`count(*) filter (where ${studentCards.state} in ('review', 'mastered'))`.mapWith(Number),
+      mastered: sql<number>`count(*) filter (where ${studentCards.state} = 'mastered')`.mapWith(Number),
+      due: sql<number>`count(*) filter (where ${studentCards.state} <> 'new' and ${studentCards.dueAt} <= now())`.mapWith(Number),
+    }).from(studentCards)
+      .where(eq(studentCards.studentId, request.user.sub))
+      .groupBy(sql`split_part(${studentCards.ayahRef}, ':', 1)::int`)
+      .orderBy(sql`split_part(${studentCards.ayahRef}, ':', 1)::int`);
+    return { surahs: rows };
   });
 
   // GET /v1/scheduler/stats — Student progress stats
