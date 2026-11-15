@@ -16,7 +16,6 @@ import { getDb, closeDb } from './db';
 import { jwtPlugin } from './lib/jwt';
 import { authRoutes } from './modules/auth/routes';
 import { sectionRoutes } from './modules/section/routes';
-import { syllabusRoutes } from './modules/syllabus/routes';
 import { sessionRoutes } from './modules/session/routes';
 import { schedulerRoutes } from './modules/scheduler/routes';
 import { mutashabihatRoutes } from './modules/mutashabihat/routes';
@@ -162,7 +161,6 @@ async function buildApp() {
   // API routes
   await app.register(authRoutes, { prefix: '/v1/auth' });
   await app.register(sectionRoutes, { prefix: '/v1' });
-  await app.register(syllabusRoutes, { prefix: '/v1' });
   await app.register(sessionRoutes, { prefix: '/v1' });
   await app.register(schedulerRoutes, { prefix: '/v1' });
   await app.register(mutashabihatRoutes, { prefix: '/v1' });
