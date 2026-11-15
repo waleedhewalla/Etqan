@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button, Card, CardContent } from '@itqan/ui';
 import { useAuth } from '@/lib/auth-context';
 import { MyData } from '@/components/MyData';
+import { GuardianAccessSwitch } from '@/components/GuardianAccessSwitch';
 
 const ROLE_LABELS: Record<string, string> = {
   student: 'حساب طالبة',
@@ -70,6 +71,7 @@ export function AccountPanel() {
           </CardContent>
         </Card>
       </div>
+      {user?.role === 'student' && <GuardianAccessSwitch />}
       <MyData />
     </section>
   );

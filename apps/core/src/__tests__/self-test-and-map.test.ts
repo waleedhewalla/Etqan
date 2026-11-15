@@ -119,6 +119,34 @@ describe.skipIf(!process.env.DATABASE_URL)('self-test and memorization map', () 
     expect((await app.inject({ method: 'GET', url: `/v1/reports/student/${ids.asma}/map` })).statusCode).toBe(401);
   });
 
+  it('hides her from her guardian while she has withdrawn guardian access, and shows her again when she allows it', async () => {
+    const consent = (granted: string[]) => app.inject({
+      method: 'PUT', url: '/v1/auth/me/consents', headers: { authorization: `Bearer ${tokens.asma}` }, payload: { granted },
+    });
+    const weekly = (who: string) => get(who, `/reports/student/${ids.asma}/weekly`);
+
+    // Never decided: her guardian sees her (a guardian the institution linked before she joined).
+    expect((await weekly('mother')).statusCode).toBe(200);
+    expect((await get('mother', '/guardian/students')).json()).toMatchObject({ withdrawn: 0 });
+
+    expect((await get('asma', '/auth/me')).json().guardianAccess).toBe(true);
+    expect((await consent([])).statusCode).toBe(200); // withdraws everything, guardian access included
+    expect((await get('asma', '/auth/me')).json().guardianAccess).toBe(false);
+    for (const url of [`/reports/student/${ids.asma}/weekly`, `/reports/student/${ids.asma}/map`, `/reports/student/${ids.asma}/monthly`]) {
+      expect((await get('mother', url)).statusCode).toBe(404);
+    }
+    const list = (await get('mother', '/guardian/students')).json();
+    expect(list.students).toEqual([]);
+    expect(list.withdrawn).toBe(1); // told how many, not who or what
+    // Nobody else is affected: she and her teacher still see her.
+    for (const who of ['asma', 'teacher']) expect((await weekly(who)).statusCode).toBe(200);
+
+    expect((await consent(['mahram_access'])).statusCode).toBe(200);
+    expect((await get('asma', '/auth/me')).json().guardianAccess).toBe(true);
+    expect((await weekly('mother')).statusCode).toBe(200);
+    expect((await get('mother', '/guardian/students')).json()).toMatchObject({ withdrawn: 0 });
+  });
+
   it('needs a signed-in student', async () => {
     expect((await app.inject({ method: 'GET', url: '/v1/scheduler/test' })).statusCode).toBe(401);
     expect((await app.inject({ method: 'GET', url: '/v1/scheduler/map' })).statusCode).toBe(401);

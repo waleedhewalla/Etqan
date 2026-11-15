@@ -59,6 +59,17 @@ export interface MeResponse {
   modules: Record<ModuleKey, { enabled: boolean; config: Record<string, ModuleSettingValue> }>;
   sections: { id: string; nameAr: string }[];
   consents: ConsentPurpose[];
+  /** Whether her guardians may see her reports (true unless she withdrew it). */
+  guardianAccess?: boolean;
+}
+
+/**
+ * The consents to send back when changing some of them: `PUT /auth/me/consents` replaces the whole list, so anything left
+ * out is withdrawn. Guardian access counts as given until she withdraws it, even with no record, so it is kept.
+ */
+export function currentConsents(me: Pick<MeResponse, 'consents' | 'guardianAccess'> | undefined): ConsentPurpose[] {
+  if (!me) return [];
+  return me.guardianAccess === false ? me.consents.filter((c) => c !== 'mahram_access') : [...new Set([...me.consents, 'mahram_access' as const])];
 }
 
 export type ConsentPurpose =
@@ -1300,7 +1311,7 @@ class ApiClient {
   }
 
   getGuardianStudents() {
-    return this.client.get<{ students: WeeklyReport[] }>('/guardian/students');
+    return this.client.get<{ students: WeeklyReport[]; /** How many linked students withdrew guardian access. */ withdrawn?: number }>('/guardian/students');
   }
 
   // Quran text

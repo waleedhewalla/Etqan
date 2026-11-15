@@ -3,6 +3,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { getDb, type Database } from '../../db';
+import { guardianAccessWithdrawn } from '../../lib/access';
 import { consents, sectionEnrollments, sections, tenants, users } from '../../db/schema';
 import { config } from '../../config';
 import { resolveModules } from '../../lib/modules';
@@ -309,6 +310,8 @@ export async function authRoutes(app: FastifyInstance) {
       modules: Object.fromEntries(Object.entries(resolveModules(row.tenant.settings)).map(([key, m]) => [key, { enabled: m.enabled, config: m.config }])),
       sections: enrolled,
       consents: granted.map((c) => c.purpose),
+      /** Whether her guardians may see her reports: true unless she withdrew it («mahram_access»). */
+      guardianAccess: !(await guardianAccessWithdrawn(db, row.user.id)),
     };
   });
 

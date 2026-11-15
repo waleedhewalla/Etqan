@@ -1,6 +1,6 @@
-import { and, eq, gt, isNull, or } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, or } from 'drizzle-orm';
 import type { Database } from '../db';
-import { guardianLinks, sectionEnrollments, sections, users } from '../db/schema';
+import { consents, guardianLinks, sectionEnrollments, sections, users } from '../db/schema';
 import type { TokenPayload } from './jwt';
 
 /** Roles that teach or review a halaqa. */
@@ -38,6 +38,18 @@ export async function loadManagedSection(db: Database, user: TokenPayload, secti
  * Whether `user` may see a student's progress:
  * the student herself, a linked guardian, her teacher, or a tenant admin.
  */
+/**
+ * True when the student withdrew guardian access («mahram_access»). Without a record she has not decided,
+ * which allows it (a guardian the institution linked for a student who has not joined yet). Absence alerts
+ * and live-lesson reminders follow the same rule.
+ */
+export async function guardianAccessWithdrawn(db: Database, studentId: string): Promise<boolean> {
+  const [row] = await db.select({ id: consents.id }).from(consents)
+    .where(and(eq(consents.userId, studentId), eq(consents.purpose, 'mahram_access'), isNotNull(consents.withdrawnAt)))
+    .limit(1);
+  return Boolean(row);
+}
+
 export async function canViewStudent(db: Database, user: TokenPayload, studentId: string) {
   if (user.sub === studentId) return true;
 
@@ -50,7 +62,7 @@ export async function canViewStudent(db: Database, user: TokenPayload, studentId
         or(isNull(guardianLinks.expiresAt), gt(guardianLinks.expiresAt, new Date())),
       ))
       .limit(1);
-    return Boolean(link);
+    return Boolean(link) && !(await guardianAccessWithdrawn(db, studentId));
   }
 
   if (!isStaff(user)) return false;

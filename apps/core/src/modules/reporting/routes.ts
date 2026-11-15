@@ -6,7 +6,7 @@ import {
   studentCards, reviewLogs, sessions, attendance, assignments, guardianLinks,
   sectionEnrollments, sections, tasmiSubmissions, streaks, users, studentMonthlyAppraisals,
 } from '../../db/schema';
-import { canViewStudent, isStaff, loadManagedSection, GUARDIAN_ROLE } from '../../lib/access';
+import { canViewStudent, guardianAccessWithdrawn, isStaff, loadManagedSection, GUARDIAN_ROLE } from '../../lib/access';
 import { currentMonth, isMonth, loadMonthlyRecord } from '../../lib/monthly';
 import { addDays, localDate, startOfLocalDay, weekStart } from '../../lib/dates';
 import { loadSurahMap } from '../../lib/memorization-map';
@@ -298,10 +298,13 @@ export async function reportingRoutes(app: FastifyInstance) {
 
     const today = localDate();
     const reports = [];
+    let withdrawn = 0;
     for (const { studentId } of links) {
+      // A student who withdrew guardian access is not shown; the guardian is only told how many.
+      if (await guardianAccessWithdrawn(db, studentId)) { withdrawn += 1; continue; }
       const report = await buildWeeklyReport(db, studentId, today);
       if (report) reports.push(report);
     }
-    return { students: reports };
+    return { students: reports, withdrawn };
   });
 }
