@@ -9,6 +9,7 @@ import {
 import { canViewStudent, isStaff, loadManagedSection, GUARDIAN_ROLE } from '../../lib/access';
 import { currentMonth, isMonth, loadMonthlyRecord } from '../../lib/monthly';
 import { addDays, localDate, startOfLocalDay, weekStart } from '../../lib/dates';
+import { loadSurahMap } from '../../lib/memorization-map';
 import { auditLog } from '../audit/service';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -198,6 +199,15 @@ export async function reportingRoutes(app: FastifyInstance) {
     }
     const record = await loadMonthlyRecord(db, studentId, query.month ?? currentMonth());
     return record ?? request.server.httpErrors.notFound('Student not found');
+  });
+
+  // GET /v1/reports/student/:studentId/map — where each sura of her plan stands (her, her guardians, her teachers)
+  app.get('/reports/student/:studentId/map', { preHandler: [app.authenticate] }, async (request) => {
+    const { studentId } = request.params as { studentId: string };
+    if (!(await canViewStudent(db, request.user, studentId))) {
+      return request.server.httpErrors.notFound('Student not found');
+    }
+    return { surahs: await loadSurahMap(db, studentId) };
   });
 
   // PUT /v1/reports/student/:studentId/monthly/appraisal — the teacher's written appraisal for a month

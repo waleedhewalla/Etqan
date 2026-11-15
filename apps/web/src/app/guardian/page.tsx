@@ -8,6 +8,7 @@ import { Bell, LogOut, Printer, Shield } from 'lucide-react';
 import { useAuth, useRequireRole } from '@/lib/auth-context';
 import { useModules } from '@/lib/modules';
 import { MyData } from '@/components/MyData';
+import { MemorizationMap } from '@/components/MemorizationMap';
 import { api, queryKeys } from '@/lib/api';
 import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
 import { WeeklyReportView } from '@/components/WeeklyReportView';
@@ -98,6 +99,7 @@ export default function GuardianDashboard() {
             </div>
 
             {report && <WeeklyReportView report={report} />}
+            {report && <div className="print:hidden"><MemorizationMap key={report.student.id} studentId={report.student.id} perspective="other" /></div>}
             {report && isOn('monthly_record') && <MonthlyRecord key={report.student.id} studentId={report.student.id} />}
           </>
         )}

@@ -7,7 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { buildApp } from '../server';
 import { closeDb, getDb } from '../db';
-import { reviewLogs, studentCards, tenants, users } from '../db/schema';
+import { guardianLinks, reviewLogs, sectionEnrollments, sections, studentCards, tenants, users } from '../db/schema';
 import { generateToken } from '../lib/jwt';
 
 describe.skipIf(!process.env.DATABASE_URL)('self-test and memorization map', () => {
@@ -38,9 +38,19 @@ describe.skipIf(!process.env.DATABASE_URL)('self-test and memorization map', () 
       // Someone else's card must never show up.
       { studentId: other.id, ayahRef: '67:9', state: 'review', stability: 5, reps: 3, dueAt: past },
     ]);
+    // A guardian of Asma, a guardian of nobody, and a teacher with Asma in her halaqa and one without.
+    const mk = async (role: typeof users.$inferInsert['role'], name: string) =>
+      (await db.insert(users).values({ tenantId: tenant.id, role, displayNameAr: name }).returning())[0];
+    const mother = await mk('mahram', 'أم أسماء');
+    const stranger = await mk('mahram', 'ولي أمر آخر');
+    const teacher = await mk('lecturer', 'المعلمة');
+    const otherTeacher = await mk('lecturer', 'معلمة أخرى');
+    await db.insert(guardianLinks).values({ studentId: asma.id, guardianId: mother.id });
+    const [halaqa] = await db.insert(sections).values({ tenantId: tenant.id, nameAr: 'حلقة', joinCode: `M${tag.toUpperCase().slice(0, 6)}`, teacherId: teacher.id }).returning();
+    await db.insert(sectionEnrollments).values({ sectionId: halaqa.id, studentId: asma.id });
     Object.assign(ids, { asma: asma.id, other: other.id });
     const tok = (u: { id: string; role: string; tenantId: string | null }) => generateToken({ sub: u.id, role: u.role, facultyId: u.tenantId! });
-    Object.assign(tokens, { asma: tok(asma), other: tok(other) });
+    Object.assign(tokens, { asma: tok(asma), other: tok(other), mother: tok(mother), stranger: tok(stranger), teacher: tok(teacher), otherTeacher: tok(otherTeacher) });
   });
 
   afterAll(async () => {
@@ -94,6 +104,19 @@ describe.skipIf(!process.env.DATABASE_URL)('self-test and memorization map', () 
     expect(logs).toHaveLength(1);
     // Forgotten in the test, so it no longer counts as memorized on the map.
     expect((await get('asma', '/scheduler/map')).json().surahs.find((x: { sura: number }) => x.sura === 78)).toMatchObject({ memorized: 0 });
+  });
+
+  it('shows the same map to her guardian and her teacher, and to nobody else', async () => {
+    const own = (await get('asma', '/scheduler/map')).json();
+    for (const who of ['asma', 'mother', 'teacher']) {
+      const res = await get(who, `/reports/student/${ids.asma}/map`);
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual(own);
+    }
+    for (const who of ['stranger', 'otherTeacher', 'other']) {
+      expect((await get(who, `/reports/student/${ids.asma}/map`)).statusCode).toBe(404);
+    }
+    expect((await app.inject({ method: 'GET', url: `/v1/reports/student/${ids.asma}/map` })).statusCode).toBe(401);
   });
 
   it('needs a signed-in student', async () => {

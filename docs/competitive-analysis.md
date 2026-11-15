@@ -80,11 +80,11 @@ Not verified and dropped: Quran Companion, Ayah, Quranly, Hafiz, Bayyinah and Al
    what they think they know; it serves the pilot's question (do students revise more). Small: reuses the review session and FSRS.
    **Done.**
 2. **Memorization map.** From Sabaq's tiles and Tarteel's analytics. Gives students and, next, guardians a picture instead of
-   four totals. Small. **Done for students.** Next step: show it in the guardian report.
+   four totals. Small. **Done**, for students and for guardians (under the weekly report).
 3. **Weak-spots list.** Aggregate the verses and words flagged across recitations (teacher or AI) and queue them as extra reviews.
    Draws on Tarteel's mistake history; playback is not possible because audio is deleted after review (a privacy choice to keep).
    Medium; worth it only once AI checking or teachers' flags are in regular use.
-4. **Guardian map and monthly certificate-style summary.** Reuse the map in the guardian report; a printable summary is cheap.
+4. **Printable summary for guardians.** The map is now in the guardian report; a printable certificate-style summary is the cheap next step.
    Small to medium.
 5. **Fees and invoices.** Only if the pilot institution asks; needs a payment provider and merchant account. Large.
 6. **Certificates / ijazah workflow.** Ask the pilot dean what they issue today before designing anything. Unknown size.
@@ -96,4 +96,5 @@ Not verified and dropped: Quran Companion, Ayah, Quranly, Hafiz, Bayyinah and Al
   home tab; answers go through the normal rating, so they also move the schedule.
 - `GET /v1/scheduler/map` and «خريطة حفظكِ» in «خطتي والكفايات»: 114 tiles coloured by how much of each sura is memorized
   or solid, with a mark for suras that have verses due.
-- 6 new API tests; checked in a browser with a student holding cards in every state.
+- The same map in the guardian report, and `GET /v1/reports/student/:id/map` for guardians and teachers.
+- 7 new API tests; checked in a browser with a student holding cards in every state, and as her guardian.
