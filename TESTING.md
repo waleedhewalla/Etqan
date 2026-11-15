@@ -510,6 +510,9 @@ or another dean's. API: `GET /v1/admin/setup`, `POST|PATCH /v1/admin/staff`, `PO
 - **«خريطة حفظكِ»** («خطتي والكفايات»): 114 tiles in mushaf order. Colour: not in her plan, in plan, part memorized, all memorized,
   all mastered; a yellow dot means verses of that sura are due. Hover or screen reader gives the numbers.
   API: `GET /v1/scheduler/map`. Competitor background: `docs/competitive-analysis.md`.
+- **The same map for a guardian** (under the weekly report, «خريطة حفظ الطالبة», worded about «الطالبة») and for the student's
+  teacher or the dean: `GET /v1/reports/student/:id/map`, allowed for the student, her linked guardians and staff who can see her;
+  anyone else gets 404. Hidden when printing the weekly report.
 
 ## Pilot metrics
 

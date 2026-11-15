@@ -1092,6 +1092,11 @@ class ApiClient {
     return this.client.get<{ items: QueueItem[] }>('/scheduler/test', { params: options });
   }
 
+  /** The same map for a student the caller may see: her guardian or her teacher. */
+  getStudentMemorizationMap(studentId: string) {
+    return this.client.get<{ surahs: SurahProgress[] }>(`/reports/student/${studentId}/map`);
+  }
+
   /** Per sura of her plan: how many verses, how many are memorized, solid (mastered) and due. */
   getMemorizationMap() {
     return this.client.get<{ surahs: SurahProgress[] }>('/scheduler/map');
@@ -1368,6 +1373,7 @@ export const queryKeys = {
   sectionLessons: (sectionId: string) => ['lessons', 'section', sectionId] as const,
   myTasmi: ['tasmi', 'mine'] as const,
   memorizationMap: ['scheduler', 'map'] as const,
+  studentMemorizationMap: (studentId: string) => ['reports', 'map', studentId] as const,
   voiceStatus: ['voice', 'status'] as const,
   badges: ['badges'] as const,
   adminOverview: (tenantId?: string) => ['admin', 'overview', tenantId ?? 'own'] as const,

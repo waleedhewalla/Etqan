@@ -7,6 +7,7 @@ import { localDate, startOfLocalDay } from '../../lib/dates';
 import { applyRating, cardRowToState, recordStudentActivity } from '../../lib/cards';
 import { awardBadges } from '../../lib/badges';
 import { newPerDay } from '../../lib/hifz-plan';
+import { loadSurahMap } from '../../lib/memorization-map';
 import {
   computeIntervals,
   checkGatekeeper,
@@ -335,19 +336,8 @@ export async function schedulerRoutes(app: FastifyInstance) {
   });
 
   // GET /v1/scheduler/map — where each sura stands: how much of her plan is memorized, how much is solid, how much is due.
-  app.get('/scheduler/map', { preHandler: [app.authenticate] }, async (request) => {
-    const rows = await db.select({
-      sura: sql<number>`split_part(${studentCards.ayahRef}, ':', 1)::int`.mapWith(Number),
-      total: count(),
-      memorized: sql<number>`count(*) filter (where ${studentCards.state} in ('review', 'mastered'))`.mapWith(Number),
-      mastered: sql<number>`count(*) filter (where ${studentCards.state} = 'mastered')`.mapWith(Number),
-      due: sql<number>`count(*) filter (where ${studentCards.state} <> 'new' and ${studentCards.dueAt} <= now())`.mapWith(Number),
-    }).from(studentCards)
-      .where(eq(studentCards.studentId, request.user.sub))
-      .groupBy(sql`split_part(${studentCards.ayahRef}, ':', 1)::int`)
-      .orderBy(sql`split_part(${studentCards.ayahRef}, ':', 1)::int`);
-    return { surahs: rows };
-  });
+  // The same picture, for a guardian or teacher, is GET /v1/reports/student/:id/map.
+  app.get('/scheduler/map', { preHandler: [app.authenticate] }, async (request) => ({ surahs: await loadSurahMap(db, request.user.sub) }));
 
   // GET /v1/scheduler/stats — Student progress stats
   app.get('/scheduler/stats', {
