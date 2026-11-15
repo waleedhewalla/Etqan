@@ -8,6 +8,7 @@ import { Bell, LogOut, Printer, Shield } from 'lucide-react';
 import { useAuth, useRequireRole } from '@/lib/auth-context';
 import { useModules } from '@/lib/modules';
 import { MyData } from '@/components/MyData';
+import { toArabicDigits } from '@/lib/quran';
 import { MemorizationMap } from '@/components/MemorizationMap';
 import { api, queryKeys } from '@/lib/api';
 import { FullPageSpinner, LoadError, Spinner } from '@/components/LoadState';
@@ -23,7 +24,7 @@ export default function GuardianDashboard() {
 
   const studentsQuery = useQuery({
     queryKey: queryKeys.guardianStudents,
-    queryFn: () => api.getGuardianStudents().then((r) => r.data.students),
+    queryFn: () => api.getGuardianStudents().then((r) => r.data),
     enabled: ready && isOn('guardians'),
   });
   const notificationsQuery = useQuery({
@@ -34,7 +35,8 @@ export default function GuardianDashboard() {
 
   if (!ready) return <FullPageSpinner />;
 
-  const students = studentsQuery.data ?? [];
+  const students = studentsQuery.data?.students ?? [];
+  const withdrawn = studentsQuery.data?.withdrawn ?? 0;
   const report = students[selected] ?? students[0];
   const notifications = notificationsQuery.data ?? [];
 
@@ -70,11 +72,18 @@ export default function GuardianDashboard() {
         ) : studentsQuery.isLoading ? <Spinner /> : studentsQuery.isError ? (
           <LoadError onRetry={() => studentsQuery.refetch()} />
         ) : students.length === 0 ? (
-          <Card><CardContent className="py-10 text-center text-text-secondary">
-            لم يُربط حسابك بأي طالبة بعد. تواصل مع معلمة الحلقة لإضافة رقمك.
+          <Card><CardContent className="py-10 text-center text-text-secondary" data-testid="no-students">
+            {withdrawn > 0
+              ? 'أوقفت الطالبة الاطلاع على تقاريرها، فلا تظهر هنا. يمكنها إعادة السماح من صفحة حسابها.'
+              : 'لم يُربط حسابك بأي طالبة بعد. تواصل مع معلمة الحلقة لإضافة رقمك.'}
           </CardContent></Card>
         ) : (
           <>
+            {withdrawn > 0 && (
+              <p role="note" className="rounded-xl bg-surface-canvas border border-divider px-4 py-2 text-sm text-text-secondary print:hidden" data-testid="withdrawn-note">
+                {withdrawn === 1 ? 'طالبة واحدة من المرتبطات بحسابكِ' : `${toArabicDigits(withdrawn)} من المرتبطات بحسابكِ`} أوقفت اطلاع ولي الأمر على تقاريرها، فلا تظهر هنا.
+              </p>
+            )}
             {students.length > 1 && (
               <div className="flex gap-2 flex-wrap print:hidden" role="tablist" aria-label="الطالبات">
                 {students.map((s, i) => (

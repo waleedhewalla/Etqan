@@ -514,6 +514,18 @@ or another dean's. API: `GET /v1/admin/setup`, `POST|PATCH /v1/admin/staff`, `PO
   teacher or the dean: `GET /v1/reports/student/:id/map`, allowed for the student, her linked guardians and staff who can see her;
   anyone else gets 404. Hidden when printing the weekly report.
 
+## Guardian access (the student decides)
+
+- A student can stop her guardians seeing her: «حسابي» → «اطلاع ولي الأمر» → untick «أسمح لولي أمري بمتابعة تقاريري». It is the same
+  choice as the box at sign-up («mahram_access»), and she can change it back at any time.
+- While it is off, her guardians get **404** for her weekly report, monthly record and memorization map, she is left out of the
+  guardian page (which tells the guardian how many students did this, not who), and absence alerts and live-lesson reminders to
+  her guardians are not sent. Her teachers, the dean and she herself are unaffected.
+- With no choice recorded at all (a guardian the institution linked before the student joined) access is allowed.
+- `GET /v1/auth/me` has `guardianAccess` (true unless withdrawn); `GET /v1/guardian/students` has `withdrawn` (a count).
+- Note: `PUT /v1/auth/me/consents` replaces all of a user's consents, so a screen that sends a list without `mahram_access`
+  withdraws it. The account switch and the recitation screen send the full current list.
+
 ## Pilot metrics
 
 The admin console (**/admin**) shows the pilot's four questions week by week (`GET /v1/admin/pilot?weeks=4`, weeks start on Saturday):

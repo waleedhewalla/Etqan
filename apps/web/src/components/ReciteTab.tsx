@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@itqan/ui';
 import { AYAH_COUNTS } from '@itqan/quran';
-import { api, errorMessage, queryKeys, type ConsentPurpose, type StudentLesson, type TasmiSubmission } from '@/lib/api';
+import { api, currentConsents, errorMessage, queryKeys, type ConsentPurpose, type StudentLesson, type TasmiSubmission } from '@/lib/api';
 import { formatAyahRange, SURAH_NAMES, toArabicDigits } from '@/lib/quran';
 import { VerseText } from '@/components/VerseText';
 import { RecitationRecorder, type Recording } from '@/components/RecitationRecorder';
@@ -62,7 +62,7 @@ export function ReciteTab() {
   const invalidRange = to < from || to - from + 1 > MAX_AYAT;
 
   const grant = useMutation({
-    mutationFn: (purposes: ConsentPurpose[]) => api.setConsents([...new Set([...(me.data?.consents ?? []), ...purposes])]),
+    mutationFn: (purposes: ConsentPurpose[]) => api.setConsents([...new Set([...currentConsents(me.data), ...purposes])]),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.me }),
   });
 
