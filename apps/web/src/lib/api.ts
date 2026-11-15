@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
+import { DATABASE_BEHIND_EVENT, databaseBehindText } from './database-behind';
 
 /**
  * Where the browser reaches the API. Set at build time for a deployment. Left empty in development, the browser
@@ -692,10 +693,11 @@ const ADMIN_DETAILS: [string, string][] = [
 export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاولي مرة أخرى') {
   const e = err as AxiosError<{ detail?: string; message?: string; code?: string }>;
   const code = e?.response?.data?.code;
+  if (code === 'DATABASE_OUT_OF_DATE') return databaseBehindText();
   if (code === 'CONSENT_REQUIRED') return 'نحتاج موافقتكِ على تسجيل الصوت أولاً.';
   if (e?.response?.status === 413) return 'التسجيل كبير جداً. سجّلي مقطعاً أقصر.';
   if (e?.response?.status === 415) return 'تعذّر قبول هذا التسجيل. جرّبي متصفحاً آخر.';
-  if (code === 'MODULE_DISABLED') return 'هذه الوحدة موقوفة في مؤسستكم. تواصلي مع العميدة.';
+  if (code === 'MODULE_DISABLED') return 'هذه الوحدة موقوفة في مؤسستكم. تواصلي مع العميد.';
   if (code === 'RECORDING_NOT_ALLOWED') return 'تسجيل الدروس غير مسموح به في مؤسستكم.';
   if (code === 'RETEST_TOO_SOON') return 'لا يُعاد الاختبار قبل مضي أسبوع العلاج. يظهر أول يوم للإعادة في بطاقة الطالبة.';
   if (code === 'LESSON_NOT_STARTED') return 'لم يبدأ الدرس بعد. ستبدأ المعلمة الدرس في موعده.';
@@ -761,6 +763,9 @@ class ApiClient {
           }
           clearSession();
           if (typeof window !== 'undefined') window.location.href = '/auth/login';
+        }
+        if (typeof window !== 'undefined' && (error.response?.data as { code?: string } | undefined)?.code === 'DATABASE_OUT_OF_DATE') {
+          window.dispatchEvent(new Event(DATABASE_BEHIND_EVENT));
         }
         return Promise.reject(error);
       },

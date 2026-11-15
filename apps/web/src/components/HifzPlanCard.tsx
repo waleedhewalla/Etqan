@@ -8,6 +8,7 @@ import { AYAH_COUNTS } from '@itqan/quran';
 import { api, errorMessage, queryKeys, type HifzPlan, type PlanRange, type PlanStatus } from '@/lib/api';
 import { ayatCount, formatAyahRange, SURAH_NAMES, toArabicDigits } from '@/lib/quran';
 import { LoadError, Spinner } from '@/components/LoadState';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 /** The most ayat the server takes in one step. */
 const MAX_AYAT = 300;
@@ -16,6 +17,7 @@ const field = 'rounded-xl border border-divider bg-surface-elevated px-3 py-2';
 
 /** Where a teacher says what a student has memorized and what she memorizes next. Without it her revision queue is empty. */
 export function HifzPlanCard({ sectionId, studentId }: { sectionId: string; studentId: string }) {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const key = queryKeys.plan(sectionId, studentId);
   const planQuery = useQuery({ queryKey: key, queryFn: () => api.getPlan(sectionId, studentId).then((r) => r.data) });
@@ -51,9 +53,9 @@ export function HifzPlanCard({ sectionId, studentId }: { sectionId: string; stud
       : `حُذفت ${ayatCount(removed)}.`),
   });
   /** Removes a run a piece at a time: the server takes at most MAX_AYAT ayat per request. */
-  const confirmRemove = (range: PlanRange) => {
+  const confirmRemove = async (range: PlanRange) => {
     if (range.count > MAX_AYAT) { setNotice('هذا النطاق كبير؛ احذفيه سورةً سورة.'); return; }
-    if (window.confirm(`حذف ${formatAyahRange(range.startRef, range.endRef)} من خطة الطالبة؟ الآيات التي راجعتها تبقى.`)) remove.mutate(range);
+    if (await confirm(`حذف ${formatAyahRange(range.startRef, range.endRef)} من خطة الطالبة؟ الآيات التي راجعتها تبقى.`)) remove.mutate(range);
   };
   const setNumber = (set: (n: number) => void) => (e: React.ChangeEvent<HTMLInputElement>) => { set(Number(e.target.value)); setNotice(''); };
   const plan = planQuery.data;

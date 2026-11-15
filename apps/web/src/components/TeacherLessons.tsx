@@ -11,6 +11,7 @@ import { RecitationRecorder, type Recording } from '@/components/RecitationRecor
 import { TasmiAudio } from '@/components/TasmiAudio';
 import { VerseText } from '@/components/VerseText';
 import { LoadError, Spinner } from '@/components/LoadState';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 /** The most verses a student can recite back in one recording, so the most a lesson may cover. */
 const MAX_AYAT = 60;
@@ -22,6 +23,7 @@ const day = (iso: string) => new Intl.DateTimeFormat('ar-EG', { day: 'numeric', 
  * and sees how many students have recited each lesson back.
  */
 export function TeacherLessons({ sectionId }: { sectionId: string }) {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const key = queryKeys.sectionLessons(sectionId);
   const lessons = useQuery({ queryKey: key, queryFn: () => api.getSectionLessons(sectionId).then((r) => r.data) });
@@ -60,9 +62,9 @@ export function TeacherLessons({ sectionId }: { sectionId: string }) {
     mutationFn: (lesson: TeacherLesson) => api.deleteLesson(lesson.id),
     onSuccess: () => { setNotice('حُذف الدرس وتسجيله.'); queryClient.invalidateQueries({ queryKey: key }); },
   });
-  const confirmRemove = (lesson: TeacherLesson) => {
+  const confirmRemove = async (lesson: TeacherLesson) => {
     const kept = lesson.recited ? ' تسميعات الطالبات لهذه الآيات تبقى.' : '';
-    if (window.confirm(`حذف ${formatAyahRange(lesson.startRef, lesson.endRef)} وتسجيلها؟${kept}`)) remove.mutate(lesson);
+    if (await confirm(`حذف ${formatAyahRange(lesson.startRef, lesson.endRef)} وتسجيلها؟${kept}`)) remove.mutate(lesson);
   };
   const setNumber = (set: (n: number) => void) => (e: React.ChangeEvent<HTMLInputElement>) => { set(Math.floor(Number(e.target.value))); setNotice(''); };
 

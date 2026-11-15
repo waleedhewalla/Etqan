@@ -1,7 +1,7 @@
 import type { AdminRole } from '@/lib/api';
 
 export const ROLE_LABEL: Record<AdminRole, string> = {
-  student: 'طالبة', mahram: 'ولي أمر', lecturer: 'معلمة', muhaffiza: 'محفّظة', sheikh_reviewer: 'شيخة مراجِعة', advisor: 'مرشدة', dean: 'عميدة',
+  student: 'طالبة', mahram: 'ولي أمر', lecturer: 'معلمة', muhaffiza: 'محفّظة', sheikh_reviewer: 'شيخة مراجِعة', advisor: 'مرشدة', dean: 'عميد',
   alumna: 'خريجة', committee_member: 'عضو لجنة', sama_committee_member: 'عضو لجنة السماع',
 };
 

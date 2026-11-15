@@ -8,6 +8,7 @@ import { api, errorMessage, type Cluster } from '@/lib/api';
 import { SURAH_NAMES, toArabicDigits } from '@/lib/quran';
 import { ClusterCompare } from '@/components/ClusterCompare';
 import { LoadError, Spinner } from '@/components/LoadState';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 const APPROVER_ROLES = ['sheikh_reviewer', 'dean', 'advisor', 'operator', 'superadmin'];
 const SOURCES: { value: Cluster['source']; label: string }[] = [
@@ -22,6 +23,7 @@ interface Row { sura: number; ayah: number }
 
 /** Teachers propose groups of look-alike verses; a scholar (or administrator) approves them before students see them. */
 export function MutashabihatAuthoring({ role }: { role: string }) {
+  const confirm = useConfirm();
   const queryClient = useQueryClient();
   const canApprove = APPROVER_ROLES.includes(role);
   const [rows, setRows] = useState<Row[]>([{ sura: 2, ayah: 1 }, { sura: 3, ayah: 1 }]);
@@ -60,7 +62,7 @@ export function MutashabihatAuthoring({ role }: { role: string }) {
                 <span className="flex gap-2">
                   {canApprove && <Button size="sm" onClick={() => review.mutate({ id: c.id, d: 'approved' })} loading={review.isPending}>اعتماد</Button>}
                   {canApprove && <Button size="sm" variant="outline" onClick={() => review.mutate({ id: c.id, d: 'rejected' })}>رفض</Button>}
-                  <Button size="sm" variant="ghost" onClick={() => { if (window.confirm('حذف هذا الاقتراح؟')) remove.mutate(c.id); }}>حذف</Button>
+                  <Button size="sm" variant="ghost" onClick={async () => { if (await confirm('حذف هذا الاقتراح؟')) remove.mutate(c.id); }}>حذف</Button>
                 </span>
               )}
               {!actions && canApprove && (

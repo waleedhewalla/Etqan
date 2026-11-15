@@ -153,6 +153,20 @@ export function errorHandler(
     });
   }
 
+  // A column or table the code expects is not in the database: the database is behind the code.
+  // Said plainly, so the screens can tell people what to do instead of a vague "could not load".
+  const pg = error as { code?: string };
+  if (pg.code === '42703' || pg.code === '42P01') {
+    return reply.code(503).send({
+      type: 'https://itqan.link/errors/database_out_of_date',
+      title: 'Database out of date',
+      status: 503,
+      detail: 'The database is behind the code. Run the migrations (pnpm db:migrate) and restart the server.',
+      instance: request.url,
+      code: 'DATABASE_OUT_OF_DATE',
+    });
+  }
+
   // Zod validation error
   if (error instanceof z.ZodError) {
     const validationError = formatZodError(error);
