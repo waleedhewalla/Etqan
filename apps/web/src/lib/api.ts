@@ -697,7 +697,7 @@ export function errorMessage(err: unknown, fallback = 'حدث خطأ، حاول�
   if (code === 'CONSENT_REQUIRED') return 'نحتاج موافقتكِ على تسجيل الصوت أولاً.';
   if (e?.response?.status === 413) return 'التسجيل كبير جداً. سجّلي مقطعاً أقصر.';
   if (e?.response?.status === 415) return 'تعذّر قبول هذا التسجيل. جرّبي متصفحاً آخر.';
-  if (code === 'MODULE_DISABLED') return 'هذه الوحدة موقوفة في مؤسستكم. تواصلي مع العميدة.';
+  if (code === 'MODULE_DISABLED') return 'هذه الوحدة موقوفة في مؤسستكم. تواصلي مع العميد.';
   if (code === 'RECORDING_NOT_ALLOWED') return 'تسجيل الدروس غير مسموح به في مؤسستكم.';
   if (code === 'RETEST_TOO_SOON') return 'لا يُعاد الاختبار قبل مضي أسبوع العلاج. يظهر أول يوم للإعادة في بطاقة الطالبة.';
   if (code === 'LESSON_NOT_STARTED') return 'لم يبدأ الدرس بعد. ستبدأ المعلمة الدرس في موعده.';

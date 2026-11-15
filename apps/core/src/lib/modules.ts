@@ -98,7 +98,7 @@ export const MODULES: ModuleDef[] = [
   },
   {
     key: 'mutashabihat', labelAr: 'المتشابهات',
-    descriptionAr: 'تدريب على الآيات المتشابهة، ويمكن للمعلمة والعميدة إضافة مجموعات.', settings: [], routes: [/^\/mutashabihat(\/|$)/],
+    descriptionAr: 'تدريب على الآيات المتشابهة، ويمكن للمعلمة والعميد إضافة مجموعات.', settings: [], routes: [/^\/mutashabihat(\/|$)/],
   },
   {
     key: 'attendance', labelAr: 'الحضور', descriptionAr: 'تسجيل حضور الطالبات، وتنبيه أولياء أمور الغائبات.',
